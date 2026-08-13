@@ -1,0 +1,28 @@
+name: Task
+description: Project で管理する作業タスク
+title: "[Task] "
+labels:
+  - task
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的
+      description: このタスクで達成したいことを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 完了条件
+      description: 完了と判断できる条件をチェックリストで書いてください。
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: メモ・参考資料
+      description: 関連URLや補足があれば記載してください。
+
