@@ -102,7 +102,7 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) },
+      value: { writeText: vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error("denied")) },
     });
     render(<StayBridgeApp />);
 

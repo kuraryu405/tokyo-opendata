@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": { "browser": true, "node": true, "vitest": true },
+  "plugins": ["eslint", "typescript", "react", "react-perf", "nextjs", "jsx-a11y", "vitest"],
+  "ignorePatterns": [".next/**", "dist/**", ".vinext/**", "coverage/**"],
+  "options": { "denyWarnings": true, "reportUnusedDisableDirectives": "error" }
+}

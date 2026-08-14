@@ -29,6 +29,13 @@ npm test
 npm run build
 ```
 
+## Contributors ✨
+
+Thanks to everyone who has contributed code through a merged pull request.
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
 ## 翻訳モック
 
 日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
@@ -52,3 +59,4 @@ StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就
 - [プロダクト概要](docs/product-overview.md) / [要件](docs/requirements.md) / [実装仕様](docs/specification.md)
 - [アーキテクチャ](docs/architecture.md) / [ルール](docs/rule-engine.md) / [Open Data戦略](docs/open-data-strategy.md)
 - [安全とプライバシー](docs/safety-and-privacy.md) / [2分デモ](docs/demo-script.md)
+- [CI・外部E2E連携](docs/ci-and-e2e.md)
