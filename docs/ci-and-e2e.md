@@ -1,6 +1,6 @@
 # CI and E2E
 
-Every pull request and push to `main` runs `npm run lint`, `npm run typecheck`, and `npm test` through the **CI** workflow.
+Every pull request and push to `main` runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` through the **CI** workflow.
 
 ## Separate Playwright repository
 

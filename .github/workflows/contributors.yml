@@ -24,6 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: pnpm/action-setup@v4
       - name: Add the merged PR author to All Contributors
         env:
           GITHUB_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
@@ -32,8 +33,8 @@ jobs:
             echo "CONTRIBUTOR_AUTOMATION_TOKEN must be configured before contributor recognition can run." >&2
             exit 1
           fi
-          npm exec --yes --package=all-contributors-cli -- all-contributors add "$CONTRIBUTOR" code
-          npm exec --yes --package=all-contributors-cli -- all-contributors generate
+          pnpm dlx all-contributors-cli all-contributors add "$CONTRIBUTOR" code
+          pnpm dlx all-contributors-cli all-contributors generate
       - name: Open a recognition pull request
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}

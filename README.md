@@ -21,12 +21,12 @@ Node.js 22.13 以上が必要です。
 技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログイン・AI APIを必要としません。
 
 ```bash
-npm install
-npm run dev
-npm run lint
-npm run typecheck
-npm test
-npm run build
+pnpm install --frozen-lockfile
+pnpm dev
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
 ```
 
 ## Contributors ✨

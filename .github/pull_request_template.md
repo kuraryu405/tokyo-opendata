@@ -4,9 +4,9 @@
 
 ## Checks
 
-- [ ] I ran `npm run lint`.
-- [ ] I ran `npm run typecheck`.
-- [ ] I ran `npm test`.
+- [ ] I ran `pnpm lint`.
+- [ ] I ran `pnpm typecheck`.
+- [ ] I ran `pnpm test`.
 - [ ] I updated documentation, tests, or both where the change needs it.
 
 ## E2E handoff
