@@ -1,0 +1,23 @@
+{
+  "sourceId": "TOKYO_FOREIGN_POPULATION_2026_01",
+  "fetchedAt": "2026-08-14",
+  "dataUpdatedAt": "2026-01-01",
+  "records": [
+    {
+      "municipalityCode": "13117",
+      "municipalityName": "Kita",
+      "targetNationality": "Myanmar",
+      "residentPopulation": 3540,
+      "raw": {
+        "地域階層": "4",
+        "地域コード": "13117",
+        "国・地域(人)": "北区",
+        "ミャンマー": "3540"
+      }
+    }
+  ],
+  "coverageNotes": [
+    "This is a Resident Basic Register statistic and does not fully represent short-term visitors or people stranded during a crisis.",
+    "The cache intentionally includes only the Kita City / Myanmar demonstration row."
+  ]
+}
