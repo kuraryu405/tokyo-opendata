@@ -9,10 +9,11 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "vitest run --config vitest.config.ts && npm run test:rendered",
-    "test:rendered": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "vitest run --config vitest.config.ts && pnpm run test:rendered",
+    "test:rendered": "pnpm run build && node --test tests/rendered-html.test.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "lint": "oxlint --deny-warnings",
+    "lint:fix": "oxlint --fix",
     "data:fetch": "tsx scripts/fetch-open-data.ts"
   },
   "dependencies": {
@@ -31,9 +32,8 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
-    "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
     "jsdom": "^30.0.1",
+    "oxlint": "^1.78.0",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "tsx": "^4.23.12",
@@ -43,5 +43,6 @@
     "vitest": "^4.1.10",
     "wrangler": "4.92.0"
   },
-  "type": "module"
+  "type": "module",
+  "packageManager": "pnpm@10.15.1"
 }

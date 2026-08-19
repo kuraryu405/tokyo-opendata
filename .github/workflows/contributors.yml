@@ -1,0 +1,54 @@
+name: Recognize contributors
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  add-contributor:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    env:
+      CONTRIBUTOR_AUTOMATION_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+      CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
+      SOURCE_PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+      - name: Add the merged PR author to All Contributors
+        env:
+          GITHUB_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$CONTRIBUTOR_AUTOMATION_TOKEN" ]; then
+            echo "CONTRIBUTOR_AUTOMATION_TOKEN must be configured before contributor recognition can run." >&2
+            exit 1
+          fi
+          pnpm dlx all-contributors-cli all-contributors add "$CONTRIBUTOR" code
+          pnpm dlx all-contributors-cli all-contributors generate
+      - name: Open a recognition pull request
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+        run: |
+          git diff --quiet && exit 0
+          branch="chore/recognize-${CONTRIBUTOR}-${SOURCE_PR}"
+          git switch -c "$branch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .all-contributorsrc README.md
+          git commit -m "docs: recognize ${CONTRIBUTOR} as a contributor"
+          git push --set-upstream origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "docs: recognize ${CONTRIBUTOR} as a contributor" \
+            --body "Recognizes @${CONTRIBUTOR} for the merged source PR #${SOURCE_PR}."

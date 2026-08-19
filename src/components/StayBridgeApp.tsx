@@ -517,7 +517,7 @@ export function StayBridgeApp() {
     <div className={`app-shell locale-${locale}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
       <Header locale={locale} setLocale={setLocale} screen={screen} go={go} />
-      {storageError && <div className="app-alert" role="status">{t.storageError}</div>}
+      {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
         {screen === "check" && (
