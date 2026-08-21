@@ -206,4 +206,32 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: /相談先へ進む/ }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
   });
+
+  it("returns home from every primary destination with a localized control", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    for (const destination of ["わたしのステップ", "近くの支援", "相談先"]) {
+      await user.click(screen.getByRole("button", { name: destination }));
+      await user.click(screen.getByRole("button", { name: "StayBridge Tokyo · ホーム" }));
+      expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+    }
+
+    await user.click(screen.getByRole("button", { name: "相談先" }));
+    await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
+    await user.click(screen.getByRole("button", { name: "StayBridge Tokyo · ホーム" }));
+    expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+    const home = screen.getByRole("button", { name: "StayBridge Tokyo · ホーム" });
+    home.focus();
+    expect(document.activeElement).toBe(home);
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+
+    await user.selectOptions(screen.getByRole("combobox"), "en");
+    expect(screen.getByRole("button", { name: "StayBridge Tokyo · Home" })).toBeTruthy();
+    await user.selectOptions(screen.getByRole("combobox"), "my");
+    expect(screen.getByRole("button", { name: "StayBridge Tokyo · ပင်မ" })).toBeTruthy();
+  });
 });

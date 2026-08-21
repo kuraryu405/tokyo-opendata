@@ -46,6 +46,7 @@ function currentTokyoDate(): string {
 const copy = {
   ja: {
     skip: "本文へ移動",
+    home: "ホーム",
     navSteps: "わたしのステップ",
     navLocal: "近くの支援",
     navHelp: "相談先",
@@ -119,6 +120,7 @@ const copy = {
   },
   en: {
     skip: "Skip to content",
+    home: "Home",
     navSteps: "My steps",
     navLocal: "Local support",
     navHelp: "Get help",
@@ -192,6 +194,7 @@ const copy = {
   },
   my: {
     skip: "အကြောင်းအရာသို့ သွားရန်",
+    home: "ပင်မ",
     navSteps: "ကျွန်ုပ်၏ အဆင့်များ",
     navLocal: "အနီးအနား အကူအညီ",
     navHelp: "အကူအညီ",
@@ -540,7 +543,7 @@ export function StayBridgeApp() {
 function Header({ locale, setLocale, screen, go }: { locale: Locale; setLocale: (l: Locale) => void; screen: Screen; go: (s: Screen) => void }) {
   const t = copy[locale];
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label="StayBridge Tokyo home"><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></button>
+    <button className="brand" onClick={() => go("landing")} aria-label={`StayBridge Tokyo · ${t.home}`}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.home}</span></button>
     <nav aria-label="Primary">
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
