@@ -163,6 +163,39 @@ describe("StayBridge client flow", () => {
     expect(await screen.findByRole("heading", { name: "国籍・地域を教えてください。" })).toBeTruthy();
   });
 
+  it("does not render internal unknown defaults as selected answers", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...createInitialSituation(), currentMunicipality: "Kita", nationality: "MMR" },
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1],
+    }));
+    window.history.replaceState(null, "", "/?screen=check&step=2");
+    render(<StayBridgeApp />);
+
+    expect((await screen.findByRole("radio", { name: "分からない / 答えたくない" })).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("radio", { name: "旅行" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("radio", { name: "7日以内" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("radio", { name: "帰国できる" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("radio", { name: "書類を確認したい" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    await user.click(screen.getByRole("checkbox", { name: "いない" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "答えたくない" }).getAttribute("aria-checked")).toBe("false");
+    await user.click(screen.getByRole("radio", { name: "家族・知人の家" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    await user.click(screen.getByRole("checkbox", { name: "相談先" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "ほとんど話せない" }).getAttribute("aria-checked")).toBe("false");
+  });
+
   it("does not re-enter the previous assessment flow from history after start over", async () => {
     const user = userEvent.setup();
     render(<StayBridgeApp />);
