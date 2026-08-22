@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { demoSituation } from "@/src/domain/demo";
 import { generateActions } from "@/src/domain/rules";
 import type { Action, NeedCategory, Situation } from "@/src/domain/types";
 import {
@@ -25,6 +23,68 @@ import {
 type Screen = "landing" | "check" | "status" | "roadmap" | "local" | "help" | "summary";
 type CopyState = "idle" | "copied" | "error";
 type LocalFilter = "all" | "school" | "medical" | "child_support" | "public_facility";
+type AppRoute = { screen: Screen; step: number; filter?: LocalFilter; flowId?: string };
+type AppHistoryState = { staybridge?: AppRoute };
+
+const screenNames: Screen[] = ["landing", "check", "status", "roadmap", "local", "help", "summary"];
+const localFilters: LocalFilter[] = ["all", "school", "medical", "child_support", "public_facility"];
+
+function getHistoryScreen(state: unknown) {
+  const route = (state as AppHistoryState | null)?.staybridge;
+  if (!route || !screenNames.includes(route.screen)) return null;
+  const filter = route.screen === "local" && localFilters.includes(route.filter as LocalFilter) ? route.filter as LocalFilter : undefined;
+  const flowId = typeof route.flowId === "string" ? route.flowId : undefined;
+  return { screen: route.screen, step: Number.isInteger(route.step) && route.step >= 0 && route.step <= 9 ? route.step : 0, filter, flowId };
+}
+
+function getUrlScreen(href: string): AppRoute | null {
+  const url = new URL(href);
+  const screen = url.searchParams.get("screen");
+  if (!screen || !screenNames.includes(screen as Screen)) return null;
+  const step = Number(url.searchParams.get("step"));
+  const requestedFilter = url.searchParams.get("filter");
+  const filter = screen === "local" && localFilters.includes(requestedFilter as LocalFilter) ? requestedFilter as LocalFilter : undefined;
+  return { screen: screen as Screen, step: Number.isInteger(step) && step >= 0 && step <= 9 ? step : 0, filter };
+}
+
+function getFirstUnansweredStep(answeredSteps: number[]) {
+  return Array.from({ length: 10 }, (_, index) => index).find((step) => !answeredSteps.includes(step)) ?? 0;
+}
+
+function normalizeRoute(route: AppRoute, answeredSteps: number[]): AppRoute {
+  const complete = isAssessmentComplete(answeredSteps);
+  const firstUnansweredStep = getFirstUnansweredStep(answeredSteps);
+  if (route.screen === "check") {
+    return { screen: "check", step: complete ? route.step : Math.min(route.step, firstUnansweredStep) };
+  }
+  if (!complete && route.screen !== "landing") return { screen: "check", step: firstUnansweredStep };
+  if (route.screen === "local") return { ...route, filter: route.filter ?? "all" };
+  return route;
+}
+
+function getHistoryUrl(route: AppRoute, href: string) {
+  const url = new URL(href);
+  if (route.screen === "landing") {
+    url.searchParams.delete("screen");
+    url.searchParams.delete("step");
+    url.searchParams.delete("filter");
+  } else {
+    url.searchParams.set("screen", route.screen);
+    if (route.screen === "check") url.searchParams.set("step", String(route.step));
+    else url.searchParams.delete("step");
+    if (route.screen === "local") url.searchParams.set("filter", route.filter ?? "all");
+    else url.searchParams.delete("filter");
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function routesMatch(left: AppRoute | null, right: AppRoute) {
+  return left?.screen === right.screen && left.step === right.step && left.filter === right.filter;
+}
+
+function createFlowId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
   CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
@@ -48,6 +108,7 @@ const copy = {
     skip: "本文へ移動",
     home: "ホーム",
     navSteps: "わたしのステップ",
+    brandToSteps: "わたしのステップへ戻る",
     navLocal: "近くの支援",
     navHelp: "相談先",
     crisis: "行政・支援者向け Preparedness View",
@@ -63,6 +124,7 @@ const copy = {
     privacyTitle: "答えるのは、次の行動に必要なことだけです",
     privacyText: "氏名、パスポート番号、在留カード番号、正確な住所、政治や迫害に関する事情は入力しません。回答はこの端末のセッション内だけに保存されます。",
     back: "戻る",
+    backToTop: "トップページへ戻る",
     next: "次へ",
     finish: "状況を整理する",
     selectMany: "あてはまるものをすべて選べます",
@@ -71,15 +133,15 @@ const copy = {
     reviewedIntro: "まず、滞在についての公式な確認と、当面の生活に必要な情報を順番に見ていきます。",
     seeRoadmap: "次のステップを見る",
     answerAgain: "回答を見直す",
+    restart: "最初からやり直す",
+    restartPrompt: "気に入らないですか？",
+    loading: "次のステップを準備しています",
     roadmapTitle: "あなたの次のステップ",
-    roadmapIntro: "重要な順に並べました。すべてを今日終える必要はありません。",
     why: "なぜこの案内？",
     source: "根拠となる情報",
     verified: "確認日",
     human: "個別の確認が必要",
     localTitle: "この地域で確認できる場所",
-    localIntro: "あなたの状況に関係する公共資源を、公開データから表示しています。利用条件や受入可否は各窓口に確認してください。",
-    localFallback: "正確な位置情報を使わず、選択した自治体の施設を表示しています。",
     all: "すべて",
     school: "学校・教育",
     medical: "医療",
@@ -89,8 +151,6 @@ const copy = {
     sourceLabel: "Open Data source",
     updated: "データ更新",
     unavailable: "公開日不明",
-    backToRoadmap: "ステップへ戻る",
-    continueToHelp: "相談先へ進む",
     schoolNote: "入学・就学については自治体または教育機関への確認が必要です。",
     noResources: "この地域は現在、StayBridgeのMVPでは詳細な地域データに対応していません。",
     helpTitle: "人に相談する",
@@ -106,9 +166,7 @@ const copy = {
     copied: "コピーしました",
     print: "印刷する",
     showMode: "相談員に見せる",
-    clear: "この端末のデータを消す",
     emergency: "生命や身体に差し迫った危険がある場合は、このサービスではなく110または119へ連絡してください。",
-    footer: "情報ではなく、次の一歩。",
     principleTitles: ["状況を整理", "次のステップ", "地域で行動"],
     principleBodies: ["制度名を知らなくても、今の状況を一問ずつ整理。", "今日、今週、その先に確認することを順番に提示。", "Open Dataから、地域で確認する意味のある場所へ。"],
     ageLabel: "子どもの年齢",
@@ -122,6 +180,7 @@ const copy = {
     skip: "Skip to content",
     home: "Home",
     navSteps: "My steps",
+    brandToSteps: "Go to my steps",
     navLocal: "Local support",
     navHelp: "Get help",
     crisis: "Preparedness View for public teams",
@@ -137,6 +196,7 @@ const copy = {
     privacyTitle: "Only answer what is needed for your next steps",
     privacyText: "We do not ask for your name, passport or residence card number, exact address, political views, or persecution history. Answers stay in this browser session.",
     back: "Back",
+    backToTop: "Back to home",
     next: "Next",
     finish: "Organize my situation",
     selectMany: "Select all that apply",
@@ -145,15 +205,15 @@ const copy = {
     reviewedIntro: "First, confirm your stay with an official source. Then work through the practical information you may need.",
     seeRoadmap: "See my next steps",
     answerAgain: "Review answers",
+    restart: "Start over",
+    restartPrompt: "If this guidance does not fit",
+    loading: "Preparing your next steps",
     roadmapTitle: "Your next steps",
-    roadmapIntro: "Shown in priority order. You do not need to finish everything today.",
     why: "Why am I seeing this?",
     source: "Supporting source",
     verified: "Verified",
     human: "Individual review needed",
     localTitle: "Places to check in this area",
-    localIntro: "Public resources relevant to your situation, drawn from open data. Ask each office about eligibility and availability.",
-    localFallback: "Showing facilities by municipality without using precise location.",
     all: "All",
     school: "Schools & education",
     medical: "Medical",
@@ -163,8 +223,6 @@ const copy = {
     sourceLabel: "Open Data source",
     updated: "Data updated",
     unavailable: "Not published",
-    backToRoadmap: "Back to my steps",
-    continueToHelp: "Continue to support",
     schoolNote: "Ask the municipality or education authority about enrollment and attendance.",
     noResources: "Detailed local data for this area is not yet covered by the StayBridge MVP.",
     helpTitle: "Talk to a person",
@@ -180,9 +238,7 @@ const copy = {
     copied: "Copied",
     print: "Print",
     showMode: "Show to a support worker",
-    clear: "Clear data on this device",
     emergency: "If there is an immediate threat to life or safety, contact 110 or 119 instead of using this service.",
-    footer: "Not more information. Your next step.",
     principleTitles: ["Situation", "Next steps", "Local action"],
     principleBodies: ["Organize your situation one question at a time without knowing official terms.", "See what to check today, this week, and after that in a clear order.", "Use open data to find relevant places to check in your municipality."],
     ageLabel: "Child age",
@@ -196,6 +252,7 @@ const copy = {
     skip: "အကြောင်းအရာသို့ သွားရန်",
     home: "ပင်မ",
     navSteps: "ကျွန်ုပ်၏ အဆင့်များ",
+    brandToSteps: "ကျွန်ုပ်၏ အဆင့်များသို့ ပြန်သွားရန်",
     navLocal: "အနီးအနား အကူအညီ",
     navHelp: "အကူအညီ",
     crisis: "အုပ်ချုပ်ရေးနှင့် ကူညီသူများအတွက် Preparedness View",
@@ -211,6 +268,7 @@ const copy = {
     privacyTitle: "နောက်တစ်ဆင့်အတွက် လိုအပ်သလောက်သာ ဖြေပါ",
     privacyText: "အမည်၊ နိုင်ငံကူးလက်မှတ်နံပါတ်၊ နေထိုင်ခွင့်ကတ်နံပါတ်၊ လိပ်စာအတိအကျ၊ နိုင်ငံရေးအမြင် သို့မဟုတ် ဖိနှိပ်မှုအကြောင်း မမေးပါ။ အဖြေများကို ဤ browser session တွင်သာ သိမ်းထားပါသည်။",
     back: "နောက်သို့",
+    backToTop: "ပင်မစာမျက်နှာသို့ ပြန်ရန်",
     next: "ရှေ့သို့",
     finish: "အခြေအနေ စီစဉ်ရန်",
     selectMany: "သက်ဆိုင်သမျှ ရွေးနိုင်သည်",
@@ -219,15 +277,15 @@ const copy = {
     reviewedIntro: "ဦးစွာ နေထိုင်ခွင့်အခြေအနေကို တရားဝင်ဌာနတွင် အတည်ပြုပြီး နေ့စဉ်ဘဝအတွက် လိုအပ်ချက်များကို တစ်ဆင့်ချင်းကြည့်ပါ။",
     seeRoadmap: "နောက်အဆင့်များ ကြည့်ရန်",
     answerAgain: "အဖြေများ ပြန်ကြည့်ရန်",
+    restart: "အစမှ ပြန်စရန်",
+    restartPrompt: "ဤလမ်းညွှန်ချက် မကိုက်ညီပါက",
+    loading: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်",
     roadmapTitle: "သင့်နောက်အဆင့်များ",
-    roadmapIntro: "ဦးစားပေးအစဉ်အတိုင်း ပြထားပါသည်။ ယနေ့ အားလုံးပြီးရန် မလိုပါ။",
     why: "ဘာကြောင့် ဒီအချက်ကို ပြတာလဲ",
     source: "အချက်အလက်ရင်းမြစ်",
     verified: "စစ်ဆေးသည့်ရက်",
     human: "တစ်ဦးချင်း စစ်ဆေးရန်လို",
     localTitle: "ဤဒေသတွင် စစ်ဆေးနိုင်သော နေရာများ",
-    localIntro: "သင့်အခြေအနေနှင့် သက်ဆိုင်သည့် အများပြည်သူဆိုင်ရာအရင်းအမြစ်များကို open data မှ ပြထားပါသည်။ အသုံးပြုနိုင်မှုကို သက်ဆိုင်ရာဌာနသို့ မေးမြန်းပါ။",
-    localFallback: "တည်နေရာအတိအကျ မသုံးဘဲ မြို့နယ်အလိုက် ပြထားပါသည်။",
     all: "အားလုံး",
     school: "ကျောင်းနှင့် ပညာရေး",
     medical: "ဆေးဘက်ဆိုင်ရာ",
@@ -237,8 +295,6 @@ const copy = {
     sourceLabel: "Open Data ရင်းမြစ်",
     updated: "ဒေတာအသစ်ပြင်ဆင်ချိန်",
     unavailable: "ထုတ်ပြန်ရက် မရှိပါ",
-    backToRoadmap: "အဆင့်များသို့ ပြန်ရန်",
-    continueToHelp: "တိုင်ပင်ရာသို့ ဆက်သွားရန်",
     schoolNote: "ကျောင်းတက်နိုင်မှုကို မြို့နယ် သို့မဟုတ် ပညာရေးဌာနသို့ အတည်ပြုပါ။",
     noResources: "StayBridge MVP တွင် ဤဒေသ၏ အသေးစိတ်ဒေတာ မပါသေးပါ။",
     helpTitle: "လူတစ်ဦးနှင့် တိုင်ပင်ရန်",
@@ -254,9 +310,7 @@ const copy = {
     copied: "ကူးယူပြီး",
     print: "ပုံနှိပ်ရန်",
     showMode: "ကူညီသူအား ပြရန်",
-    clear: "ဤစက်ရှိဒေတာ ဖျက်ရန်",
     emergency: "အသက် သို့မဟုတ် ကိုယ်ခန္ဓာအန္တရာယ် အရေးပေါ်ဖြစ်လျှင် ဤဝန်ဆောင်မှုအစား 110 သို့မဟုတ် 119 ကို ဆက်သွယ်ပါ။",
-    footer: "အချက်အလက်ထက် နောက်တစ်ဆင့်။",
     principleTitles: ["အခြေအနေ", "နောက်အဆင့်များ", "ဒေသတွင်းလုပ်ဆောင်ချက်"],
     principleBodies: ["တရားဝင်အသုံးအနှုန်းများ မသိလည်း မေးခွန်းတစ်ခုချင်းဖြင့် အခြေအနေကို စီစဉ်နိုင်သည်။", "ယနေ့၊ ယခုအပတ်နှင့် နောက်ပိုင်း စစ်ဆေးရမည့်အချက်များကို အစဉ်လိုက်ကြည့်နိုင်သည်။", "Open Data ဖြင့် မိမိမြို့နယ်တွင် စစ်ဆေးသင့်သည့်နေရာများကို ရှာနိုင်သည်။"],
     ageLabel: "ကလေးအသက်",
@@ -416,30 +470,88 @@ export function StayBridgeApp() {
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [summaryDate, setSummaryDate] = useState("");
   const [localFilter, setLocalFilter] = useState<LocalFilter>("all");
+  const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [assessmentDate] = useState(currentTokyoDate);
   const skipNextSessionWrite = useRef(false);
+  const completionTimer = useRef<number | undefined>(undefined);
+  const answeredStepsRef = useRef(answeredSteps);
+  const localeRef = useRef(locale);
+  const screenRef = useRef(screen);
+  const flowIdRef = useRef("");
+  answeredStepsRef.current = answeredSteps;
+  localeRef.current = locale;
+  screenRef.current = screen;
   const t = copy[locale];
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const storedLocale = readStoredLocale(localStorage.getItem("staybridge.locale"));
-        if (storedLocale) setLocale(storedLocale);
-        const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
-        if (storedSession) {
-          setSituation(storedSession.situation);
-          setStayAnswer(storedSession.stayAnswer);
-          setFamilyAnswers(storedSession.familyAnswers);
-          setAnsweredSteps(storedSession.answeredSteps);
-        }
-      } catch {
-        setStorageError(true);
-      } finally {
-        setStorageReady(true);
+    try {
+      const storedLocale = readStoredLocale(localStorage.getItem("staybridge.locale"));
+      if (storedLocale) setLocale(storedLocale);
+      const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
+      if (storedSession) {
+        setSituation(storedSession.situation);
+        setStayAnswer(storedSession.stayAnswer);
+        setFamilyAnswers(storedSession.familyAnswers);
+        setAnsweredSteps(storedSession.answeredSteps);
       }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setStorageError(true);
+    } finally {
+      setStorageReady(true);
+    }
   }, []);
+
+  useEffect(() => () => {
+    if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    const restoreScreen = (state: unknown) => {
+      const storedRoute = getHistoryScreen(state);
+      const urlRoute = getUrlScreen(window.location.href);
+      if (!flowIdRef.current) flowIdRef.current = storedRoute?.flowId ?? createFlowId();
+      const requestedRoute = urlRoute
+        ? { ...urlRoute, flowId: storedRoute && routesMatch(storedRoute, urlRoute) ? storedRoute.flowId : undefined }
+        : storedRoute ?? { screen: "landing" as const, step: 0 };
+      const route = { ...normalizeRoute(requestedRoute, answeredStepsRef.current), flowId: flowIdRef.current };
+      const historyUrl = getHistoryUrl(route, window.location.href);
+      if (!routesMatch(storedRoute, route) || storedRoute?.flowId !== route.flowId || `${window.location.pathname}${window.location.search}${window.location.hash}` !== historyUrl) {
+        const baseState = state && typeof state === "object" ? state : {};
+        window.history.replaceState({ ...baseState, staybridge: route }, "", historyUrl);
+      }
+      setScreen(route.screen);
+      setStep(route.screen === "check" ? route.step : 0);
+      if (route.screen === "local") setLocalFilter(route.filter ?? "all");
+      if (route.screen === "summary") setSummaryDate(new Date().toLocaleDateString(localeRef.current === "my" ? "en" : localeRef.current));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    restoreScreen(window.history.state);
+    const handlePopState = (event: PopStateEvent) => {
+      if (completionTimer.current !== undefined) {
+        window.clearTimeout(completionTimer.current);
+        completionTimer.current = undefined;
+        setIsPreparingResults(false);
+      }
+      const storedRoute = getHistoryScreen(event.state);
+      if (storedRoute?.flowId && storedRoute.flowId !== flowIdRef.current) {
+        const route = { screen: "landing" as const, step: 0, flowId: flowIdRef.current };
+        const baseState = event.state && typeof event.state === "object" ? event.state : {};
+        window.history.replaceState({ ...baseState, staybridge: route }, "", getHistoryUrl(route, window.location.href));
+        if (screenRef.current === "landing") {
+          window.history.back();
+          return;
+        }
+        setScreen("landing");
+        setStep(0);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      restoreScreen(event.state);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [storageReady]);
 
   useEffect(() => {
     document.documentElement.lang = locale === "my" ? "my" : locale;
@@ -475,116 +587,130 @@ export function StayBridgeApp() {
     });
   }, [situation.currentMunicipality, localFilter]);
 
+  const writeHistory = (next: Screen, nextStep: number, filter?: LocalFilter, mode?: "push" | "replace") => {
+    if (!flowIdRef.current) flowIdRef.current = createFlowId();
+    const currentState = window.history.state;
+    const baseState = currentState && typeof currentState === "object" ? currentState : {};
+    const route = { screen: next, step: nextStep, filter: next === "local" ? filter ?? "all" : undefined, flowId: flowIdRef.current };
+    const currentRoute = getUrlScreen(window.location.href) ?? getHistoryScreen(currentState);
+    const historyMode = mode ?? (routesMatch(currentRoute, route) ? "replace" : "push");
+    window.history[`${historyMode}State`]({ ...baseState, staybridge: route }, "", getHistoryUrl(route, window.location.href));
+  };
+
+  const go = (next: Screen, nextStep = next === "check" ? step : 0, filter = next === "local" ? localFilter : undefined) => {
+    if (next === "summary") setSummaryDate(new Date().toLocaleDateString(locale === "my" ? "en" : locale));
+    writeHistory(next, nextStep, filter);
+    setScreen(next);
+    if (next === "check") setStep(nextStep);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goToQuestion = (nextStep: number) => {
+    writeHistory("check", nextStep);
+    setStep(nextStep);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const complete = () => {
-    setScreen("status");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (completionTimer.current !== undefined) return;
+    if (!isAssessmentComplete(answeredSteps)) {
+      go("check", getFirstUnansweredStep(answeredSteps));
+      return;
+    }
+    setIsPreparingResults(true);
+    completionTimer.current = window.setTimeout(() => {
+      completionTimer.current = undefined;
+      setIsPreparingResults(false);
+      go("status");
+    }, 650);
   };
 
-  const loadDemo = () => {
-    setSituation(demoSituation);
-    setStayAnswer("unknown");
-    setFamilyAnswers(["children"]);
-    setAnsweredSteps(Array.from({ length: 10 }, (_, index) => index));
-    setScreen("status");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const clearData = () => {
-    skipNextSessionWrite.current = true;
+  const restartAssessment = () => {
     try {
       sessionStorage.removeItem("staybridge.session");
+      skipNextSessionWrite.current = true;
     } catch {
+      skipNextSessionWrite.current = false;
       setStorageError(true);
     }
     setSituation(createInitialSituation());
     setStayAnswer("unknown");
     setFamilyAnswers([]);
     setAnsweredSteps([]);
-    setStep(0);
-    setScreen("landing");
-  };
-
-  const go = (next: Screen) => {
-    if (next === "summary") setSummaryDate(new Date().toLocaleDateString(locale === "my" ? "en" : locale));
-    setScreen(next);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setLocalFilter("all");
+    setCopyState("idle");
+    setSummaryDate("");
+    flowIdRef.current = createFlowId();
+    go("check", 0);
   };
 
   const openAction = (actionId: string) => {
     const destination = actionDestinations[actionId] ?? { screen: "help" as const };
     if (destination.filter) setLocalFilter(destination.filter);
-    go(destination.screen);
+    go(destination.screen, 0, destination.filter);
   };
 
+  const changeLocalFilter = (filter: LocalFilter) => {
+    setLocalFilter(filter);
+    writeHistory("local", 0, filter, "replace");
+  };
+
+  if (!storageReady) return <div className="app-shell session-restore" aria-busy="true"><span className="sr-only">Loading</span></div>;
+
   return (
-    <div className={`app-shell locale-${locale}`}>
+    <div className={`app-shell locale-${locale} ${screen === "landing" ? "landing-screen" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} setLocale={setLocale} screen={screen} go={go} />
+      <Header locale={locale} setLocale={setLocale} screen={screen} hasCompletedAssessment={assessmentComplete} isPreparingResults={isPreparingResults} go={go} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
+        {isPreparingResults ? <LoadingState t={t} /> : <>
+        {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check", 0)} />}
         {screen === "check" && (
-          <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} finish={complete} />
+          <SituationCheck locale={locale} t={t} step={step} goToQuestion={goToQuestion} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} backToLanding={() => go("landing")} restart={restartAssessment} finish={complete} />
         )}
         {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
-        {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} go={go} openAction={openAction} />}
-        {screen === "local" && <LocalAction t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
+        {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} restart={assessmentComplete ? restartAssessment : undefined} openAction={openAction} />}
+        {screen === "local" && <LocalAction t={t} resources={availableResources} filter={localFilter} setFilter={changeLocalFilter} />}
         {screen === "help" && <HumanSupport t={t} locale={locale} summary={() => go("summary")} />}
         {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
+        </>}
       </main>
-      <footer className="site-footer">
-        <div><span className="brand-mark">SB</span><strong>StayBridge Tokyo</strong><p>{t.footer}</p></div>
-        <button className="text-button" onClick={clearData}>{t.clear}</button>
-      </footer>
     </div>
   );
 }
 
-function Header({ locale, setLocale, screen, go }: { locale: Locale; setLocale: (l: Locale) => void; screen: Screen; go: (s: Screen) => void }) {
+function Header({ locale, setLocale, screen, hasCompletedAssessment, isPreparingResults, go }: { locale: Locale; setLocale: (l: Locale) => void; screen: Screen; hasCompletedAssessment: boolean; isPreparingResults: boolean; go: (s: Screen) => void }) {
   const t = copy[locale];
+  const isAnswering = screen === "check" || isPreparingResults;
+  const returnsToRoadmap = hasCompletedAssessment && !isAnswering;
+  const brandLabel = returnsToRoadmap ? t.navSteps : t.home;
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={`StayBridge Tokyo · ${t.home}`}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.home}</span></button>
-    <nav aria-label="Primary">
+    <button className="brand" onClick={() => go(returnsToRoadmap ? "roadmap" : "landing")} aria-label={returnsToRoadmap ? t.brandToSteps : `StayBridge Tokyo · ${t.home}`} disabled={isPreparingResults}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{brandLabel}</span></button>
+    {hasCompletedAssessment && !isAnswering && <nav aria-label="Primary">
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
-    </nav>
+    </nav>}
     <label className="language-select" title="MVP static translation preview"><span className="sr-only">Language · static translation preview</span><select value={locale} onChange={(e) => setLocale(e.target.value as Locale)}><option value="ja">日本語</option><option value="en">English</option><option value="my">မြန်မာ</option></select></label>
   </header>;
 }
 
-function Landing({ t, start, demo }: { t: typeof copy[Locale]; start: () => void; demo: () => void }) {
-  return <>
-    <section className="hero">
-      <div className="hero-copy">
-        <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
-        <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
-        <p className="lede">{t.intro}</p>
-        <div className="hero-actions"><button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button><button className="secondary-button" onClick={demo}>{t.demo}</button></div>
-        <div className="trust-row"><span>✓ {t.noLogin}</span><span>✓ {t.noAddress}</span><span>✓ {t.official}</span></div>
-      </div>
-      <div className="roadmap-preview" aria-label="StayBridge roadmap preview">
-        <div className="preview-top"><span>YOUR NEXT STEPS</span><span className="safe-chip">SAFE &amp; PRIVATE</span></div>
-        <div className="timeline-line" />
-        {["TODAY", "THIS WEEK", "NEXT 30 DAYS"].map((time, i) => <div className="preview-step" key={time}><span className={`time-dot dot-${i}`} /><div><small>{time}</small><strong>{["Confirm your stay", "Talk to official support", "Build daily life locally"][i]}</strong><p>{["Official information", "Human handoff", "Schools · Medical · Child spaces"][i]}</p></div><span className="step-number">0{i + 1}</span></div>)}
-        <div className="preview-note"><span>i</span>{t.notDecision}</div>
-      </div>
-    </section>
-    <section className="principles">
-      <div className="section-heading"><span>HOW IT HELPS</span><h2>{t.privacyTitle}</h2><p>{t.privacyText}</p></div>
-      <div className="principle-grid">
-        {t.principleTitles.map((title, index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{t.principleBodies[index]}</p></article>)}
-      </div>
-      <Link className="crisis-link" href="/crisis"><span>PUBLIC TEAMS</span>{t.crisis}<b>↗</b></Link>
-    </section>
-  </>;
+function LoadingState({ t }: { t: typeof copy[Locale] }) {
+  return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{t.loading}</p></div></output>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, finish }: {
-  locale: Locale; t: typeof copy[Locale]; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; finish: () => void;
+function Landing({ t, showStart, start }: { t: typeof copy[Locale]; showStart: boolean; start: () => void }) {
+  return <section className={`landing-start${showStart ? "" : " landing-complete"}`}>
+    <h1 className="sr-only">StayBridge Tokyo</h1>
+    {showStart && <button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button>}
+  </section>;
+}
+
+function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, backToLanding, restart, finish }: {
+  locale: Locale; t: typeof copy[Locale]; step: number; goToQuestion: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; backToLanding: () => void; restart: () => void; finish: () => void;
 }) {
   const question = questionCopy[locale][step];
-  const [title, hint, options] = question;
+  const [title, , options] = question;
   const current = getQuestionValue(step, situation, stayAnswer);
   const multi = step === 6 || step === 8;
   const markAnswered = (isAnswered = true) => {
@@ -635,15 +761,15 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     <div className="check-progress"><div className="progress-meta"><span>SITUATION CHECK</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">QUESTION {String(step + 1).padStart(2, "0")}</span>
-      <h1>{title}</h1><p>{hint}</p>
+      <h1>{title}</h1>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
         {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
       </div>
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{["0-2", "3-5", "6-11", "12-14", "15-17", "18+"].map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age as Situation["familyMembers"]["children"][number]["ageGroup"] }] } })}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" min={assessmentDate} value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
-      <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      <div className="question-actions">{step === 0 ? <button className="back-button" onClick={backToLanding}><span aria-hidden="true">←</span> {t.backToTop}</button> : <button className="back-button" onClick={() => goToQuestion(step - 1)}><span aria-hidden="true">←</span> {t.back}</button>}<button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : goToQuestion(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" onClick={restart}><span aria-hidden="true">↺</span> {t.restart}</button></div>}
     </div>
-    <p className="privacy-line">◉ {t.privacyText}</p>
   </section>;
 }
 
@@ -656,9 +782,9 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">SITUATION REVIEW</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, go, openAction }: { locale: Locale; t: typeof copy[Locale]; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void }) {
+function Roadmap({ locale, t, actions, restart, openAction }: { locale: Locale; t: typeof copy[Locale]; actions: Action[]; restart?: () => void; openAction: (actionId: string) => void }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">PERSONAL ROADMAP</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{timingLabel[locale][group.timing]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">PERSONAL ROADMAP</span><h1>{t.roadmapTitle}</h1></div><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{timingLabel[locale][group.timing]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div>{restart && <aside className="roadmap-restart"><p>{t.restartPrompt}</p><button className="text-button" onClick={restart}><span aria-hidden="true">↺</span> {t.restart}</button></aside>}</section>;
 }
 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: typeof copy[Locale]; action: Action; number: number; openAction: (actionId: string) => void }) {
@@ -667,9 +793,9 @@ function ActionCard({ locale, t, action, number, openAction }: { locale: Locale;
   return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>PRIORITY {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{reasonCopy[locale][action.reasonCode] || action.reasonText}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? "OPEN DATA" : "OFFICIAL"}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
 }
 
-function LocalAction({ t, resources, filter, setFilter, go }: { t: typeof copy[Locale]; resources: LocalResource[]; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
+function LocalAction({ t, resources, filter, setFilter }: { t: typeof copy[Locale]; resources: LocalResource[]; filter: LocalFilter; setFilter: (s: LocalFilter) => void }) {
   const filters: LocalFilter[] = ["all", "school", "medical", "child_support", "public_facility"];
-  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">LOCAL ACTION · OPEN DATA</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label="Local Action navigation"><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs" role="tablist">{filters.map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof typeof t] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
+  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">LOCAL ACTION · OPEN DATA</span><h1>{t.localTitle}</h1></div><div className="filter-tabs" role="tablist">{filters.map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof typeof t] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
 }
 
 function ResourceCard({ resource, t }: { resource: LocalResource; t: typeof copy[Locale] }) {
@@ -681,7 +807,7 @@ function ResourceCard({ resource, t }: { resource: LocalResource; t: typeof copy
 function HumanSupport({ t, locale, summary }: { t: typeof copy[Locale]; locale: Locale; summary: () => void }) {
   const supportIds = ["FRESC", "ISA", "TOKYO_CONSULTATION"];
   const supportSources = supportIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []).filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">HUMAN HANDOFF</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="support-list">{supportSources.map((source, index) => <article className="support-card" key={source.id}><span className="support-index">0{index + 1}</span><div><small>OFFICIAL SUPPORT</small><h2>{source.title}</h2><p>{source.notes || (locale === "en" ? "Check current services, languages and opening hours on the official page." : "対応内容・言語・受付時間は公式ページで確認してください。")}</p><a href={source.url} target="_blank" rel="noreferrer">{t.details} ↗</a></div></article>)}</div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">HUMAN HANDOFF</span><h1>{t.helpTitle}</h1></div><div className="handoff-grid"><div className="support-list">{supportSources.map((source, index) => <article className="support-card" key={source.id}><span className="support-index">0{index + 1}</span><div><small>OFFICIAL SUPPORT</small><h2>{source.title}</h2><p>{source.notes || (locale === "en" ? "Check current services, languages and opening hours on the official page." : "対応内容・言語・受付時間は公式ページで確認してください。")}</p><a href={source.url} target="_blank" rel="noreferrer">{t.details} ↗</a></div></article>)}</div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span aria-hidden>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
 }
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: typeof copy[Locale]; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {

@@ -18,13 +18,13 @@ jobs:
       CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
       SOURCE_PR: ${{ github.event.pull_request.number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - name: Add the merged PR author to All Contributors
         env:
           GITHUB_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
