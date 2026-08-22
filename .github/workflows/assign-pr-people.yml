@@ -90,7 +90,7 @@ jobs:
             );
 
             if (!authorIsAssigned) {
-              let authorCanBeAssigned = false;
+              let authorCanBeAssigned = true;
 
               try {
                 await github.request(
@@ -102,17 +102,20 @@ jobs:
                     assignee: author,
                   },
                 );
-                authorCanBeAssigned = true;
               } catch (error) {
-                const reason =
-                  error.status === 404
-                    ? "GitHub reports that this user is not assignable"
-                    : `assignment eligibility could not be verified: ${error.message}`;
-
-                core.warning(
-                  `PR author ${author} was not assigned to #${pullRequest.number}: ${reason}. ` +
-                    "Continuing with reviewer processing.",
-                );
+                if (error.status === 404) {
+                  authorCanBeAssigned = false;
+                  core.warning(
+                    `PR author ${author} was not assigned to #${pullRequest.number}: ` +
+                      "GitHub reports that this user is not assignable. " +
+                      "Continuing with reviewer processing.",
+                  );
+                } else {
+                  core.warning(
+                    `Could not verify whether PR author ${author} can be assigned to #${pullRequest.number}: ` +
+                      `${error.message}. Attempting the assignment anyway and validating the response.`,
+                  );
+                }
               }
 
               if (authorCanBeAssigned) {
