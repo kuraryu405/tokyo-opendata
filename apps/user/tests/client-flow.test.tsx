@@ -96,6 +96,12 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
   });
 
+  it("links from the user landing page to the municipality preparedness view", async () => {
+    render(<StayBridgeApp />);
+
+    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("http://localhost:3001");
+  });
+
   it("offers start over after completed answers and returns to the first question", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();

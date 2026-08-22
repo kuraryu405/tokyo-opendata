@@ -86,6 +86,10 @@ function createFlowId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+const municipalityAppUrl =
+  process.env.NEXT_PUBLIC_MUNICIPALITY_APP_URL?.replace(/\/+$/, "") ||
+  "http://localhost:3001";
+
 const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
   CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
   CHECK_MEDICAL_OPTIONS: { screen: "local", filter: "medical" },
@@ -661,7 +665,7 @@ export function StayBridgeApp() {
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {isPreparingResults ? <LoadingState t={t} /> : <>
-        {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check", 0)} />}
+        {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check", 0)} municipalityAppUrl={municipalityAppUrl} />}
         {screen === "check" && (
           <SituationCheck locale={locale} t={t} step={step} goToQuestion={goToQuestion} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} backToLanding={() => go("landing")} restart={restartAssessment} finish={complete} />
         )}
@@ -695,10 +699,11 @@ function LoadingState({ t }: { t: typeof copy[Locale] }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{t.loading}</p></div></output>;
 }
 
-function Landing({ t, showStart, start }: { t: typeof copy[Locale]; showStart: boolean; start: () => void }) {
+function Landing({ t, showStart, start, municipalityAppUrl }: { t: typeof copy[Locale]; showStart: boolean; start: () => void; municipalityAppUrl: string }) {
   return <section className={`landing-start${showStart ? "" : " landing-complete"}`}>
     <h1 className="sr-only">StayBridge Tokyo</h1>
     {showStart && <button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button>}
+    <a className="crisis-link" href={municipalityAppUrl}><span>PREPAREDNESS VIEW</span><strong>{t.crisis}</strong><b aria-hidden="true">↗</b></a>
   </section>;
 }
 
