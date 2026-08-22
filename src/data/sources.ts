@@ -1,6 +1,6 @@
 import kitaMyanmarPopulationJson from "./normalized/kita-myanmar-population.json";
 import type { PopulationCache } from "./adapters/types";
-import type { NeedCategory } from "../domain/types";
+import type { NeedCategory, VisitPurpose } from "../domain/types";
 
 /**
  * A deliberately small registry of sources used by the MVP.  `fetchedAt` is
@@ -21,6 +21,8 @@ export type DataSource = {
   notes: string;
   /** Short line describing what answer is written on the official page (text-first handoff). */
   answersInText?: string;
+  /** Visit purposes that establish this source's audience. Omit when no purpose-based restriction applies. */
+  eligibleVisitPurposes?: readonly VisitPurpose[];
   license?: string;
 };
 
@@ -150,6 +152,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     fetchedAt: fetchedAtToday,
     answersInText: "生活で困ったことや知りたいことを、やさしい日本語・英語など14言語で電話相談できる（フリーダイヤル0120-142-142、月〜金10-16時）。",
     notes: "公的機関への通訳支援も行う。個別の資格・給付の可否は窓口で確認。",
+    eligibleVisitPurposes: ["resident"],
   },
   TOKYO_FRAC: {
     id: "TOKYO_FRAC",
@@ -194,6 +197,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     fetchedAt: fetchedAtToday,
     answersInText: "在留資格・在留期間について、やさしい日本語など14言語で無料相談できる（要予約0120-142-142、在住/在勤/在学の外国人対象）。",
     notes: "個別の在留可否は決定しない。",
+    eligibleVisitPurposes: ["resident", "work", "study"],
   },
   TOKYO_HOUSING_SUPPORT: {
     id: "TOKYO_HOUSING_SUPPORT",
@@ -432,6 +436,9 @@ export const sourceRegistry: Record<string, DataSource> = {
 export const sources = Object.values(sourceRegistry);
 
 export const getSource = (id: string): DataSource | undefined => sourceRegistry[id];
+
+export const isSourceEligibleForVisitPurpose = (source: DataSource, visitPurpose: VisitPurpose): boolean =>
+  source.eligibleVisitPurposes?.includes(visitPurpose) ?? true;
 
 /**
  * Consultation/guidance sources shown for each selected need, each pointing to a

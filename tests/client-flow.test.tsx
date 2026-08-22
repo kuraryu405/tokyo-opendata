@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "../src/domain/demo";
+import type { VisitPurpose } from "../src/domain/types";
+import { sourceRegistry } from "../src/data";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 vi.mock("next/link", () => ({
@@ -341,10 +343,46 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByText("人に相談する")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
-    await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2));
+    expect(screen.getByRole("heading", { name: sourceRegistry.FRESC.title })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TMC_NAVI.title })).toBeNull();
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title })).toBeNull();
     expect(screen.getByText("関連する公式情報")).toBeTruthy();
     expect(screen.getAllByText(/公式情報/).length).toBeGreaterThan(3);
   });
+
+  it.each([
+    ["tourism", false, false],
+    ["visiting_family_or_friends", false, false],
+    ["other", false, false],
+    ["unknown", false, false],
+    ["work", true, false],
+    ["study", true, false],
+    ["resident", true, true],
+  ] satisfies Array<[VisitPurpose, boolean, boolean]>)(
+    "filters visit-purpose-limited sources for %s",
+    async (visitPurpose, showsStatusConsultation, showsTmcNavi) => {
+      localStorage.setItem("staybridge.locale", "en");
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({
+        situation: { ...demoSituation, visitPurpose },
+        stayAnswer: "unknown",
+        familyAnswers: ["children"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+      const user = userEvent.setup();
+      render(<StayBridgeApp />);
+
+      await user.click(await screen.findByRole("button", { name: "My steps" }));
+      const roadmapLinks = screen.getAllByRole("link");
+      expect(roadmapLinks.some((link) => link.textContent?.includes(sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title))).toBe(showsStatusConsultation);
+      expect(roadmapLinks.some((link) => link.textContent?.includes(sourceRegistry.TMC_NAVI.title))).toBe(showsTmcNavi);
+
+      await user.click(screen.getByRole("button", { name: "Get help" }));
+      expect(Boolean(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title }))).toBe(showsStatusConsultation);
+      expect(Boolean(screen.queryByRole("heading", { name: sourceRegistry.TMC_NAVI.title }))).toBe(showsTmcNavi);
+      expect(screen.getByRole("heading", { name: sourceRegistry.FRESC.title })).toBeTruthy();
+    },
+  );
 
   it("routes consultation actions to people and local actions to their exact category", async () => {
     const user = userEvent.setup();
