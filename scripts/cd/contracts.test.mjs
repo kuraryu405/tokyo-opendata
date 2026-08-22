@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import test from "node:test";
 import { classifyChangedPaths } from "./detect-scopes.mjs";
@@ -91,6 +91,10 @@ test("correlates external E2E by application revision", () => {
 });
 
 test("workflow contracts gate deployment and preserve the artifact", async () => {
+  await assert.rejects(
+    stat(".github/workflows/deploy.yml"),
+    (error) => error?.code === "ENOENT",
+  );
   const ci = await readFile(".github/workflows/ci.yml", "utf8");
   const release = await readFile(".github/workflows/release.yml", "utf8");
   const deploy = await readFile(
