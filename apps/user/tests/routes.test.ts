@@ -61,4 +61,9 @@ describe("StayBridge URL routes", () => {
     expect(isLocalFilter("public_facility")).toBe(true);
     expect(isLocalFilter("other")).toBe(false);
   });
+
+  it("maps legacy root screen queries to canonical locale routes", () => {
+    expect(buildStayBridgePath({ locale: "ja", screen: "check", query: { step: 4 } })).toBe("/ja/check?step=4");
+    expect(buildStayBridgePath({ locale: "ja", screen: "local", query: { filter: "medical" } })).toBe("/ja/local?filter=medical");
+  });
 });

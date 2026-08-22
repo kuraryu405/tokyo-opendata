@@ -15,12 +15,9 @@ import {
   getUserMessages,
   getLocalResourceDisplay,
   selectableUserLocales,
-  type ActionId,
-  type NeedKey,
-  type ReasonCode,
-  type TimingKey,
-  type UserMessages,
-} from "@staybridge/i18n";
+  type PublicUserMessages,
+} from "@staybridge/i18n/client";
+import type { ActionId, NeedKey, ReasonCode, TimingKey } from "@staybridge/i18n";
 import {
   buildStayBridgePath,
   equivalentStayBridgePath,
@@ -33,6 +30,7 @@ import {
 import {
   createInitialSituation,
   isAssessmentComplete,
+  firstUnansweredStep,
   parseStoredSession,
   serializeStoredSession,
   type FamilyAnswer,
@@ -43,7 +41,7 @@ import {
 
 type Screen = StayBridgeScreen;
 type CopyState = "idle" | "copied" | "error";
-type UserCopy = UserMessages["ui"];
+type UserCopy = PublicUserMessages["ui"];
 
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
@@ -91,6 +89,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const [assessmentReset, setAssessmentReset] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [assessmentDate] = useState(currentTokyoDate);
@@ -99,22 +98,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const t = getUserMessages(locale).ui;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
-        if (storedSession) {
-          setSituation(storedSession.situation);
-          setStayAnswer(storedSession.stayAnswer);
-          setFamilyAnswers(storedSession.familyAnswers);
-          setAnsweredSteps(storedSession.answeredSteps);
-        }
-      } catch {
-        setStorageError(true);
-      } finally {
-        setStorageReady(true);
+    try {
+      const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
+      if (storedSession) {
+        setSituation(storedSession.situation);
+        setStayAnswer(storedSession.stayAnswer);
+        setFamilyAnswers(storedSession.familyAnswers);
+        setAnsweredSteps(storedSession.answeredSteps);
       }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setStorageError(true);
+    } finally {
+      setStorageReady(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -142,6 +138,23 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     }
   }, [parsedRoute.canonicalPath, pathname, router, searchParams]);
 
+  const assessmentComplete = isAssessmentComplete(answeredSteps);
+  const firstIncompleteStep = firstUnansweredStep(answeredSteps);
+  const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
+  const routeNeedsAssessmentGuard = storageReady && (
+    (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
+    ((screen === "status" || screen === "roadmap") && assessmentReset && !assessmentComplete)
+  );
+
+  useEffect(() => {
+    if (!routeNeedsAssessmentGuard) return;
+    router.replace(buildStayBridgePath({
+      locale,
+      screen: "check",
+      query: { step: firstIncompleteStep ?? 0 },
+    }));
+  }, [firstIncompleteStep, locale, routeNeedsAssessmentGuard, router]);
+
   useEffect(() => {
     if (!storageReady) return;
     if (skipNextSessionWrite.current) {
@@ -155,7 +168,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     }
   }, [answeredSteps, familyAnswers, situation, stayAnswer, storageReady]);
 
-  const assessmentComplete = isAssessmentComplete(answeredSteps);
   const actions = useMemo(() => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate }) : [], [assessmentComplete, assessmentDate, situation]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
@@ -181,7 +193,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const complete = () => {
-    if (completionTimer.current !== undefined || !assessmentComplete) return;
+    if (completionTimer.current !== undefined) return;
+    if (!assessmentComplete) {
+      router.replace(buildStayBridgePath({
+        locale,
+        screen: "check",
+        query: { step: firstIncompleteStep ?? 0 },
+      }));
+      return;
+    }
     setIsPreparingResults(true);
     completionTimer.current = window.setTimeout(() => {
       completionTimer.current = undefined;
@@ -191,6 +211,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const loadDemo = () => {
+    setAssessmentReset(false);
     setSituation(demoSituation);
     setStayAnswer("unknown");
     setFamilyAnswers(["children"]);
@@ -199,6 +220,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const clearData = () => {
+    setAssessmentReset(true);
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
@@ -213,6 +235,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const restartAssessment = () => {
+    setAssessmentReset(true);
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
@@ -243,7 +266,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
       <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} disabled={isPreparingResults} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
+        {storageGate || routeNeedsAssessmentGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />

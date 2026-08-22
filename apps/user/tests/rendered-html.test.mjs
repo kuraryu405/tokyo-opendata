@@ -34,6 +34,24 @@ test("redirects the root URL to the slashless Japanese landing route in one step
   assert.equal(new URL(response.headers.get("location") ?? "", "http://localhost").pathname, "/ja");
 });
 
+test("migrates legacy root screen query URLs without dropping their state", async () => {
+  const checkResponse = await render("/?screen=check&step=4");
+  assert.ok(checkResponse.status >= 300 && checkResponse.status < 400);
+  assert.equal(
+    new URL(checkResponse.headers.get("location") ?? "", "http://localhost").pathname,
+    "/ja/check",
+  );
+  assert.equal(new URL(checkResponse.headers.get("location") ?? "", "http://localhost").search, "?step=4");
+
+  const localResponse = await render("/?screen=local&filter=medical");
+  assert.ok(localResponse.status >= 300 && localResponse.status < 400);
+  assert.equal(
+    new URL(localResponse.headers.get("location") ?? "", "http://localhost").pathname,
+    "/ja/local",
+  );
+  assert.equal(new URL(localResponse.headers.get("location") ?? "", "http://localhost").search, "?filter=medical");
+});
+
 test("server-renders the StayBridge landing page with its route locale on html", async () => {
   const response = await render("/ja");
   assert.equal(response.status, 200);

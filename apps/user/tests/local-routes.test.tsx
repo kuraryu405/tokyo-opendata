@@ -29,7 +29,7 @@ describe("localized Local Action routes", () => {
     }));
     render(<StayBridgeApp />);
 
-    const card = (await screen.findByRole("heading", { name: "Toyokawa Elementary School" })).closest("article");
+    const card = screen.getByRole("heading", { name: "Toyokawa Elementary School" }).closest("article");
     expect(card).not.toBeNull();
     expect(within(card!).getByText("Kita City")).toBeTruthy();
     expect(within(card!).getByText("3-10-23 Toshima, Kita City, Tokyo")).toBeTruthy();

@@ -8,7 +8,7 @@ import type {
   Situation,
   VisitPurpose,
 } from "@staybridge/domain/types";
-import type { SelectableUserLocale } from "@staybridge/i18n";
+import type { SelectableUserLocale } from "@staybridge/i18n/client";
 
 /** Locales that have passed review and may be used by the public client. */
 export type Locale = SelectableUserLocale;
@@ -137,6 +137,10 @@ export function serializeStoredSession(session: Omit<StoredSession, "version">):
 
 export function isAssessmentComplete(answeredSteps: number[]): boolean {
   return assessmentSteps.every((step) => answeredSteps.includes(step));
+}
+
+export function firstUnansweredStep(answeredSteps: number[]): number | null {
+  return assessmentSteps.find((step) => !answeredSteps.includes(step)) ?? null;
 }
 
 function isSituation(value: unknown): value is Situation {

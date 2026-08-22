@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
-import { getUserMessages, selectableUserLocales } from "@staybridge/i18n";
+import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client";
 import { serializeStoredSession } from "../src/components/staybridge-session";
 
 const navigation = vi.hoisted(() => {
@@ -141,6 +141,48 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("checkbox", { name: /A child is with me/ }).getAttribute("aria-checked")).toBe("true");
   });
 
+  it("does not flash an empty result while restoring a completed session", async () => {
+    navigation.reset("/ja/status");
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    render(<StayBridgeApp />);
+
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(screen.queryByText("まだ入力された情報はありません。")).toBeNull();
+  });
+
+  it("returns a direct link to the final question to the first unanswered step", async () => {
+    navigation.reset("/ja/check?step=9");
+    render(<StayBridgeApp />);
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(screen.getByText("質問 01")).toBeTruthy();
+  });
+
+  it("keeps a restart from reopening the old result route through Back", async () => {
+    navigation.reset("/ja/roadmap");
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    await user.click(screen.getByRole("button", { name: /最初からやり直す/ }));
+    expect(navigation.path()).toBe("/ja/check?step=0");
+    navigation.reset("/ja/status");
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(screen.queryByText("今の状況を整理しました")).toBeNull();
+    expect(screen.getByText("質問 01")).toBeTruthy();
+  });
+
   it("translates the main explanatory content without leaving Japanese copy", async () => {
     const user = userEvent.setup();
     render(<StayBridgeApp />);
@@ -269,6 +311,12 @@ describe("StayBridge client flow", () => {
 
   it("renders directly from the URL and preserves the active screen query when changing language", async () => {
     navigation.reset("/ja/check?step=4");
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: [0, 1, 2, 3],
+    }));
     const user = userEvent.setup();
     render(<StayBridgeApp />);
 
