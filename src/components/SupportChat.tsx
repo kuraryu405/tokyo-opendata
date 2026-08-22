@@ -52,6 +52,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
   const panelId = useId();
   const nextMessageId = useRef(0);
+  const activeRequestId = useRef(0);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
@@ -68,6 +69,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
     const content = (suggestedQuestion ?? input).trim();
     if (!content || pending) return;
 
+    const requestId = ++activeRequestId.current;
     const userMessage = createEntry("user", content);
     const requestMessages = [...messages, userMessage].slice(-8).map(({ role, content: messageContent }) => ({ role, content: messageContent }));
     setMessages((current) => [...current, userMessage]);
@@ -85,13 +87,15 @@ export function SupportChat({ locale }: { locale: Locale }) {
       const body = await response.json() as { reply?: unknown };
       if (typeof body.reply !== "string" || !body.reply.trim()) throw new Error("Support chat returned no reply");
       const reply = body.reply.trim();
+      if (activeRequestId.current !== requestId) return;
       setMessages((current) => [...current, createEntry("assistant", reply)]);
     } catch {
+      if (activeRequestId.current !== requestId) return;
       setMessages((current) => current.filter((message) => message.id !== userMessage.id));
       setInput(content);
       setError(true);
     } finally {
-      setPending(false);
+      if (activeRequestId.current === requestId) setPending(false);
     }
   };
 
@@ -116,7 +120,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
       <form className="chat-form" onSubmit={sendMessage}>
         <label className="sr-only" htmlFor={`${panelId}-input`}>{t.label}</label>
         <div className="chat-compose"><textarea id={`${panelId}-input`} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown} maxLength={800} placeholder={t.placeholder} rows={2} disabled={pending} /><button type="submit" className="primary-button" aria-label={t.send} disabled={pending || !input.trim()}><span aria-hidden="true">↑</span></button></div>
-        {messages.length > 0 && <button type="button" className="text-button chat-clear" onClick={() => { setMessages([]); setError(false); }} disabled={pending}>{t.clear}</button>}
+        {messages.length > 0 && <button type="button" className="text-button chat-clear" onClick={() => { activeRequestId.current += 1; setMessages([]); setPending(false); setError(false); }}>{t.clear}</button>}
       </form>
     </div>
   </section>;

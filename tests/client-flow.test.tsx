@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -264,29 +264,6 @@ describe("StayBridge client flow", () => {
     });
   });
 
-  it("disables clearing the chat while a response is pending", async () => {
-    const user = userEvent.setup();
-    let resolveResponse!: (response: Response) => void;
-    const fetchMock = vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>((resolve) => {
-      resolveResponse = resolve;
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    restoreCompleteDemoSession();
-    render(<StayBridgeApp />);
-
-    await openCompletedRoadmap(user);
-    const input = screen.getByRole("textbox", { name: "相談したいこと" });
-    await user.type(input, "送信中に消去できないことを確認します");
-    await user.click(screen.getByRole("button", { name: "送る" }));
-
-    const clearButton = await screen.findByRole("button", { name: "会話を消去" });
-    expect(clearButton.hasAttribute("disabled")).toBe(true);
-
-    resolveResponse(new Response(JSON.stringify({ reply: "回答です。" }), { status: 200, headers: { "content-type": "application/json" } }));
-    expect(await screen.findByText("回答です。")).toBeTruthy();
-    expect(clearButton.hasAttribute("disabled")).toBe(false);
-  });
-
   it("does not send an unfinished IME composition with Enter", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn<typeof fetch>();
@@ -302,6 +279,30 @@ describe("StayBridge client flow", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect((input as HTMLTextAreaElement).value).toBe("在留資格について");
+  });
+
+  it("keeps a cleared conversation empty when an earlier reply arrives", async () => {
+    const user = userEvent.setup();
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "窓口で何を聞けばいいですか？");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+    await user.click(await screen.findByRole("button", { name: "会話を消去" }));
+
+    expect(screen.queryByText("窓口で何を聞けばいいですか？")).toBeNull();
+    expect((input as HTMLTextAreaElement).disabled).toBe(false);
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ reply: "古い回答" }), { status: 200 }));
+    });
+    expect(screen.queryByText("古い回答")).toBeNull();
   });
 
   it("shows no Kita resources before a municipality is selected", async () => {
