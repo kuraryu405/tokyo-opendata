@@ -10,7 +10,7 @@ import {
 
 describe("StayBridge URL routes", () => {
   it("builds every reviewed route shape", () => {
-    expect(buildStayBridgePath({ locale: "ja", screen: "landing" })).toBe("/ja/");
+    expect(buildStayBridgePath({ locale: "ja", screen: "landing" })).toBe("/ja");
     expect(buildStayBridgePath({ locale: "en", screen: "check", query: { step: 4 } })).toBe("/en/check?step=4");
     expect(buildStayBridgePath({ locale: "my", screen: "status" })).toBe("/my/status");
     expect(buildStayBridgePath({ locale: "ja", screen: "roadmap" })).toBe("/ja/roadmap");
@@ -46,7 +46,8 @@ describe("StayBridge URL routes", () => {
     expect(canonicalizeStayBridgePath("/ja/status", { step: "7", filter: "medical" })).toBe("/ja/status");
   });
 
-  it("treats Vinext's locale-root trailing-slash normalization as equivalent", () => {
+  it("treats Vinext's legacy locale-root trailing slash as equivalent while emitting slashless paths", () => {
+    expect(canonicalizeStayBridgePath("/ja/")).toBe("/ja");
     expect(equivalentStayBridgePath("/ja", "/ja/")).toBe(true);
     expect(equivalentStayBridgePath("/ja/check?step=2", "/ja/check/?step=2")).toBe(true);
     expect(equivalentStayBridgePath("/ja/check?step=2", "/ja/check?step=3")).toBe(false);

@@ -28,23 +28,32 @@ async function render(pathname = "/", origin = "http://localhost") {
   );
 }
 
-test("redirects the root URL to the reviewed Japanese route", async () => {
+test("redirects the root URL to the slashless Japanese landing route in one step", async () => {
   const response = await render("/");
   assert.ok(response.status >= 300 && response.status < 400);
-  assert.equal(new URL(response.headers.get("location") ?? "", "http://localhost").pathname, "/ja/");
+  assert.equal(new URL(response.headers.get("location") ?? "", "http://localhost").pathname, "/ja");
 });
 
-test("server-renders the StayBridge landing page without starter metadata", async () => {
+test("server-renders the StayBridge landing page with its route locale on html", async () => {
   const response = await render("/ja");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
+  assert.match(html, /<html[^>]+lang="ja"/i);
   assert.match(html, /StayBridge/);
   assert.match(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
+});
+
+test("server-renders each reviewed locale with its SSR html lang", async () => {
+  for (const [pathname, locale] of [["/ja", "ja"], ["/en", "en"], ["/my", "my"]]) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200, pathname);
+    assert.match(await response.text(), new RegExp(`<html[^>]+lang="${locale}"`, "i"));
+  }
 });
 
 test("derives absolute social image URLs from the incoming production host", async () => {
@@ -75,6 +84,18 @@ test("server-renders each URL-driven reviewed route", async () => {
     const response = await render(pathname);
     assert.equal(response.status, 200, pathname);
     assert.match(await response.text(), /StayBridge/);
+  }
+});
+
+test("redirects a legacy trailing-slash landing URL to its slashless canonical URL", async () => {
+  for (const pathname of ["/ja/", "/en/", "/my/"]) {
+    const response = await render(pathname);
+    assert.ok(response.status >= 300 && response.status < 400, pathname);
+    assert.equal(
+      new URL(response.headers.get("location") ?? "", "http://localhost").pathname,
+      pathname.slice(0, -1),
+      pathname,
+    );
   }
 });
 

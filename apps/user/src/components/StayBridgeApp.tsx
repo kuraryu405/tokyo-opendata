@@ -9,9 +9,11 @@ import {
   localResources,
   sourceRegistry,
   type LocalResource,
+  type LocalResourceId,
 } from "@staybridge/data";
 import {
   getUserMessages,
+  getLocalResourceDisplay,
   selectableUserLocales,
   type ActionId,
   type NeedKey,
@@ -44,6 +46,12 @@ type CopyState = "idle" | "copied" | "error";
 type UserCopy = UserMessages["ui"];
 
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
+
+const routeUi = {
+  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています" },
+  en: { restart: "Start over", preparing: "Preparing your next steps" },
+  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်" },
+} satisfies Record<Locale, { restart: string; preparing: string }>;
 
 const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
   CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
@@ -84,8 +92,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [assessmentDate] = useState(currentTokyoDate);
   const skipNextSessionWrite = useRef(false);
+  const completionTimer = useRef<number | undefined>(undefined);
   const t = getUserMessages(locale).ui;
 
   useEffect(() => {
@@ -110,6 +120,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
+
+  useEffect(() => {
+    if (screen === "check") return;
+    if (completionTimer.current !== undefined) {
+      window.clearTimeout(completionTimer.current);
+      completionTimer.current = undefined;
+      setIsPreparingResults(false);
+    }
+  }, [screen]);
+
+  useEffect(() => () => {
+    if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!pathname) return;
@@ -138,7 +161,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
     return localResources.filter((item) => {
-      const sameArea = municipality !== "Other" && (item.municipality === municipality || item.municipality === "北区");
+      const sameArea = municipality !== "Other" && item.municipality === municipality;
       return sameArea && (localFilter === "all" || item.category === localFilter);
     });
   }, [situation.currentMunicipality, localFilter]);
@@ -157,7 +180,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     router.replace(buildStayBridgePath({ locale, screen: "local", query: { filter: nextFilter } }));
   };
 
-  const complete = () => go("status");
+  const complete = () => {
+    if (completionTimer.current !== undefined || !assessmentComplete) return;
+    setIsPreparingResults(true);
+    completionTimer.current = window.setTimeout(() => {
+      completionTimer.current = undefined;
+      setIsPreparingResults(false);
+      go("status");
+    }, 650);
+  };
 
   const loadDemo = () => {
     setSituation(demoSituation);
@@ -181,6 +212,21 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
 
+  const restartAssessment = () => {
+    skipNextSessionWrite.current = true;
+    try {
+      sessionStorage.removeItem("staybridge.session");
+    } catch {
+      setStorageError(true);
+    }
+    setSituation(createInitialSituation());
+    setStayAnswer("unknown");
+    setFamilyAnswers([]);
+    setAnsweredSteps([]);
+    setCopyState("idle");
+    router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
+  };
+
   const openAction = (actionId: string) => {
     const destination = actionDestinations[actionId] ?? { screen: "help" as const };
     go(destination.screen, destination.filter ? { filter: destination.filter } : {});
@@ -194,18 +240,20 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   return (
     <div className={`app-shell locale-${locale}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} />
+      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} disabled={isPreparingResults} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
-        {screen === "check" && (
-          <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} finish={complete} />
-        )}
-        {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
-        {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} go={go} openAction={openAction} />}
-        {screen === "local" && <LocalAction t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
-        {screen === "help" && <HumanSupport t={t} summary={() => go("summary")} />}
-        {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
+        {isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
+          {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
+          {screen === "check" && (
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
+          )}
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
+          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+        {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
+          {screen === "help" && <HumanSupport t={t} summary={() => go("summary")} />}
+          {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
+        </>}
       </main>
       <footer className="site-footer">
         <div><span className="brand-mark">SB</span><strong>StayBridge Tokyo</strong><p>{t.footer}</p></div>
@@ -215,17 +263,21 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   );
 }
 
-function Header({ locale, screen, go, switchLocale }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void }) {
+function Header({ locale, screen, go, switchLocale, disabled }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; disabled: boolean }) {
   const t = getUserMessages(locale).ui;
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></button>
+    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel} disabled={disabled}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></button>
     <nav aria-label={t.primaryNavLabel}>
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
     </nav>
-    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
+    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} disabled={disabled} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
+}
+
+function LoadingState({ message }: { message: string }) {
+  return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
 function Landing({ t, start, demo }: { t: UserCopy; start: () => void; demo: () => void }) {
@@ -255,8 +307,8 @@ function Landing({ t, start, demo }: { t: UserCopy; start: () => void; demo: () 
   </>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, finish }: {
-  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; finish: () => void;
+function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, restart, restartLabel, finish }: {
+  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; restart: () => void; restartLabel: string; finish: () => void;
 }) {
   const question = getUserMessages(locale).questions[step];
   const [title, hint, options] = question;
@@ -317,6 +369,7 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{["0-2", "3-5", "6-11", "12-14", "15-17", "18+"].map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age as Situation["familyMembers"]["children"][number]["ageGroup"] }] } })}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" min={assessmentDate} value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
     <p className="privacy-line">◉ {t.privacyText}</p>
   </section>;
@@ -331,9 +384,9 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, go, openAction }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void }) {
+function Roadmap({ locale, t, actions, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (actionId: string) => void }) {
@@ -344,16 +397,17 @@ function ActionCard({ locale, t, action, number, openAction }: { locale: Locale;
   return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
 }
 
-function LocalAction({ t, resources, filter, setFilter, go }: { t: UserCopy; resources: LocalResource[]; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
+function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
   const filters: LocalFilter[] = ["all", "school", "medical", "child_support", "public_facility"];
-  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs" role="tablist">{filters.map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
+  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs" role="tablist">{filters.map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} locale={locale} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
 }
 
-function ResourceCard({ resource, t }: { resource: LocalResource; t: UserCopy }) {
+function ResourceCard({ resource, locale, t }: { resource: LocalResource & { id: LocalResourceId }; locale: Locale; t: UserCopy }) {
   const source = sourceRegistry[resource.sourceId];
   const updatedAt = resource.dataUpdatedAt ?? source?.dataUpdatedAt;
+  const display = getLocalResourceDisplay(locale, resource.id);
   const icon = t.resourceIcons[resource.category as keyof UserCopy["resourceIcons"]];
-  return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{icon}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof UserCopy] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2>{resource.description && <p>{resource.description}</p>}<dl><div><dt>{t.addressLabel}</dt><dd>{resource.address || "—"}</dd></div>{resource.phone && <div><dt>{t.phoneLabel}</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.publisher || t.publicDataLabel}</a><small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
+  return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{icon}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof UserCopy] as string}</span><span>{display.municipality}</span></div><h2>{display.name}</h2><p>{display.description}</p><dl><div><dt>{t.addressLabel}</dt><dd>{display.address}</dd></div>{resource.phone && <div><dt>{t.phoneLabel}</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.publisher || t.publicDataLabel}</a><small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
 }
 
 function HumanSupport({ t, summary }: { t: UserCopy; summary: () => void }) {

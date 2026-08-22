@@ -89,7 +89,7 @@ export function buildStayBridgePath({
   }
 
   const search = params.toString();
-  const basePath = `/${safeLocale}${segment || "/"}`;
+  const basePath = `/${safeLocale}${segment}`;
   return `${basePath}${search ? `?${search}` : ""}`;
 }
 

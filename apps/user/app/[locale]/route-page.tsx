@@ -39,7 +39,7 @@ function buildRequestedPath(
   screen: StayBridgeScreen,
   searchParams: StayBridgeSearchParams,
 ): string {
-  const path = `/${locale}${screen === "landing" ? "/" : `/${screen}`}`;
+  const path = `/${locale}${screen === "landing" ? "" : `/${screen}`}`;
   const query = new URLSearchParams();
   if (typeof searchParams === "string") {
     for (const [key, value] of new URLSearchParams(searchParams)) query.append(key, value);
