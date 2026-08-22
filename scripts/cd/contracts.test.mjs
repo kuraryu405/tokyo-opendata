@@ -8,7 +8,6 @@ import {
   currentProductionVersion,
   findUploadedVersion,
 } from "./wrangler-state.mjs";
-import { selectDispatchedRun } from "./wait-for-e2e.mjs";
 
 test("classifies isolated and shared changes", () => {
   assert.deepEqual(classifyChangedPaths(["apps/user/app/page.tsx"]), {
@@ -68,28 +67,6 @@ test("selects uploaded and rollback versions deterministically", () => {
   );
 });
 
-test("correlates external E2E by application revision", () => {
-  const run = selectDispatchedRun(
-    [
-      {
-        id: 1,
-        event: "repository_dispatch",
-        created_at: "2026-01-01T00:00:01Z",
-        display_title: "Acceptance other-sha",
-      },
-      {
-        id: 2,
-        event: "repository_dispatch",
-        created_at: "2026-01-01T00:00:02Z",
-        display_title: "Acceptance app-sha",
-      },
-    ],
-    "app-sha",
-    "2026-01-01T00:00:00Z",
-  );
-  assert.equal(run.id, 2);
-});
-
 test("workflow contracts gate deployment and preserve the artifact", async () => {
   await assert.rejects(
     stat(".github/workflows/deploy.yml"),
@@ -116,6 +93,11 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.match(ci, /release-range-\$\{\{ github\.sha \}\}/);
   assert.match(release, /github\.event\.workflow_run\.id/);
   assert.match(release, /release-metadata\/release-range\.json/);
+  assert.match(
+    release,
+    /kuraryu405\/StayBridgeTokyo-e2e\/\.github\/workflows\/acceptance\.yml@main/,
+  );
+  assert.doesNotMatch(release, /E2E_REPOSITORY_DISPATCH_TOKEN/);
   assert.match(deploy, /actions\/upload-artifact@v4/);
   assert.match(deploy, /sha256sum --check/);
   assert.match(deploy, /wrangler@4\.92\.0 versions upload/);

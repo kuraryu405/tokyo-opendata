@@ -147,11 +147,9 @@ jobs:
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
       (needs.deploy-user.result == 'success' || needs.deploy-user.result == 'skipped') &&
       (needs.deploy-municipality.result == 'success' || needs.deploy-municipality.result == 'skipped')
-    uses: ./.github/workflows/e2e-dispatch.yml
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@main
     with:
-      application_ref: ${{ needs.detect.outputs.revision }}
+      target_commit: ${{ needs.detect.outputs.revision }}
       user_url: ${{ needs.detect.outputs.user_production_url }}
       municipality_url: ${{ needs.detect.outputs.municipality_production_url }}
       evidence_mode: false
-    secrets:
-      E2E_REPOSITORY_DISPATCH_TOKEN: ${{ secrets.E2E_REPOSITORY_DISPATCH_TOKEN }}

@@ -69,40 +69,24 @@ staging. A failed external suite marks the release workflow failed for
 visibility, but cannot trigger the Worker rollback path after production health
 has succeeded.
 
-Configure:
+The release calls the public reusable workflow
+`kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@main`
+directly. It passes:
 
-- `E2E_REPOSITORY` as `owner/repository`;
-- optional `E2E_WORKFLOW`, defaulting to `acceptance.yml`;
-- `E2E_REPOSITORY_DISPATCH_TOKEN` as a separate fine-grained credential scoped
-  only to the E2E repository, with **Contents: read and write** for
-  `repository_dispatch` and **Actions: read** for result polling.
+- `target_commit`: the exact application revision;
+- `user_url` and `municipality_url`: the production targets;
+- `evidence_mode`: whether to capture the optional evidence journeys.
 
-The built-in `GITHUB_TOKEN` is deliberately not used because it cannot dispatch
-to a sibling repository. The E2E credential is not a Cloudflare deployment
-secret and is never sent to either Worker.
+The reusable job remains part of the release run, so its result is visible
+without dispatch polling or an extra repository credential. Merge the E2E
+workflow-call contract before enabling the application release workflow.
+Cloudflare deployment therefore uses the only two repository secrets listed
+above; no E2E secret is required.
 
-The sender emits `repository_dispatch` type `application-updated` with:
-
-```json
-{
-  "user_url": "https://...",
-  "municipality_url": "https://...",
-  "application_ref": "<full application commit SHA>",
-  "evidence_mode": false
-}
-```
-
-The receiving `acceptance.yml` must accept that event and include
-`application_ref` in `run-name`, for example
-`run-name: Acceptance ${{ github.event.client_payload.application_ref }}`. The
-sender uses that title to correlate and wait for the exact external run.
-
-The receiving repository may keep its existing manual `workflow_dispatch`
-inputs `base_url` and `evidence_mode` for backwards-compatible operator reruns.
-That manual path is separate from the automated two-URL release contract.
-
-The sender's **Dispatch E2E** workflow also remains manually runnable. Omitted
-URLs default to this repository's production URL variables.
+The receiving `acceptance.yml` accepts the same values through
+`workflow_call`. It may keep `workflow_dispatch` and `repository_dispatch` for
+operator reruns and backwards compatibility; those paths are separate from the
+automated release contract.
 
 ## Local verification without deployment
 
