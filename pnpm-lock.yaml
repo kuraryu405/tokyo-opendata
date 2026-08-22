@@ -74,6 +74,9 @@ importers:
       '@staybridge/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@staybridge/worker-runtime':
+        specifier: workspace:*
+        version: link:../../packages/worker-runtime
       next:
         specifier: ^16.3.1
         version: 16.3.1(@types/node@22.19.19)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -138,6 +141,9 @@ importers:
       '@staybridge/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@staybridge/worker-runtime':
+        specifier: workspace:*
+        version: link:../../packages/worker-runtime
       next:
         specifier: ^16.3.1
         version: 16.3.1(@types/node@22.19.19)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -256,6 +262,21 @@ importers:
       vite:
         specifier: 8.0.13
         version: 8.0.13(@types/node@22.19.19)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.47.1)(tsx@4.23.12)
+
+  packages/worker-runtime:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.19
+        version: 22.19.19
+      oxlint:
+        specifier: ^1.78.0
+        version: 1.78.0
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
 packages:
 

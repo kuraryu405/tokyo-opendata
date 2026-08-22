@@ -1,35 +1,69 @@
 name: Dispatch E2E
 
 on:
-  workflow_run:
-    workflows: [CI]
-    branches: [main]
-    types: [completed]
+  workflow_call:
+    inputs:
+      application_ref:
+        required: true
+        type: string
+      user_url:
+        required: true
+        type: string
+      municipality_url:
+        required: true
+        type: string
+      evidence_mode:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      E2E_REPOSITORY_DISPATCH_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
-      ref:
-        description: Application commit SHA to test (defaults to the current commit)
+      application_ref:
+        description: Deployed application commit SHA
         required: false
         type: string
+      user_url:
+        description: Deployed user application URL
+        required: false
+        type: string
+      municipality_url:
+        description: Deployed municipality application URL
+        required: false
+        type: string
+      evidence_mode:
+        description: Run evidence journeys in the external suite
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   dispatch:
-    if: >-
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
-      vars.E2E_REPOSITORY != ''
+    if: ${{ vars.E2E_REPOSITORY != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 50
     env:
       E2E_REPOSITORY: ${{ vars.E2E_REPOSITORY }}
+      E2E_WORKFLOW: ${{ vars.E2E_WORKFLOW || 'acceptance.yml' }}
       E2E_DISPATCH_TOKEN: ${{ secrets.E2E_REPOSITORY_DISPATCH_TOKEN }}
-      APPLICATION_REF: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
-      APPLICATION_REPOSITORY: ${{ github.repository }}
-      APPLICATION_URL: ${{ vars.E2E_APPLICATION_URL }}
+      APPLICATION_REF: ${{ inputs.application_ref || github.sha }}
+      USER_URL: ${{ inputs.user_url || vars.USER_PRODUCTION_URL }}
+      MUNICIPALITY_URL: ${{ inputs.municipality_url || vars.MUNICIPALITY_PRODUCTION_URL }}
+      EVIDENCE_MODE: ${{ inputs.evidence_mode || false }}
     steps:
-      - name: Dispatch the tested application revision
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Dispatch the deployed application revision
+        id: dispatch
         shell: bash
         run: |
           set -euo pipefail
@@ -37,15 +71,32 @@ jobs:
             echo "E2E_REPOSITORY_DISPATCH_TOKEN is required when E2E_REPOSITORY is configured." >&2
             exit 1
           fi
+          if [ -z "$USER_URL" ] || [ -z "$MUNICIPALITY_URL" ]; then
+            echo "Both deployed application URLs are required." >&2
+            exit 1
+          fi
+          dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "dispatched_at=$dispatched_at" >> "$GITHUB_OUTPUT"
           payload=$(jq -n \
             --arg event_type "application-updated" \
-            --arg repository "$APPLICATION_REPOSITORY" \
-            --arg ref "$APPLICATION_REF" \
-            --arg url "$APPLICATION_URL" \
-            '{event_type: $event_type, client_payload: {repository: $repository, ref: $ref, url: $url}}')
+            --arg user_url "$USER_URL" \
+            --arg municipality_url "$MUNICIPALITY_URL" \
+            --arg application_ref "$APPLICATION_REF" \
+            --argjson evidence_mode "$EVIDENCE_MODE" \
+            '{event_type: $event_type, client_payload: {user_url: $user_url, municipality_url: $municipality_url, application_ref: $application_ref, evidence_mode: $evidence_mode}}')
           curl --fail-with-body --request POST \
             --url "https://api.github.com/repos/${E2E_REPOSITORY}/dispatches" \
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${E2E_DISPATCH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data "$payload"
+      - name: Wait for the external acceptance result
+        env:
+          GH_TOKEN: ${{ secrets.E2E_REPOSITORY_DISPATCH_TOKEN }}
+          DISPATCHED_AT: ${{ steps.dispatch.outputs.dispatched_at }}
+        run: >-
+          node scripts/cd/wait-for-e2e.mjs
+          "$E2E_REPOSITORY"
+          "$E2E_WORKFLOW"
+          "$APPLICATION_REF"
+          "$DISPATCHED_AT"

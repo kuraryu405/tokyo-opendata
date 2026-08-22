@@ -12,9 +12,10 @@
     "build": "pnpm --filter @staybridge/user run build && pnpm --filter @staybridge/municipality run build",
     "build:user": "pnpm --filter @staybridge/user run build",
     "build:municipality": "pnpm --filter @staybridge/municipality run build",
-    "test": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/user --filter @staybridge/municipality -r run test",
-    "typecheck": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/user --filter @staybridge/municipality -r run typecheck",
-    "lint": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/user --filter @staybridge/municipality -r run lint",
+    "test": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run test && pnpm run test:cd",
+    "test:cd": "node --test scripts/cd/*.test.mjs",
+    "typecheck": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run typecheck",
+    "lint": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run lint",
     "lint:fix": "pnpm --filter @staybridge/user --filter @staybridge/municipality -r run lint:fix",
     "test:rendered": "pnpm --filter @staybridge/user run test:rendered && pnpm --filter @staybridge/municipality run test:rendered",
     "data:fetch": "pnpm --filter @staybridge/data data:fetch"

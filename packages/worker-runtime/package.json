@@ -1,0 +1,20 @@
+{
+  "name": "@staybridge/worker-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "oxlint": "^1.78.0",
+    "tsx": "^4.23.12",
+    "typescript": "5.9.3"
+  }
+}

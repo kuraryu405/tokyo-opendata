@@ -1,8 +1,10 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { createHealthResponse } from "@staybridge/worker-runtime";
 
 interface Env {
+  APP_REVISION?: string;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -27,6 +29,17 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === "GET" && url.pathname === "/healthz") {
+      return createHealthResponse(env, "municipality");
+    }
+
+    if (url.pathname === "/healthz") {
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "GET" },
+      });
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
