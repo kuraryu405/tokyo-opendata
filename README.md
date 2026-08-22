@@ -38,7 +38,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## AI相談と翻訳モック
 
-「相談先」画面ではCloudflare Workers AIを使って、公式窓口で伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。状況確認の回答はAIへ自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
+「あなたの次のステップ」画面では、ロードマップの横にCloudflare Workers AIチャットを常時表示し、質問例または自由入力から、公式窓口に伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。状況確認の回答はAIへ自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
 
 日本語・English・မြန်မာဘာသာの画面表示は、MVPでは静的な翻訳モックです。翻訳にLLMや外部翻訳APIは使用していません。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 

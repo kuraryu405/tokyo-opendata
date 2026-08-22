@@ -199,6 +199,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "相談前に準備すること" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談内容をまとめる/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "AI相談アシスタント" })).toBeNull();
     expect(screen.queryByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
@@ -214,11 +215,13 @@ describe("StayBridge client flow", () => {
     restoreCompleteDemoSession();
     render(<StayBridgeApp />);
 
-    await screen.findByRole("button", { name: "相談先" });
-    await user.click(screen.getByRole("button", { name: "相談先" }));
-    await user.click(screen.getByRole("button", { name: "AIで相談内容を整理する" }));
+    await openCompletedRoadmap(user);
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "AI相談アシスタント" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
 
-    expect(screen.getByText(/状況確認の回答は自動送信されず/)).toBeTruthy();
+    expect(screen.getByText(/状況確認の回答は自動送信されません/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /相談窓口で何を聞けばいい/ })).toBeTruthy();
     const input = screen.getByRole("textbox", { name: "相談したいこと" });
     await user.type(input, "窓口で何を聞けばいいですか？");
     await user.click(screen.getByRole("button", { name: "送る" }));
@@ -236,6 +239,26 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: "会話を消去" }));
     expect(screen.queryByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeNull();
+  });
+
+  it("starts the AI chat from a suggested question", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      reply: "今困っていることと、確認したいことを短く伝えてください。",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    await user.click(screen.getByRole("button", { name: "今の状況をどう説明すればいい？" }));
+
+    expect(await screen.findByText("今困っていることと、確認したいことを短く伝えてください。")).toBeTruthy();
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toEqual({
+      locale: "ja",
+      messages: [{ role: "user", content: "今の状況をどう説明すればいい？" }],
+    });
   });
 
   it("shows no Kita resources before a municipality is selected", async () => {
