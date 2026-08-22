@@ -36,9 +36,25 @@ Thanks to everyone who has contributed code through a merged pull request.
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## AI相談と翻訳モック
+## AI相談（Cloudflare Workers AI）と翻訳モック
 
 「あなたの次のステップ」画面では、ロードマップの横にCloudflare Workers AIチャットを常時表示し、質問例または自由入力から、公式窓口に伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。状況確認の回答はAIへ自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
+
+### AI相談の実装仕様
+
+- ブラウザは `POST /api/support-chat` へ、表示言語（`ja` / `en` / `my`）とチャット内の直近7件だけを送信します。履歴は `user` から始まり、`assistant` と交互に並び、現在の `user` メッセージで終わる必要があります。
+- Situation Checkの回答、Rule Engineの判断、Source Registry、端末に保存した状態はモデル入力に含めません。会話履歴はReactの画面状態だけに保持し、再読み込みまたは「会話を消去」で破棄します。
+- モデルは `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を使用し、`max_tokens: 320`、`temperature: 0.2` で呼び出します。モデル応答は前後の空白を除き、履歴へ戻せる最大800文字に制限します。
+- system promptで、相談内容と窓口への質問整理だけを許可します。在留・就労・就学・給付、法的権利、難民・補完的保護、母国の安全性を判定させず、公式・法律・医療・緊急時の助言を置き換えません。
+- 氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は入力しないよう画面で案内し、モデルにも要求・反復させない制約を与えます。
+- Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。`cf-connecting-ip` 単位で60秒あたり20回に制限し、応答には `Cache-Control: no-store` を付けます。
+- Workers AI未接続、推論失敗、空応答、レート超過時はチャット内に公式相談先を使う案内を表示します。AI障害によってロードマップなどの主要機能は停止しません。
+
+本番Workerでは `wrangler.jsonc` の `AI` と `SUPPORT_CHAT_RATE_LIMITER` bindingsを使用します。ローカル開発のAI bindingは `vite.config.ts` でremote接続にしているため、実推論にはCloudflareへの認証とネットワーク接続が必要です。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockし、次のコマンドで本番設定が認識されることを確認できます。
+
+```bash
+pnpm exec wrangler deploy --dry-run
+```
 
 日本語・English・မြန်မာဘာသာの画面表示は、MVPでは静的な翻訳モックです。翻訳にLLMや外部翻訳APIは使用していません。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
