@@ -51,15 +51,18 @@ They can be overridden with repository variables named
 `USER_STAGING_WORKER`, `USER_PRODUCTION_WORKER`,
 `MUNICIPALITY_STAGING_WORKER`, and `MUNICIPALITY_PRODUCTION_WORKER`.
 
-Set `CLOUDFLARE_WORKERS_SUBDOMAIN` to derive all four `workers.dev` URLs. An
-explicit URL can instead be supplied with `USER_STAGING_URL`,
-`USER_PRODUCTION_URL`, `MUNICIPALITY_STAGING_URL`, and
-`MUNICIPALITY_PRODUCTION_URL`. Explicit URLs take precedence. The immutable
-`APP_REVISION` value is derived from the successful CI commit and is installed
-as a plain Worker variable during Version upload.
+The repository variable `CLOUDFLARE_WORKERS_SUBDOMAIN` is required. Release
+configuration fails before any build or deployment when it is missing or
+empty. The workflow derives each verification URL as
+`https://<worker>.<subdomain>.workers.dev`; verification URLs do not fall back
+to localhost or an unrelated custom domain. The immutable `APP_REVISION` value
+is derived from the successful CI commit and is installed as a plain Worker
+variable during Version upload.
 
-The build uses production URLs for canonical metadata and cross-application
-links so that the exact same artifact can be promoted through staging. Staging
+The reusable workflow receives the app directory, Worker names, GitHub
+Environment names, verification URLs, and revision as non-secret inputs. The
+build uses production URLs for canonical metadata and cross-application links
+so that the exact same artifact can be promoted through staging. Staging
 therefore tests production-link configuration as part of the release candidate.
 
 ## External Playwright contract

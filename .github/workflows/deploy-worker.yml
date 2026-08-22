@@ -13,19 +13,22 @@ on:
         required: true
         type: string
       staging_worker:
-        required: false
+        required: true
         type: string
       production_worker:
-        required: false
+        required: true
         type: string
-      staging_url:
-        required: false
+      staging_environment:
+        required: true
         type: string
-      production_url:
-        required: false
+      production_environment:
+        required: true
         type: string
-      workers_subdomain:
-        required: false
+      staging_verification_url:
+        required: true
+        type: string
+      production_verification_url:
+        required: true
         type: string
       counterpart_url:
         required: false
@@ -54,8 +57,8 @@ jobs:
     outputs:
       staging_worker: ${{ steps.resolve.outputs.staging_worker }}
       production_worker: ${{ steps.resolve.outputs.production_worker }}
-      staging_url: ${{ steps.resolve.outputs.staging_url }}
-      production_url: ${{ steps.resolve.outputs.production_url }}
+      staging_verification_url: ${{ steps.resolve.outputs.staging_verification_url }}
+      production_verification_url: ${{ steps.resolve.outputs.production_verification_url }}
     steps:
       - id: resolve
         name: Resolve and validate release configuration
@@ -66,9 +69,10 @@ jobs:
           REVISION: ${{ inputs.revision }}
           STAGING_WORKER_INPUT: ${{ inputs.staging_worker }}
           PRODUCTION_WORKER_INPUT: ${{ inputs.production_worker }}
-          STAGING_URL_INPUT: ${{ inputs.staging_url }}
-          PRODUCTION_URL_INPUT: ${{ inputs.production_url }}
-          WORKERS_SUBDOMAIN: ${{ inputs.workers_subdomain }}
+          STAGING_ENVIRONMENT: ${{ inputs.staging_environment }}
+          PRODUCTION_ENVIRONMENT: ${{ inputs.production_environment }}
+          STAGING_VERIFICATION_URL: ${{ inputs.staging_verification_url }}
+          PRODUCTION_VERIFICATION_URL: ${{ inputs.production_verification_url }}
         run: |
           set -euo pipefail
           case "$SERVICE:$APP_DIRECTORY" in
@@ -80,8 +84,8 @@ jobs:
             exit 1
           }
 
-          staging_worker="${STAGING_WORKER_INPUT:-staybridge-${SERVICE}-staging}"
-          production_worker="${PRODUCTION_WORKER_INPUT:-staybridge-${SERVICE}-production}"
+          staging_worker="$STAGING_WORKER_INPUT"
+          production_worker="$PRODUCTION_WORKER_INPUT"
           for worker in "$staging_worker" "$production_worker"; do
             [[ "$worker" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || {
               echo "Invalid Worker name: $worker" >&2
@@ -89,31 +93,20 @@ jobs:
             }
           done
 
-          resolve_url() {
-            local configured="$1"
-            local worker="$2"
-            if [ -n "$configured" ]; then
-              printf '%s' "${configured%/}"
-            elif [ -n "$WORKERS_SUBDOMAIN" ]; then
-              printf 'https://%s.%s.workers.dev' "$worker" "$WORKERS_SUBDOMAIN"
-            else
-              echo "Set the explicit site URL or CLOUDFLARE_WORKERS_SUBDOMAIN variable." >&2
-              return 1
-            fi
+          [ "$STAGING_ENVIRONMENT" = "staging" ] && [ "$PRODUCTION_ENVIRONMENT" = "production" ] || {
+            echo "Release environments must be staging and production." >&2
+            exit 1
           }
-
-          staging_url=$(resolve_url "$STAGING_URL_INPUT" "$staging_worker")
-          production_url=$(resolve_url "$PRODUCTION_URL_INPUT" "$production_worker")
-          [[ "$staging_url" == https://* && "$production_url" == https://* ]] || {
-            echo "Release URLs must use HTTPS." >&2
+          [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* ]] || {
+            echo "Verification URLs must use HTTPS." >&2
             exit 1
           }
 
           {
             echo "staging_worker=$staging_worker"
             echo "production_worker=$production_worker"
-            echo "staging_url=$staging_url"
-            echo "production_url=$production_url"
+            echo "staging_verification_url=${STAGING_VERIFICATION_URL%/}"
+            echo "production_verification_url=${PRODUCTION_VERIFICATION_URL%/}"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -123,7 +116,7 @@ jobs:
     env:
       APP_DIRECTORY: ${{ inputs.app_directory }}
       APP_REVISION: ${{ inputs.revision }}
-      NEXT_PUBLIC_SITE_URL: ${{ needs.configuration.outputs.production_url }}
+      NEXT_PUBLIC_SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
       NEXT_PUBLIC_MUNICIPALITY_APP_URL: ${{ inputs.service == 'user' && inputs.counterpart_url || '' }}
       NEXT_PUBLIC_USER_APP_URL: ${{ inputs.service == 'municipality' && inputs.counterpart_url || '' }}
     steps:
@@ -163,13 +156,16 @@ jobs:
     needs: [configuration, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: ${{ inputs.staging_environment }}
+      url: ${{ needs.configuration.outputs.staging_verification_url }}
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.staging_worker }}
-      SITE_URL: ${{ needs.configuration.outputs.staging_url }}
+      SITE_URL: ${{ needs.configuration.outputs.staging_verification_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@v4
@@ -224,6 +220,9 @@ jobs:
     needs: [configuration, build, staging]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment:
+      name: ${{ inputs.production_environment }}
+      url: ${{ needs.configuration.outputs.production_verification_url }}
     outputs:
       production_url: ${{ steps.release_result.outputs.production_url }}
     env:
@@ -232,7 +231,7 @@ jobs:
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.production_worker }}
-      SITE_URL: ${{ needs.configuration.outputs.production_url }}
+      SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@v4

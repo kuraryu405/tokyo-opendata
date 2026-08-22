@@ -26,10 +26,10 @@ jobs:
       user_production_worker: ${{ steps.config.outputs.user_production_worker }}
       municipality_staging_worker: ${{ steps.config.outputs.municipality_staging_worker }}
       municipality_production_worker: ${{ steps.config.outputs.municipality_production_worker }}
-      user_staging_url: ${{ steps.config.outputs.user_staging_url }}
-      user_production_url: ${{ steps.config.outputs.user_production_url }}
-      municipality_staging_url: ${{ steps.config.outputs.municipality_staging_url }}
-      municipality_production_url: ${{ steps.config.outputs.municipality_production_url }}
+      user_staging_verification_url: ${{ steps.config.outputs.user_staging_verification_url }}
+      user_production_verification_url: ${{ steps.config.outputs.user_production_verification_url }}
+      municipality_staging_verification_url: ${{ steps.config.outputs.municipality_staging_verification_url }}
+      municipality_production_verification_url: ${{ steps.config.outputs.municipality_production_verification_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,48 +62,14 @@ jobs:
           if [[ "$base" =~ ^0+$ ]]; then base=""; fi
           node scripts/cd/detect-scopes.mjs "$base" "$RELEASE_SHA"
       - id: config
-        name: Resolve release names and URLs
-        shell: bash
+        name: Resolve release names and verification URLs
         env:
           USER_STAGING_WORKER: ${{ vars.USER_STAGING_WORKER }}
           USER_PRODUCTION_WORKER: ${{ vars.USER_PRODUCTION_WORKER }}
           MUNICIPALITY_STAGING_WORKER: ${{ vars.MUNICIPALITY_STAGING_WORKER }}
           MUNICIPALITY_PRODUCTION_WORKER: ${{ vars.MUNICIPALITY_PRODUCTION_WORKER }}
-          USER_STAGING_URL: ${{ vars.USER_STAGING_URL }}
-          USER_PRODUCTION_URL: ${{ vars.USER_PRODUCTION_URL }}
-          MUNICIPALITY_STAGING_URL: ${{ vars.MUNICIPALITY_STAGING_URL }}
-          MUNICIPALITY_PRODUCTION_URL: ${{ vars.MUNICIPALITY_PRODUCTION_URL }}
-          WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
-        run: |
-          set -euo pipefail
-          user_staging_worker=${USER_STAGING_WORKER:-staybridge-user-staging}
-          user_production_worker=${USER_PRODUCTION_WORKER:-staybridge-user-production}
-          municipality_staging_worker=${MUNICIPALITY_STAGING_WORKER:-staybridge-municipality-staging}
-          municipality_production_worker=${MUNICIPALITY_PRODUCTION_WORKER:-staybridge-municipality-production}
-
-          resolve_url() {
-            local explicit="$1"
-            local worker="$2"
-            if [ -n "$explicit" ]; then
-              printf '%s' "${explicit%/}"
-            elif [ -n "$WORKERS_SUBDOMAIN" ]; then
-              printf 'https://%s.%s.workers.dev' "$worker" "$WORKERS_SUBDOMAIN"
-            else
-              echo "Configure release URLs or CLOUDFLARE_WORKERS_SUBDOMAIN." >&2
-              return 1
-            fi
-          }
-
-          {
-            echo "user_staging_worker=$user_staging_worker"
-            echo "user_production_worker=$user_production_worker"
-            echo "municipality_staging_worker=$municipality_staging_worker"
-            echo "municipality_production_worker=$municipality_production_worker"
-            echo "user_staging_url=$(resolve_url "$USER_STAGING_URL" "$user_staging_worker")"
-            echo "user_production_url=$(resolve_url "$USER_PRODUCTION_URL" "$user_production_worker")"
-            echo "municipality_staging_url=$(resolve_url "$MUNICIPALITY_STAGING_URL" "$municipality_staging_worker")"
-            echo "municipality_production_url=$(resolve_url "$MUNICIPALITY_PRODUCTION_URL" "$municipality_production_worker")"
-          } >> "$GITHUB_OUTPUT"
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+        run: node scripts/cd/resolve-release-config.mjs
 
   deploy-user:
     needs: detect
@@ -115,9 +81,11 @@ jobs:
       revision: ${{ needs.detect.outputs.revision }}
       staging_worker: ${{ needs.detect.outputs.user_staging_worker }}
       production_worker: ${{ needs.detect.outputs.user_production_worker }}
-      staging_url: ${{ needs.detect.outputs.user_staging_url }}
-      production_url: ${{ needs.detect.outputs.user_production_url }}
-      counterpart_url: ${{ needs.detect.outputs.municipality_production_url }}
+      staging_environment: staging
+      production_environment: production
+      staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -132,9 +100,11 @@ jobs:
       revision: ${{ needs.detect.outputs.revision }}
       staging_worker: ${{ needs.detect.outputs.municipality_staging_worker }}
       production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
-      staging_url: ${{ needs.detect.outputs.municipality_staging_url }}
-      production_url: ${{ needs.detect.outputs.municipality_production_url }}
-      counterpart_url: ${{ needs.detect.outputs.user_production_url }}
+      staging_environment: staging
+      production_environment: production
+      staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -150,6 +120,6 @@ jobs:
     uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@main
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
-      user_url: ${{ needs.detect.outputs.user_production_url }}
-      municipality_url: ${{ needs.detect.outputs.municipality_production_url }}
+      user_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      municipality_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
       evidence_mode: false
