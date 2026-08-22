@@ -1,0 +1,26 @@
+{
+  "name": "@staybridge/data",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapters/open-data": "./src/adapters/open-data.ts",
+    "./adapters/population-cache": "./src/adapters/population-cache.ts",
+    "./adapters/types": "./src/adapters/types.ts",
+    "./normalized/kita-myanmar-population.json": "./src/normalized/kita-myanmar-population.json"
+  },
+  "scripts": {
+    "data:fetch": "tsx scripts/fetch-open-data.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "oxlint": "^1.78.0",
+    "tsx": "^4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "type": "module"
+}

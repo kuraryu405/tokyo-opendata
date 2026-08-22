@@ -22,12 +22,15 @@ Node.js 22.13 以上が必要です。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev
+pnpm dev                  # 利用者アプリ: http://localhost:3000
+pnpm dev:municipality     # 自治体アプリ: http://localhost:3001
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
 
 ## Contributors ✨
 
