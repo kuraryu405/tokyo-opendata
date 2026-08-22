@@ -50,6 +50,20 @@ test("derives absolute social image URLs from the incoming production host", asy
   assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
 });
 
+test("renders localized facility display values for locale Local Action routes", async () => {
+  const [englishResponse, burmeseResponse] = await Promise.all([render("/en/local"), render("/my/local")]);
+  assert.equal(englishResponse.status, 200);
+  assert.equal(burmeseResponse.status, 200);
+
+  const [english, burmese] = await Promise.all([englishResponse.text(), burmeseResponse.text()]);
+  assert.match(english, /Toyokawa Elementary School/);
+  assert.match(english, /3-10-23 Toshima, Kita City, Tokyo/);
+  assert.doesNotMatch(english, /豊川小学校/);
+  assert.match(burmese, /တိုယိုကာဝါ မူလတန်းကျောင်း/);
+  assert.match(burmese, /တိုကျို၊ ကီတာမြို့နယ်၊ တိုယိုရှီမာ ၃-၁၀-၂၃/);
+  assert.doesNotMatch(burmese, /豊川小学校/);
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
