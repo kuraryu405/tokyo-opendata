@@ -189,7 +189,7 @@ describe("StayBridge client flow", () => {
     back.mockRestore();
   });
 
-  it("keeps the consultation preparation card without the supplementary introduction", async () => {
+  it("shows the consultation preparation card with the support introduction", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
     render(<StayBridgeApp />);
@@ -201,7 +201,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "相談前に準備すること" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談内容をまとめる/ })).toBeTruthy();
-    expect(screen.queryByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeNull();
+    expect(screen.getByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
     expect(screen.getByRole("heading", { name: "相談員に見せるサマリー" })).toBeTruthy();
