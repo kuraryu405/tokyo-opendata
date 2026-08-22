@@ -50,6 +50,12 @@ test("derives absolute social image URLs from the incoming production host", asy
   assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
 });
 
+test("redirects the legacy crisis path to the municipality app", async () => {
+  const response = await render("/crisis");
+  assert.ok([307, 308].includes(response.status));
+  assert.equal(response.headers.get("location"), "http://localhost:3001/");
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),

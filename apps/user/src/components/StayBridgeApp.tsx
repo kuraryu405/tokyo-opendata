@@ -19,6 +19,7 @@ import {
   type Locale,
   type StayAnswer,
 } from "./staybridge-session";
+import { resolveMunicipalityAppUrl } from "../municipality-url";
 
 type Screen = "landing" | "check" | "status" | "roadmap" | "local" | "help" | "summary";
 type CopyState = "idle" | "copied" | "error";
@@ -85,10 +86,6 @@ function routesMatch(left: AppRoute | null, right: AppRoute) {
 function createFlowId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
-
-const municipalityAppUrl =
-  process.env.NEXT_PUBLIC_MUNICIPALITY_APP_URL?.replace(/\/+$/, "") ||
-  "http://localhost:3001";
 
 const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
   CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
@@ -459,6 +456,7 @@ const reasonCopy: Record<Locale, Record<string, string>> = {
 };
 
 export function StayBridgeApp() {
+  const municipalityAppUrl = resolveMunicipalityAppUrl();
   const [locale, setLocale] = useState<Locale>("ja");
   const [screen, setScreen] = useState<Screen>("landing");
   const [step, setStep] = useState(0);

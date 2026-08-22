@@ -58,6 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("StayBridge client flow", () => {
@@ -100,6 +101,13 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp />);
 
     expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("http://localhost:3001");
+  });
+
+  it("uses the configured production municipality URL in the landing link", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
+    render(<StayBridgeApp />);
+
+    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
   });
 
   it("offers start over after completed answers and returns to the first question", async () => {
