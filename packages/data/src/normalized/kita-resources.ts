@@ -10,7 +10,7 @@ const kitaMyanmarPopulation = getPopulationCacheRecord(kitaMyanmarPopulationCach
  * Kita City facilities. Coordinates are intentionally absent: no coordinates
  * were inferred from an address.
  */
-export const localResources: LocalResource[] = [
+export const localResources = [
   { id: "kita-school-toyokawa", name: "豊川小学校", category: "school", municipality: "Kita", address: "東京都北区豊島3-10-23", phone: "03-3913-4111", website: "https://www.city.kita.lg.jp/education/elementary/toyokawa/about/2000897.html", description: "Kita City elementary school.", sourceId: "KITA_SCHOOL_PAGES" },
   { id: "kita-school-ukima", name: "浮間小学校", category: "school", municipality: "Kita", address: "東京都北区浮間3-4-27", phone: "03-3969-0491", website: "https://www.city.kita.lg.jp/education/elementary/ukima/about/2001975.html", description: "Kita City elementary school.", sourceId: "KITA_SCHOOL_PAGES", dataUpdatedAt: "2026-06-25" },
   { id: "kita-school-jujo", name: "十条小学校", category: "school", municipality: "Kita", address: "東京都北区中十条3-1-6", phone: "03-3908-3949", website: "https://www.city.kita.lg.jp/education/elementary/jujo/about/2001282.html", description: "Kita City elementary school.", sourceId: "KITA_SCHOOL_PAGES", dataUpdatedAt: "2026-04-08" },
@@ -23,7 +23,10 @@ export const localResources: LocalResource[] = [
   { id: "kita-child-jujodai", name: "十条台子どもセンター", category: "child_support", municipality: "Kita", address: "東京都北区中十条1-2-18", phone: "03-3905-7120", description: "Children's centre. Confirm current programmes and eligibility directly.", sourceId: "KITA_CHILD_CENTER_LIST", dataUpdatedAt: "2026-04-23" },
   { id: "kita-library-central", name: "中央図書館", category: "public_facility", municipality: "Kita", address: "東京都北区十条台1-2-5", phone: "03-5993-1125", website: "https://www.library.city.kita.lg.jp/viewer/info.html?id=46&idSubTop=0", description: "Kita City library.", sourceId: "KITA_LIBRARY_LIST", dataUpdatedAt: "2026-08-04" },
   { id: "kita-library-toyoshima", name: "豊島図書館", category: "public_facility", municipality: "Kita", address: "東京都北区豊島3-27-22 豊島区民センター1階", phone: "03-3927-3421", website: "https://www.library.city.kita.lg.jp/viewer/info.html?id=46&idSubTop=0", description: "Kita City library.", sourceId: "KITA_LIBRARY_LIST", dataUpdatedAt: "2026-08-04" },
-];
+] as const satisfies readonly LocalResource[];
+
+/** Stable identifiers for the curated records; display copy lives in @staybridge/i18n. */
+export type LocalResourceId = (typeof localResources)[number]["id"];
 
 export const kitaMyanmarProfile: MunicipalityCrisisProfile = {
   municipalityCode: "13117",

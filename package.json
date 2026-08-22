@@ -12,7 +12,7 @@
     "build": "pnpm --filter @staybridge/user run build && pnpm --filter @staybridge/municipality run build",
     "build:user": "pnpm --filter @staybridge/user run build",
     "build:municipality": "pnpm --filter @staybridge/municipality run build",
-    "test": "pnpm run test:workflow && pnpm run test:workflows && pnpm run test:contrast && pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run test && pnpm run test:cd",
+    "test": "pnpm run test:workflow && pnpm run test:workflows && pnpm run test:contrast && pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run test && pnpm run test:cd",
     "test:workflow": "node --test tests/assign-pr-people-workflow.test.mjs",
     "test:workflows": "node --test tests/github-actions-security.test.mjs",
     "test:contrast": "node --test tests/color-contrast.test.mjs",
