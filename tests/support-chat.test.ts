@@ -117,8 +117,8 @@ describe("support chat worker endpoint", () => {
 
   it("accepts the maximum Japanese conversation history", async () => {
     const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "次の質問を窓口で確認してください。" });
-    const messages = Array.from({ length: 8 }, (_, index) => ({
-      role: index % 2 === 0 ? "assistant" as const : "user" as const,
+    const messages = Array.from({ length: 7 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" as const : "assistant" as const,
       content: "あ".repeat(800),
     }));
 

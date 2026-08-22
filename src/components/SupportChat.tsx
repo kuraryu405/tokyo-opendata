@@ -71,7 +71,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
 
     const requestId = ++activeRequestId.current;
     const userMessage = createEntry("user", content);
-    const requestMessages = [...messages, userMessage].slice(-8).map(({ role, content: messageContent }) => ({ role, content: messageContent }));
+    const requestMessages = [...messages, userMessage].slice(-7).map(({ role, content: messageContent }) => ({ role, content: messageContent }));
     setMessages((current) => [...current, userMessage]);
     setInput("");
     setPending(true);

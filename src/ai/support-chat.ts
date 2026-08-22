@@ -1,6 +1,6 @@
 export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-const MAX_MESSAGES = 8;
+const MAX_MESSAGES = 7;
 const MAX_MESSAGE_LENGTH = 800;
 const MAX_BODY_BYTES = 25_000;
 
