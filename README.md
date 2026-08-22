@@ -43,7 +43,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 翻訳モック
 
-日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。各言語の専門家レビューと公開判断は [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
 ## データ
 

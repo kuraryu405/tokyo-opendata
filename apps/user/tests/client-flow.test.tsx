@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
+import { getUserMessages } from "@staybridge/i18n/client";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 vi.mock("next/link", () => ({
@@ -196,7 +197,7 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "相談先" }));
 
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
-    expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2);
+    expect(screen.getAllByText(getUserMessages("ja").ui.sourceTypeLabels.official)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "相談前に準備すること" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談内容をまとめる/ })).toBeTruthy();
     expect(screen.queryByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeNull();
@@ -228,7 +229,7 @@ describe("StayBridge client flow", () => {
 
     expect(screen.getByRole("status").textContent).toContain("次のステップを準備しています");
     expect(screen.queryByRole("button", { name: "わたしのステップ" })).toBeNull();
-    expect(screen.getByRole("button", { name: "StayBridge Tokyo home" }).getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByRole("button", { name: getUserMessages("ja").ui.homeLabel }).getAttribute("disabled")).not.toBeNull();
     expect(await screen.findByRole("heading", { name: "今の状況を整理しました" }, { timeout: 1200 })).toBeTruthy();
   });
 
@@ -299,6 +300,16 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByRole("button", { name: "今の状況を確認する" })).toBeNull();
   });
 
+  it.each(["ja", "en", "my"] as const)("renders representative flow copy from the %s catalog", async (locale) => {
+    const user = userEvent.setup();
+    const messages = getUserMessages(locale);
+    render(<StayBridgeApp initialLocale={locale} />);
+
+    await user.click(screen.getByRole("button", { name: messages.ui.start }));
+    expect(screen.getByRole("heading", { name: messages.questions[0][0] })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: messages.questions[0][2][0][1] })).toBeTruthy();
+  });
+
   it("continues with an explicit warning when session storage rejects writes", async () => {
     const failingStorage = memoryStorage();
     failingStorage.setItem = () => { throw new Error("denied"); };
@@ -339,7 +350,7 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByText("人に相談する")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
-    await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(getUserMessages("ja").ui.sourceTypeLabels.official)).toHaveLength(2));
   });
 
   it("routes consultation actions to people and local actions to their exact category", async () => {
