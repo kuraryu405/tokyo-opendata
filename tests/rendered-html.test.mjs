@@ -28,7 +28,7 @@ async function render(pathname = "/", origin = "http://localhost") {
   );
 }
 
-test("server-renders the StayBridge landing page without starter metadata", async () => {
+test("server-renders a neutral shell before client session restoration", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -36,7 +36,7 @@ test("server-renders the StayBridge landing page without starter metadata", asyn
   const html = await response.text();
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
   assert.match(html, /StayBridge/);
-  assert.match(html, /今の状況を確認する/);
+  assert.doesNotMatch(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
 });
