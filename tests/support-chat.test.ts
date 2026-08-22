@@ -115,6 +115,22 @@ describe("support chat worker endpoint", () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts the maximum Japanese conversation history", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "次の質問を窓口で確認してください。" });
+    const messages = Array.from({ length: 8 }, (_, index) => ({
+      role: index % 2 === 0 ? "assistant" as const : "user" as const,
+      content: "あ".repeat(800),
+    }));
+
+    const response = await handleSupportChatRequest(
+      chatRequest({ locale: "ja", messages }),
+      { ai: { run } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("stops reading a streamed body as soon as the byte limit is exceeded", async () => {
     const chunk = new TextEncoder().encode("x".repeat(1024));
     let pulls = 0;
@@ -138,7 +154,7 @@ describe("support chat worker endpoint", () => {
     const response = await handleSupportChatRequest(request, {});
 
     expect(response.status).toBe(413);
-    expect(pulls).toBe(10);
+    expect(pulls).toBe(25);
     expect(cancelled).toBe(true);
   });
 
