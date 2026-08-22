@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "../src/domain/demo";
 import type { VisitPurpose } from "../src/domain/types";
-import { sourceRegistry } from "../src/data";
+import { sourceRegistry, supportCopy } from "../src/data";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 vi.mock("next/link", () => ({
@@ -383,6 +383,51 @@ describe("StayBridge client flow", () => {
       expect(screen.getByRole("heading", { name: sourceRegistry.FRESC.title })).toBeTruthy();
     },
   );
+
+  it.each([
+    ["en", supportCopy.FRESC.answersInText.en, supportCopy.FRESC.notes.en],
+    ["my", supportCopy.FRESC.answersInText.my, supportCopy.FRESC.notes.my],
+  ] as const)("shows only %s support copy after entering help from the roadmap", async (locale, answer, note) => {
+    localStorage.setItem("staybridge.locale", locale);
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "resident" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    const navigation = await screen.findByRole("navigation", { name: "Primary" });
+    await user.click(within(navigation).getAllByRole("button")[0]);
+    await user.click(within(navigation).getAllByRole("button")[2]);
+
+    expect(screen.getByText(answer)).toBeTruthy();
+    expect(screen.getByText(note)).toBeTruthy();
+    expect(screen.queryByText(supportCopy.FRESC.answersInText.ja)).toBeNull();
+    expect(screen.queryByText(supportCopy.FRESC.notes.ja)).toBeNull();
+  });
+
+  it("hides a missing localized line instead of falling back to Japanese", async () => {
+    localStorage.setItem("staybridge.locale", "en");
+    restoreCompleteDemoSession();
+    const originalAnswers = sourceRegistry.FRESC.answersInText;
+    sourceRegistry.FRESC.answersInText = { ...supportCopy.FRESC.answersInText, en: "" };
+    const user = userEvent.setup();
+
+    try {
+      render(<StayBridgeApp />);
+      const navigation = await screen.findByRole("navigation", { name: "Primary" });
+      await user.click(within(navigation).getAllByRole("button")[2]);
+
+      const card = screen.getByRole("heading", { name: sourceRegistry.FRESC.title }).closest("article");
+      expect(card).not.toBeNull();
+      expect(card!.querySelector(".support-answer")).toBeNull();
+      expect(within(card!).queryByText(supportCopy.FRESC.answersInText.ja)).toBeNull();
+    } finally {
+      sourceRegistry.FRESC.answersInText = originalAnswers;
+    }
+  });
 
   it("routes consultation actions to people and local actions to their exact category", async () => {
     const user = userEvent.setup();

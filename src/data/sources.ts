@@ -1,6 +1,7 @@
 import kitaMyanmarPopulationJson from "./normalized/kita-myanmar-population.json";
 import type { PopulationCache } from "./adapters/types";
 import type { NeedCategory, VisitPurpose } from "../domain/types";
+import { supportCopy, type LocalizedSupportText, type SupportLocale } from "./support-copy";
 
 /**
  * A deliberately small registry of sources used by the MVP.  `fetchedAt` is
@@ -18,9 +19,9 @@ export type DataSource = {
   category: string;
   dataUpdatedAt?: string;
   fetchedAt: string;
-  notes: string;
+  notes: string | LocalizedSupportText;
   /** Short line describing what answer is written on the official page (text-first handoff). */
-  answersInText?: string;
+  answersInText?: LocalizedSupportText;
   /** Visit purposes that establish this source's audience. Omit when no purpose-based restriction applies. */
   eligibleVisitPurposes?: readonly VisitPurpose[];
   license?: string;
@@ -117,8 +118,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "consultation",
     fetchedAt,
-    answersInText: "FRESC（外国人在留支援センター）の相談窓口・予約方法・対応言語が書いてある。",
-    notes: "A national official consultation route used as the MVP's Tokyo access point; confirm current contact arrangements before calling or visiting.",
+    ...supportCopy.TOKYO_CONSULTATION,
   },
   ISA: {
     id: "ISA",
@@ -128,8 +128,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "residence procedures consultation",
     fetchedAt,
-    answersInText: "在留手続き・相談窓口の一般的な情報が書いてある（個別の判断はしない）。",
-    notes: "Provides general information and does not decide individual cases or permission prospects.",
+    ...supportCopy.ISA,
   },
   FRESC: {
     id: "FRESC",
@@ -139,8 +138,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "foreign resident support consultation",
     fetchedAt,
-    answersInText: "在留や生活の個別相談ができる窓口の連絡先と、対応言語が書いてある。",
-    notes: "Contact arrangements and services can change; confirm directly before visiting or calling.",
+    ...supportCopy.FRESC,
   },
   TMC_NAVI: {
     id: "TMC_NAVI",
@@ -150,8 +148,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "multilingual consultation",
     fetchedAt: fetchedAtToday,
-    answersInText: "生活で困ったことや知りたいことを、やさしい日本語・英語など14言語で電話相談できる（フリーダイヤル0120-142-142、月〜金10-16時）。",
-    notes: "公的機関への通訳支援も行う。個別の資格・給付の可否は窓口で確認。",
+    ...supportCopy.TMC_NAVI,
     eligibleVisitPurposes: ["resident"],
   },
   TOKYO_FRAC: {
@@ -162,8 +159,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "foreign resident consultation",
     fetchedAt: fetchedAtToday,
-    answersInText: "入国・婚姻・国籍・仕事など日常生活の相談に、英語・中国語・韓国語で電話で応じる（相談は無料・秘密厳守）。",
-    notes: "法的な相談はTSUNAGARIの多言語無料法律相談を案内。",
+    ...supportCopy.TOKYO_FRAC,
   },
   TIPS_CONSULTATIONS: {
     id: "TIPS_CONSULTATIONS",
@@ -173,8 +169,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "consultation portal",
     fetchedAt: fetchedAtToday,
-    answersInText: "悩み別の相談窓口（多言語相談ナビ・FRAC・自治体・教育相談など）がまとめて載っている。",
-    notes: "相談先を目的別に探せる。",
+    ...supportCopy.TIPS_CONSULTATIONS,
   },
   TMG_CONSULTATION_KURASHI: {
     id: "TMG_CONSULTATION_KURASHI",
@@ -184,8 +179,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "consultation guide",
     fetchedAt: fetchedAtToday,
-    answersInText: "都庁の暮らしに関する相談窓口一覧（外国人相談の曜日・言語・電話番号を含む）が載っている。",
-    notes: "",
+    ...supportCopy.TMG_CONSULTATION_KURASHI,
   },
   TOKYO_FRESC_STATUS_CONSULT: {
     id: "TOKYO_FRESC_STATUS_CONSULT",
@@ -195,8 +189,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "status of residence consultation",
     fetchedAt: fetchedAtToday,
-    answersInText: "在留資格・在留期間について、やさしい日本語など14言語で無料相談できる（要予約0120-142-142、在住/在勤/在学の外国人対象）。",
-    notes: "個別の在留可否は決定しない。",
+    ...supportCopy.TOKYO_FRESC_STATUS_CONSULT,
     eligibleVisitPurposes: ["resident", "work", "study"],
   },
   TOKYO_HOUSING_SUPPORT: {
@@ -207,8 +200,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "housing support",
     fetchedAt: fetchedAtToday,
-    answersInText: "住まいを失うおそれのある場合の支援（住居確保給付金・つなぎ資金・総合支援資金）の概要と対象が書いてある。",
-    notes: "給付には住民登録や離職等の要件があり、資格はお住まいの自治体・自立相談支援機関で確認。",
+    ...supportCopy.TOKYO_HOUSING_SUPPORT,
   },
   TOKYO_SCHOOL_ENROLL_EN: {
     id: "TOKYO_SCHOOL_ENROLL_EN",
@@ -218,8 +210,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "school enrollment",
     fetchedAt: fetchedAtToday,
-    answersInText: "外国人の子どもも公立小中学校に就学できること、手続き、教育相談（金曜は通訳あり）が書いてある。",
-    notes: "入学可否は自治体・学校で確認。",
+    ...supportCopy.TOKYO_SCHOOL_ENROLL_EN,
   },
   TOKYO_SCHOOL_ATTENDANCE_BOE: {
     id: "TOKYO_SCHOOL_ATTENDANCE_BOE",
@@ -229,8 +220,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "school enrollment",
     fetchedAt: fetchedAtToday,
-    answersInText: "外国人の子どもも日本の子どもと同じように教育を受けられることと、就学ガイドブック（多言語）一覧が載っている。",
-    notes: "就学手続きは住所地の教育委員会へ。",
+    ...supportCopy.TOKYO_SCHOOL_ATTENDANCE_BOE,
   },
   MEXT_SCHOOL: {
     id: "MEXT_SCHOOL",
@@ -240,8 +230,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "school enrollment",
     fetchedAt: fetchedAtToday,
-    answersInText: "就学に関する法制度（義務ではないが公立義務教育校へ無償で受入れ）が書いてある。",
-    notes: "",
+    ...supportCopy.MEXT_SCHOOL,
   },
   TIPS_SCHOOL: {
     id: "TIPS_SCHOOL",
@@ -251,8 +240,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "school enrollment",
     fetchedAt: fetchedAtToday,
-    answersInText: "学年の目安や転入学の手続き、就学ガイドブック（8言語）へのリンクが載っている。",
-    notes: "",
+    ...supportCopy.TIPS_SCHOOL,
   },
   TOKYO_CHILDCARE_SUPPORT: {
     id: "TOKYO_CHILDCARE_SUPPORT",
@@ -262,8 +250,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "childcare support",
     fetchedAt: fetchedAtToday,
-    answersInText: "子育て支援の入口（とうきょう子育てスイッチ、こども医療ガイド等）がまとめて載っている。",
-    notes: "利用条件は各サービスで確認。",
+    ...supportCopy.TOKYO_CHILDCARE_SUPPORT,
   },
   TOKYO_CHILD_GUIDANCE: {
     id: "TOKYO_CHILD_GUIDANCE",
@@ -273,8 +260,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "child guidance",
     fetchedAt: fetchedAtToday,
-    answersInText: "0〜18歳の子どもの育児・発達・虐待等の相談に、無料・秘密厳守で応じる（電話相談も可）。",
-    notes: "言語によってはFRACへ案内。",
+    ...supportCopy.TOKYO_CHILD_GUIDANCE,
   },
   TOKYO_MEDICAL_INFO: {
     id: "TOKYO_MEDICAL_INFO",
@@ -284,8 +270,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "medical information",
     fetchedAt: fetchedAtToday,
-    answersInText: "医療の受け方、日本の医療制度、医療機関の探し方が書いてある。",
-    notes: "対応言語・予約は各医療機関へ確認。",
+    ...supportCopy.TOKYO_MEDICAL_INFO,
   },
   TOKYO_MEDICAL_FLOW: {
     id: "TOKYO_MEDICAL_FLOW",
@@ -295,8 +280,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "medical information",
     fetchedAt: fetchedAtToday,
-    answersInText: "受診の流れ（持ち物・受付・診察・会計・薬）が書いてある。",
-    notes: "",
+    ...supportCopy.TOKYO_MEDICAL_FLOW,
   },
   TOKYO_MEDICAL_HIMAWARI: {
     id: "TOKYO_MEDICAL_HIMAWARI",
@@ -306,8 +290,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "medical information",
     fetchedAt: fetchedAtToday,
-    answersInText: "外国語で受診できる医療機関や日本の医療制度を案内する電話相談（03-5285-8181、毎日9-20時）が書いてある。",
-    notes: "",
+    ...supportCopy.TOKYO_MEDICAL_HIMAWARI,
   },
   TOKYO_MEDICAL_TMCNAVI: {
     id: "TOKYO_MEDICAL_TMCNAVI",
@@ -317,8 +300,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "medical information",
     fetchedAt: fetchedAtToday,
-    answersInText: "生活の困りごとを多言語で電話相談できる（TMC Navi、フリーダイヤル0120-142-142）。",
-    notes: "",
+    ...supportCopy.TOKYO_MEDICAL_TMCNAVI,
   },
   TOKYO_MEDICAL_GAIKOKUGO: {
     id: "TOKYO_MEDICAL_GAIKOKUGO",
@@ -328,8 +310,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "medical information",
     fetchedAt: fetchedAtToday,
-    answersInText: "外国語で受診できる医療機関案内テレホン（03-5285-8181）と救急通訳サービスの言語・時間が書いてある。",
-    notes: "",
+    ...supportCopy.TOKYO_MEDICAL_GAIKOKUGO,
   },
   TOKYO_LABOR_CONSULT: {
     id: "TOKYO_LABOR_CONSULT",
@@ -339,8 +320,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "labor consultation",
     fetchedAt: fetchedAtToday,
-    answersInText: "外国人労働者の労働問題について、通訳（英・中）付きで相談できる窓口と時間が書いてある。",
-    notes: "働けるかどうかの可否は決定しない。",
+    ...supportCopy.TOKYO_LABOR_CONSULT,
   },
   TOKYO_FOREIGN_WORKERS_HANDBOOK: {
     id: "TOKYO_FOREIGN_WORKERS_HANDBOOK",
@@ -350,8 +330,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "labor information",
     fetchedAt: fetchedAtToday,
-    answersInText: "日本で働く上での労働法・在留手続き・税金などが英語でまとめて書いてある。",
-    notes: "",
+    ...supportCopy.TOKYO_FOREIGN_WORKERS_HANDBOOK,
   },
   TOKYO_CAREER_CONSULT: {
     id: "TOKYO_CAREER_CONSULT",
@@ -361,8 +340,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "employment support",
     fetchedAt: fetchedAtToday,
-    answersInText: "東京で働くための相談（キャリアコンサルタントが電話・メール・オンラインで対応）が書いてある。",
-    notes: "求人の紹介は行わない。",
+    ...supportCopy.TOKYO_CAREER_CONSULT,
   },
   HELLO_WORK_TOKYO_FOREIGNER: {
     id: "HELLO_WORK_TOKYO_FOREIGNER",
@@ -372,8 +350,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "employment support",
     fetchedAt: fetchedAtToday,
-    answersInText: "就職のための相談や、就労可能な在留資格・労働関連法令について書いてある。",
-    notes: "",
+    ...supportCopy.HELLO_WORK_TOKYO_FOREIGNER,
   },
   TIPS_JAPANESE: {
     id: "TIPS_JAPANESE",
@@ -383,8 +360,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "japanese learning",
     fetchedAt: fetchedAtToday,
-    answersInText: "日本語学習や多言語相談などの情報がまとめて載っている。",
-    notes: "",
+    ...supportCopy.TIPS_JAPANESE,
   },
   TIPS_LIVING_GUIDE: {
     id: "TIPS_LIVING_GUIDE",
@@ -394,8 +370,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "daily life guide",
     fetchedAt: fetchedAtToday,
-    answersInText: "東京で初めて暮らす人向けの手続きや生活情報（金融・防災・病気等）のガイドブック（10言語）への案内。",
-    notes: "",
+    ...supportCopy.TIPS_LIVING_GUIDE,
   },
   TIPS_PROCEDURES: {
     id: "TIPS_PROCEDURES",
@@ -405,8 +380,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "daily life guide",
     fetchedAt: fetchedAtToday,
-    answersInText: "在留カード・住民登録・マイナンバーなど、日本で暮らすときの必要な手続きが書いてある。",
-    notes: "",
+    ...supportCopy.TIPS_PROCEDURES,
   },
   TIPS_LIFE_GUIDE_JP: {
     id: "TIPS_LIFE_GUIDE_JP",
@@ -416,8 +390,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "daily life guide",
     fetchedAt: fetchedAtToday,
-    answersInText: "日本で暮らすときの手続きや、住む・生活するための情報がまとめて載っている。",
-    notes: "",
+    ...supportCopy.TIPS_LIFE_GUIDE_JP,
   },
   KEISHICHO_FOREIGN_RESIDENT_MANUAL: {
     id: "KEISHICHO_FOREIGN_RESIDENT_MANUAL",
@@ -427,8 +400,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     sourceType: "official_information",
     category: "daily life guide",
     fetchedAt: fetchedAtToday,
-    answersInText: "日本の決まり・マナー・在留カードの携帯義務など、安全に暮らすための基礎が多言語で書いてある。",
-    notes: "",
+    ...supportCopy.KEISHICHO_FOREIGN_RESIDENT_MANUAL,
   },
 };
 
@@ -436,6 +408,16 @@ export const sourceRegistry: Record<string, DataSource> = {
 export const sources = Object.values(sourceRegistry);
 
 export const getSource = (id: string): DataSource | undefined => sourceRegistry[id];
+
+export const getLocalizedSourceText = (
+  source: DataSource,
+  field: "answersInText" | "notes",
+  locale: SupportLocale,
+): string | undefined => {
+  const localized = source[field];
+  if (!localized || typeof localized === "string") return undefined;
+  return localized[locale].trim() || undefined;
+};
 
 export const isSourceEligibleForVisitPurpose = (source: DataSource, visitPurpose: VisitPurpose): boolean =>
   source.eligibleVisitPurposes?.includes(visitPurpose) ?? true;
