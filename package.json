@@ -6,22 +6,22 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "vitest run --config vitest.config.ts && pnpm run test:workflow && pnpm run test:workflows && pnpm run test:rendered",
+    "dev": "pnpm --filter @staybridge/user dev",
+    "dev:user": "pnpm --filter @staybridge/user dev",
+    "dev:municipality": "pnpm --filter @staybridge/municipality dev",
+    "build": "pnpm --filter @staybridge/user run build && pnpm --filter @staybridge/municipality run build",
+    "build:user": "pnpm --filter @staybridge/user run build",
+    "build:municipality": "pnpm --filter @staybridge/municipality run build",
+    "test": "pnpm run test:workflow && pnpm run test:workflows && pnpm run test:contrast && pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run test && pnpm run test:cd",
     "test:workflow": "node --test tests/assign-pr-people-workflow.test.mjs",
     "test:workflows": "node --test tests/github-actions-security.test.mjs",
-    "test:rendered": "pnpm run build && node --test tests/rendered-html.test.mjs",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings",
-    "lint:fix": "oxlint --fix",
-    "data:fetch": "tsx scripts/fetch-open-data.ts"
-  },
-  "dependencies": {
-    "next": "^16.3.1",
-    "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "test:contrast": "node --test tests/color-contrast.test.mjs",
+    "test:cd": "node --test scripts/cd/*.test.mjs",
+    "typecheck": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run typecheck",
+    "lint": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run lint",
+    "lint:fix": "pnpm --filter @staybridge/user --filter @staybridge/municipality -r run lint:fix",
+    "test:rendered": "pnpm --filter @staybridge/user run test:rendered && pnpm --filter @staybridge/municipality run test:rendered",
+    "data:fetch": "pnpm --filter @staybridge/data data:fetch"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
