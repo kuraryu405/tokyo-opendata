@@ -384,6 +384,46 @@ describe("StayBridge client flow", () => {
     },
   );
 
+  it("hides the resident-only medical TMC Navi card for tourism", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "tourism", needs: ["medical"] },
+      stayAnswer: "unknown",
+      familyAnswers: ["none"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "相談先" }));
+
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_MEDICAL_TMCNAVI.title })).toBeNull();
+    expect(screen.getByRole("heading", { name: sourceRegistry.TOKYO_MEDICAL_INFO.title })).toBeTruthy();
+  });
+
+  it("keeps support card indexes at two digits after the ninth card", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: {
+        ...demoSituation,
+        visitPurpose: "resident",
+        needs: ["stay", "consultation", "accommodation", "living_cost", "education", "childcare", "medical", "employment", "language", "daily_life"],
+      },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "相談先" }));
+
+    const firstSupportGroup = document.querySelector(".handoff-group");
+    expect(firstSupportGroup).not.toBeNull();
+    const indexes = [...firstSupportGroup!.querySelectorAll(".support-index")].map((element) => element.textContent);
+    expect(indexes.length).toBeGreaterThan(10);
+    expect(indexes.slice(0, 11)).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]);
+    expect(indexes).not.toContain("010");
+  });
+
   it.each([
     ["en", supportCopy.FRESC.answersInText.en, supportCopy.FRESC.notes.en],
     ["my", supportCopy.FRESC.answersInText.my, supportCopy.FRESC.notes.my],

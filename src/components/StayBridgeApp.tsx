@@ -841,7 +841,7 @@ function HumanSupport({ locale, t, needs, visitPurpose, summary }: { locale: Loc
 function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {
   const answer = getLocalizedSourceText(source, "answersInText", locale);
   const note = getLocalizedSourceText(source, "notes", locale);
-  return <article className="support-card"><span className="support-index">0{index + 1}</span><div><small>{label}</small><h2>{source.title}</h2>{answer && <p className="support-answer">{answer}</p>}{note && <p className="support-note">{note}</p>}<a href={source.url} target="_blank" rel="noreferrer">{details} ↗</a></div></article>;
+  return <article className="support-card"><span className="support-index">{String(index + 1).padStart(2, "0")}</span><div><small>{label}</small><h2>{source.title}</h2>{answer && <p className="support-answer">{answer}</p>}{note && <p className="support-note">{note}</p>}<a href={source.url} target="_blank" rel="noreferrer">{details} ↗</a></div></article>;
 }
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: typeof copy[Locale]; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {

@@ -301,6 +301,7 @@ export const sourceRegistry: Record<string, DataSource> = {
     category: "medical information",
     fetchedAt: fetchedAtToday,
     ...supportCopy.TOKYO_MEDICAL_TMCNAVI,
+    eligibleVisitPurposes: ["resident"],
   },
   TOKYO_MEDICAL_GAIKOKUGO: {
     id: "TOKYO_MEDICAL_GAIKOKUGO",
