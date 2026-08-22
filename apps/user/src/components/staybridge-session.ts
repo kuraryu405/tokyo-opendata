@@ -8,12 +8,9 @@ import type {
   Situation,
   VisitPurpose,
 } from "@staybridge/domain/types";
-import {
-  selectableUserLocales,
-  type SelectableUserLocale,
-} from "@staybridge/i18n/client";
+import type { SelectableUserLocale } from "@staybridge/i18n/client";
 
-/** Explicit preview allowlist exposed by the public client catalog. */
+/** Locales that have passed review and may be used by the public client. */
 export type Locale = SelectableUserLocale;
 export type StayAnswer = "known" | "unknown" | "documents";
 export type FamilyAnswer = "none" | "children" | "spouse" | "other";
@@ -134,16 +131,16 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
   return null;
 }
 
-export function readStoredLocale(raw: string | null): Locale | null {
-  return selectableUserLocales.includes(raw as Locale) ? raw as Locale : null;
-}
-
 export function serializeStoredSession(session: Omit<StoredSession, "version">): string {
   return JSON.stringify({ version: 2, ...session } satisfies StoredSession);
 }
 
 export function isAssessmentComplete(answeredSteps: number[]): boolean {
   return assessmentSteps.every((step) => answeredSteps.includes(step));
+}
+
+export function firstUnansweredStep(answeredSteps: number[]): number | null {
+  return assessmentSteps.find((step) => !answeredSteps.includes(step)) ?? null;
 }
 
 function isSituation(value: unknown): value is Situation {

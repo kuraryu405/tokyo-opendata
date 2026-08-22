@@ -1,5 +1,5 @@
-import { StayBridgeApp } from "../src/components/StayBridgeApp";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <StayBridgeApp />;
+  redirect("/ja");
 }
