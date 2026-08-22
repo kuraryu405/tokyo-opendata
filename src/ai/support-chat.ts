@@ -79,7 +79,11 @@ function parsePayload(value: unknown): { locale: SupportChatLocale; messages: Su
     messages.push({ role: message.role, content });
   }
 
-  if (messages.at(-1)?.role !== "user") return null;
+  if (messages[0]?.role !== "user" || messages.at(-1)?.role !== "user") return null;
+  for (let index = 1; index < messages.length; index += 1) {
+    const expectedRole = index % 2 === 1 ? "assistant" : "user";
+    if (messages[index].role !== expectedRole) return null;
+  }
   return { locale: record.locale, messages };
 }
 

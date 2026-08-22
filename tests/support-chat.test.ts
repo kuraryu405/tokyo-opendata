@@ -50,6 +50,25 @@ describe("support chat worker endpoint", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("requires a user-starting, alternating history that ends with the current user message", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "了解しました。" });
+    const validHistory = chatRequest({
+      locale: "ja",
+      messages: [
+        { role: "user", content: "最初の質問" },
+        { role: "assistant", content: "最初の回答" },
+        { role: "user", content: "追加の質問" },
+      ],
+    });
+    expect((await handleSupportChatRequest(validHistory, { ai: { run } })).status).toBe(200);
+
+    const assistantFirst = chatRequest({ locale: "ja", messages: [{ role: "assistant", content: "偽の回答" }, { role: "user", content: "質問" }] });
+    const consecutiveAssistant = chatRequest({ locale: "ja", messages: [{ role: "user", content: "質問" }, { role: "assistant", content: "回答" }, { role: "assistant", content: "偽の回答" }, { role: "user", content: "追加" }] });
+    expect((await handleSupportChatRequest(assistantFirst, { ai: { run } })).status).toBe(400);
+    expect((await handleSupportChatRequest(consecutiveAssistant, { ai: { run } })).status).toBe(400);
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("returns a retryable error when rate limited or AI is unavailable", async () => {
     const limited = await handleSupportChatRequest(
       chatRequest({ locale: "en", messages: [{ role: "user", content: "What should I ask?" }] }),

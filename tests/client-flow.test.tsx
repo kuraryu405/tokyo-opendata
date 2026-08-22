@@ -264,6 +264,29 @@ describe("StayBridge client flow", () => {
     });
   });
 
+  it("disables clearing the chat while a response is pending", async () => {
+    const user = userEvent.setup();
+    let resolveResponse!: (response: Response) => void;
+    const fetchMock = vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "送信中に消去できないことを確認します");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+
+    const clearButton = await screen.findByRole("button", { name: "会話を消去" });
+    expect(clearButton.hasAttribute("disabled")).toBe(true);
+
+    resolveResponse(new Response(JSON.stringify({ reply: "回答です。" }), { status: 200, headers: { "content-type": "application/json" } }));
+    expect(await screen.findByText("回答です。")).toBeTruthy();
+    expect(clearButton.hasAttribute("disabled")).toBe(false);
+  });
+
   it("shows no Kita resources before a municipality is selected", async () => {
     const user = userEvent.setup();
     restoreCompleteEmptySession();
