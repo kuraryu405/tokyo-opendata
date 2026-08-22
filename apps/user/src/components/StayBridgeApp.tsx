@@ -143,7 +143,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
   const routeNeedsAssessmentGuard = storageReady && (
     (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
-    ((screen === "status" || screen === "roadmap") && assessmentReset && !assessmentComplete)
+    ((screen === "status" || screen === "roadmap") && !assessmentComplete)
   );
 
   useEffect(() => {

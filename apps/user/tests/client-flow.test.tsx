@@ -183,6 +183,15 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText("質問 01")).toBeTruthy();
   });
 
+  it("guards direct result links when no completed session exists", async () => {
+    navigation.reset("/ja/status");
+    render(<StayBridgeApp />);
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(screen.queryByText("今の状況を整理しました")).toBeNull();
+    expect(screen.getByText("質問 01")).toBeTruthy();
+  });
+
   it("translates the main explanatory content without leaving Japanese copy", async () => {
     const user = userEvent.setup();
     render(<StayBridgeApp />);
