@@ -89,7 +89,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
-  const [assessmentReset, setAssessmentReset] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [assessmentDate] = useState(currentTokyoDate);
@@ -211,7 +210,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const loadDemo = () => {
-    setAssessmentReset(false);
     setSituation(demoSituation);
     setStayAnswer("unknown");
     setFamilyAnswers(["children"]);
@@ -220,7 +218,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const clearData = () => {
-    setAssessmentReset(true);
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
@@ -235,7 +232,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const restartAssessment = () => {
-    setAssessmentReset(true);
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
