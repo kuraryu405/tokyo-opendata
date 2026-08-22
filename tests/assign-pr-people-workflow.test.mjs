@@ -28,12 +28,29 @@ function extractGithubScript(source) {
   return scriptLines.join("\n");
 }
 
+function createPullRequest({
+  assignees = [],
+  author = "author",
+  draft = false,
+  number = 38,
+} = {}) {
+  return {
+    number,
+    draft,
+    head: { repo: { fork: true } },
+    user: { login: author },
+    assignees,
+  };
+}
+
 function createGithubMock({
   authorAssignable = true,
   assignedAuthors = [{ login: "author" }],
   assignmentError,
   collaborators = [],
   collaboratorError,
+  openPullRequests = [],
+  pullRequestFixtures = {},
   requestedReviewersError,
   requestedTeams = [],
   requestedUsers = [],
@@ -44,12 +61,19 @@ function createGithubMock({
     addAssignees: [],
     checkUserCanBeAssigned: [],
     listCollaborators: [],
+    listPullRequests: [],
+    listRequestedReviewers: [],
+    listReviews: [],
     requestReviewers: [],
     sequence: [],
   };
 
   const listCollaborators = async () => ({ data: collaborators });
-  const listReviews = async () => ({ data: reviews });
+  const listPullRequests = async () => ({ data: openPullRequests });
+  const fixtureFor = (pullNumber) => pullRequestFixtures[pullNumber] ?? {};
+  const listReviews = async (parameters) => ({
+    data: fixtureFor(parameters.pull_number).reviews ?? reviews,
+  });
 
   return {
     calls,
@@ -62,7 +86,11 @@ function createGithubMock({
         calls.checkUserCanBeAssigned.push(parameters);
         calls.sequence.push("checkUserCanBeAssigned");
 
-        if (!authorAssignable) {
+        const pullRequestFixture = fixtureFor(parameters.issue_number);
+        const canBeAssigned =
+          pullRequestFixture.authorAssignable ?? authorAssignable;
+
+        if (!canBeAssigned) {
           throw Object.assign(new Error("Not Found"), { status: 404 });
         }
 
@@ -80,9 +108,16 @@ function createGithubMock({
           return collaborators;
         }
 
+        if (method === listPullRequests) {
+          calls.listPullRequests.push(parameters);
+          calls.sequence.push("listPullRequests");
+          return openPullRequests;
+        }
+
         if (method === listReviews) {
+          calls.listReviews.push(parameters);
           calls.sequence.push("listReviews");
-          return reviews;
+          return fixtureFor(parameters.pull_number).reviews ?? reviews;
         }
 
         throw new Error("Unexpected paginated method");
@@ -93,22 +128,43 @@ function createGithubMock({
             calls.addAssignees.push(parameters);
             calls.sequence.push("addAssignees");
 
-            if (assignmentError) {
-              throw assignmentError;
+            const pullRequestFixture = fixtureFor(parameters.issue_number);
+            const currentAssignmentError =
+              pullRequestFixture.assignmentError ?? assignmentError;
+
+            if (currentAssignmentError) {
+              throw currentAssignmentError;
             }
 
-            return { data: { assignees: assignedAuthors } };
+            return {
+              data: {
+                assignees:
+                  pullRequestFixture.assignedAuthors ?? assignedAuthors,
+              },
+            };
           },
         },
         pulls: {
-          listRequestedReviewers: async () => {
+          list: listPullRequests,
+          listRequestedReviewers: async (parameters) => {
+            calls.listRequestedReviewers.push(parameters);
             calls.sequence.push("listRequestedReviewers");
 
-            if (requestedReviewersError) {
-              throw requestedReviewersError;
+            const pullRequestFixture = fixtureFor(parameters.pull_number);
+            const currentRequestedReviewersError =
+              pullRequestFixture.requestedReviewersError ??
+              requestedReviewersError;
+
+            if (currentRequestedReviewersError) {
+              throw currentRequestedReviewersError;
             }
 
-            return { data: { users: requestedUsers, teams: requestedTeams } };
+            return {
+              data: {
+                users: pullRequestFixture.requestedUsers ?? requestedUsers,
+                teams: pullRequestFixture.requestedTeams ?? requestedTeams,
+              },
+            };
           },
           listReviews,
           requestReviewers: async (parameters) => {
@@ -135,6 +191,9 @@ async function runWorkflowScript({
   assignmentError,
   collaborators = [],
   collaboratorError,
+  eventName = "pull_request_target",
+  openPullRequests,
+  pullRequestFixtures,
   requestedReviewersError,
   requestedTeams,
   requestedUsers,
@@ -147,6 +206,8 @@ async function runWorkflowScript({
     assignmentError,
     collaborators,
     collaboratorError,
+    openPullRequests,
+    pullRequestFixtures,
     requestedReviewersError,
     requestedTeams,
     requestedUsers,
@@ -156,16 +217,11 @@ async function runWorkflowScript({
   const logs = [];
   const warnings = [];
   const context = {
-    payload: {
-      action,
-      pull_request: {
-        number: 38,
-        draft: false,
-        head: { repo: { fork: true } },
-        user: { login: "author" },
-        assignees,
-      },
-    },
+    eventName,
+    payload:
+      eventName === "workflow_dispatch"
+        ? {}
+        : { action, pull_request: createPullRequest({ assignees }) },
     repo: { owner: "example", repo: "staybridge" },
   };
   const core = {
@@ -192,8 +248,17 @@ test("draft PRs wait until ready_for_review before assignment runs", () => {
   );
   assert.match(
     workflow,
-    /if: github\.event\.pull_request\.draft == false/,
+    /workflow_dispatch:\s*$/m,
   );
+  assert.match(
+    workflow,
+    /github\.event_name == 'workflow_dispatch' &&\s+github\.ref_type == 'branch' &&\s+github\.ref_name == github\.event\.repository\.default_branch/,
+  );
+  assert.match(
+    workflow,
+    /github\.event_name == 'pull_request_target' &&\s+github\.event\.pull_request\.draft == false/,
+  );
+  assert.match(workflow, /pull_request\.number \|\| 'backfill'/);
   assert.doesNotMatch(workflow, /actions\/checkout/);
 });
 
@@ -357,6 +422,127 @@ test("reruns do not reassign the author or notify previous reviewers", async () 
   );
 });
 
+test("manual backfill processes ready open PRs and skips drafts", async () => {
+  const { calls, logs } = await runWorkflowScript({
+    eventName: "workflow_dispatch",
+    openPullRequests: [
+      createPullRequest({ number: 35 }),
+      createPullRequest({ draft: true, number: 52 }),
+      createPullRequest({ number: 61 }),
+    ],
+  });
+
+  assert.deepEqual(calls.listPullRequests, [
+    {
+      owner: "example",
+      repo: "staybridge",
+      state: "open",
+      per_page: 100,
+    },
+  ]);
+  assert.deepEqual(
+    calls.addAssignees.map(({ issue_number }) => issue_number),
+    [35, 61],
+  );
+  assert.equal(calls.requestReviewers.length, 0);
+  assert.ok(
+    logs.some((message) =>
+      message.includes("Backfill found 2 ready open pull request(s)"),
+    ),
+  );
+  assert.ok(
+    logs.some((message) => message.includes("ready pull request #35")),
+  );
+  assert.ok(
+    logs.every((message) => !message.includes("ready pull request #52")),
+  );
+});
+
+test("manual backfill reruns reuse existing assignments and review history", async () => {
+  const { calls, logs } = await runWorkflowScript({
+    collaborators: [
+      { login: "reviewer-a", type: "User", permissions: { push: true } },
+      { login: "reviewer-b", type: "User", permissions: { push: true } },
+    ],
+    eventName: "workflow_dispatch",
+    openPullRequests: [
+      createPullRequest({
+        assignees: [{ login: "author" }],
+        number: 35,
+      }),
+      createPullRequest({
+        assignees: [{ login: "author" }],
+        number: 61,
+      }),
+    ],
+    pullRequestFixtures: {
+      35: {
+        requestedUsers: [{ login: "reviewer-a" }],
+        reviews: [{ user: { login: "reviewer-b" } }],
+      },
+      61: {
+        requestedUsers: [{ login: "reviewer-b" }],
+        reviews: [{ user: { login: "reviewer-a" } }],
+      },
+    },
+  });
+
+  assert.equal(calls.listPullRequests.length, 1);
+  assert.equal(calls.checkUserCanBeAssigned.length, 0);
+  assert.equal(calls.addAssignees.length, 0);
+  assert.equal(calls.requestReviewers.length, 0);
+  assert.deepEqual(
+    calls.listRequestedReviewers.map(({ pull_number }) => pull_number),
+    [35, 61],
+  );
+  assert.deepEqual(
+    calls.listReviews.map(({ pull_number }) => pull_number),
+    [35, 61],
+  );
+  assert.equal(
+    logs.filter((message) => message.includes("already assigned")).length,
+    2,
+  );
+  assert.equal(
+    logs.filter((message) => message.includes("No new collaborators")).length,
+    2,
+  );
+});
+
+test("manual backfill continues after one PR reviewer lookup fails", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    collaborators: [
+      { login: "reviewer", type: "User", permissions: { push: true } },
+    ],
+    eventName: "workflow_dispatch",
+    openPullRequests: [
+      createPullRequest({ number: 35 }),
+      createPullRequest({ number: 61 }),
+    ],
+    pullRequestFixtures: {
+      35: {
+        requestedReviewersError: new Error("temporary failure for #35"),
+      },
+    },
+  });
+
+  assert.deepEqual(
+    calls.addAssignees.map(({ issue_number }) => issue_number),
+    [35, 61],
+  );
+  assert.deepEqual(
+    calls.listRequestedReviewers.map(({ pull_number }) => pull_number),
+    [35, 61],
+  );
+  assert.deepEqual(
+    calls.requestReviewers.map(({ pull_number }) => pull_number),
+    [61],
+  );
+  assert.ok(
+    warnings.some((message) => message.includes("temporary failure for #35")),
+  );
+});
+
 test("reviewer discovery failure does not undo or block author assignment", async () => {
   const { calls, warnings } = await runWorkflowScript({
     collaboratorError: new Error("temporary collaborator API failure"),
@@ -406,6 +592,47 @@ test("review requests are capped at three reviewable collaborators", async () =>
       "reviewer-c",
       "reviewer-a",
     ].map((login) => ({ login, type: "User", permissions: { push: true } })),
+  });
+
+  assert.deepEqual(
+    calls.requestReviewers.map(({ reviewers }) => reviewers),
+    [["reviewer-a"], ["reviewer-b"], ["reviewer-c"]],
+  );
+});
+
+test("previous review participants count toward the three-person limit", async () => {
+  const { calls } = await runWorkflowScript({
+    collaborators: [
+      "reviewer-a",
+      "reviewer-b",
+      "reviewer-c",
+      "reviewer-d",
+      "reviewer-e",
+    ].map((login) => ({
+      login,
+      type: "User",
+      permissions: { push: true },
+    })),
+    requestedUsers: [{ login: "reviewer-a" }],
+    reviews: [{ user: { login: "reviewer-b" } }],
+  });
+
+  assert.deepEqual(
+    calls.requestReviewers.map(({ reviewers }) => reviewers),
+    [["reviewer-c"]],
+  );
+});
+
+test("external and bot reviews do not consume trusted reviewer slots", async () => {
+  const { calls } = await runWorkflowScript({
+    collaborators: ["reviewer-a", "reviewer-b", "reviewer-c"].map(
+      (login) => ({ login, type: "User", permissions: { push: true } }),
+    ),
+    requestedUsers: [{ login: "external-request" }],
+    reviews: [
+      { user: { login: "external-reviewer" } },
+      { user: { login: "automation-bot" } },
+    ],
   });
 
   assert.deepEqual(

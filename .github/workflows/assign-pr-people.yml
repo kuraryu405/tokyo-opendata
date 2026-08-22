@@ -3,6 +3,7 @@ name: Assign PR author and reviewers
 on:
   pull_request_target:
     types: [opened, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,14 +11,19 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: assign-pr-people-${{ github.event.pull_request.number }}
+  group: assign-pr-people-${{ github.event.pull_request.number || 'backfill' }}
   cancel-in-progress: false
 
 jobs:
   assign:
     name: Assign the PR author and reviewable collaborators
     # Draft pull requests are handled once they become ready for review.
-    if: github.event.pull_request.draft == false
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref_type == 'branch' &&
+      github.ref_name == github.event.repository.default_branch) ||
+      (github.event_name == 'pull_request_target' &&
+      github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -27,164 +33,208 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
-            const pullRequest = context.payload.pull_request;
-            const author = pullRequest.user.login;
             const maximumReviewers = 3;
 
-            const authorIsAssigned = pullRequest.assignees.some(
-              ({ login }) => login === author,
-            );
+            const processPullRequest = async (pullRequest) => {
+              const author = pullRequest.user.login;
 
-            if (!authorIsAssigned) {
-              let authorCanBeAssigned = false;
+              core.info(`Processing ready pull request #${pullRequest.number}.`);
 
-              try {
-                await github.request(
-                  "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
-                  {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: pullRequest.number,
-                    assignee: author,
-                  },
-                );
-                authorCanBeAssigned = true;
-              } catch (error) {
-                const reason =
-                  error.status === 404
-                    ? "GitHub reports that this user is not assignable"
-                    : `assignment eligibility could not be verified: ${error.message}`;
+              const authorIsAssigned = pullRequest.assignees.some(
+                ({ login }) => login === author,
+              );
 
-                core.warning(
-                  `PR author ${author} was not assigned to #${pullRequest.number}: ${reason}. ` +
-                    "Continuing with reviewer processing.",
-                );
-              }
+              if (!authorIsAssigned) {
+                let authorCanBeAssigned = false;
 
-              if (authorCanBeAssigned) {
                 try {
-                  const { data: updatedPullRequest } =
-                    await github.rest.issues.addAssignees({
+                  await github.request(
+                    "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
+                    {
                       owner: context.repo.owner,
                       repo: context.repo.repo,
                       issue_number: pullRequest.number,
-                      assignees: [author],
-                    });
-
-                  const authorWasAssigned = updatedPullRequest.assignees.some(
-                    ({ login }) => login === author,
+                      assignee: author,
+                    },
                   );
-
-                  if (!authorWasAssigned) {
-                    core.warning(
-                      `GitHub accepted the assignment request for ${author}, but #${pullRequest.number} ` +
-                        "still does not list the author as an assignee. Continuing with reviewer processing.",
-                    );
-                  }
+                  authorCanBeAssigned = true;
                 } catch (error) {
+                  const reason =
+                    error.status === 404
+                      ? "GitHub reports that this user is not assignable"
+                      : `assignment eligibility could not be verified: ${error.message}`;
+
                   core.warning(
-                    `Failed to assign PR author ${author} to #${pullRequest.number}: ${error.message}. ` +
+                    `PR author ${author} was not assigned to #${pullRequest.number}: ${reason}. ` +
                       "Continuing with reviewer processing.",
                   );
                 }
+
+                if (authorCanBeAssigned) {
+                  try {
+                    const { data: updatedPullRequest } =
+                      await github.rest.issues.addAssignees({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: pullRequest.number,
+                        assignees: [author],
+                      });
+
+                    const authorWasAssigned = updatedPullRequest.assignees.some(
+                      ({ login }) => login === author,
+                    );
+
+                    if (!authorWasAssigned) {
+                      core.warning(
+                        `GitHub accepted the assignment request for ${author}, but #${pullRequest.number} ` +
+                          "still does not list the author as an assignee. Continuing with reviewer processing.",
+                      );
+                    }
+                  } catch (error) {
+                    core.warning(
+                      `Failed to assign PR author ${author} to #${pullRequest.number}: ${error.message}. ` +
+                        "Continuing with reviewer processing.",
+                    );
+                  }
+                }
+              } else {
+                core.info(`PR author ${author} is already assigned.`);
               }
-            } else {
-              core.info(`PR author ${author} is already assigned.`);
-            }
 
-            let requestedReviewers;
-            let reviews;
-            let collaborators;
+              let requestedReviewers;
+              let reviews;
+              let collaborators;
 
-            try {
-              ({ data: requestedReviewers } =
-                await github.rest.pulls.listRequestedReviewers({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: pullRequest.number,
-                }));
+              try {
+                ({ data: requestedReviewers } =
+                  await github.rest.pulls.listRequestedReviewers({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pullRequest.number,
+                  }));
 
-              reviews = await github.paginate(
-                github.rest.pulls.listReviews,
-                {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: pullRequest.number,
-                  per_page: 100,
-                },
-              );
+                reviews = await github.paginate(
+                  github.rest.pulls.listReviews,
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pullRequest.number,
+                    per_page: 100,
+                  },
+                );
 
-              const requestedTeams = requestedReviewers.teams.map(
-                ({ slug }) => slug,
-              );
+                const requestedTeams = requestedReviewers.teams.map(
+                  ({ slug }) => slug,
+                );
 
-              if (requestedTeams.length > 0) {
-                core.info(
-                  `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
-                    "Skipping individual review requests.",
+                if (requestedTeams.length > 0) {
+                  core.info(
+                    `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
+                      "Skipping individual review requests.",
+                  );
+                  return;
+                }
+
+                collaborators = await github.paginate(
+                  github.rest.repos.listCollaborators,
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    permission: "push",
+                    per_page: 100,
+                  },
+                );
+              } catch (error) {
+                core.warning(
+                  `Reviewer discovery failed after author assignment processing: ${error.message}`,
                 );
                 return;
               }
 
-              collaborators = await github.paginate(
-                github.rest.repos.listCollaborators,
-                {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  permission: "push",
-                  per_page: 100,
-                },
+              const reviewableCollaborators = collaborators.filter(
+                ({ type, permissions }) =>
+                  type === "User" && permissions?.push === true,
               );
-            } catch (error) {
-              core.warning(
-                `Reviewer discovery failed after author assignment processing: ${error.message}`,
+              const reviewableLogins = new Set(
+                reviewableCollaborators.map(({ login }) => login),
               );
-              return;
-            }
-
-            const previouslyNotified = new Set([
-              ...requestedReviewers.users.map(({ login }) => login),
-              ...reviews.map(({ user }) => user?.login).filter(Boolean),
-            ]);
-
-            const reviewerCandidates = collaborators
-              .filter(
-                ({ type, login, permissions }) =>
-                  type === "User" &&
-                  permissions?.push === true &&
-                  login !== author &&
-                  !previouslyNotified.has(login),
-              )
-              .map(({ login }) => login)
-              .sort();
-
-            if (reviewerCandidates.length === 0) {
-              core.info(
-                "No new collaborators with push access are available to review this pull request.",
+              const previouslyNotified = new Set(
+                [
+                  ...requestedReviewers.users.map(({ login }) => login),
+                  ...reviews.map(({ user }) => user?.login).filter(Boolean),
+                ].filter((login) => reviewableLogins.has(login)),
               );
-              return;
-            }
+              const remainingReviewSlots = Math.max(
+                maximumReviewers - previouslyNotified.size,
+                0,
+              );
 
-            let requestedReviewCount = 0;
-
-            for (const reviewer of reviewerCandidates) {
-              if (requestedReviewCount >= maximumReviewers) {
-                break;
-              }
-
-              try {
-                await github.rest.pulls.requestReviewers({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: pullRequest.number,
-                  reviewers: [reviewer],
-                  team_reviewers: [],
-                });
-                requestedReviewCount += 1;
-                core.info(`Requested a review from: ${reviewer}`);
-              } catch (error) {
-                core.warning(
-                  `Could not request a review from ${reviewer}: ${error.message}`,
+              if (remainingReviewSlots === 0) {
+                core.info(
+                  "The pull request already has the maximum number of individual review participants.",
                 );
+                return;
               }
+
+              const reviewerCandidates = reviewableCollaborators
+                .filter(
+                  ({ login }) =>
+                    login !== author &&
+                    !previouslyNotified.has(login),
+                )
+                .map(({ login }) => login)
+                .sort();
+
+              if (reviewerCandidates.length === 0) {
+                core.info(
+                  "No new collaborators with push access are available to review this pull request.",
+                );
+                return;
+              }
+
+              let requestedReviewCount = 0;
+
+              for (const reviewer of reviewerCandidates) {
+                if (requestedReviewCount >= remainingReviewSlots) {
+                  break;
+                }
+
+                try {
+                  await github.rest.pulls.requestReviewers({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pullRequest.number,
+                    reviewers: [reviewer],
+                    team_reviewers: [],
+                  });
+                  requestedReviewCount += 1;
+                  core.info(`Requested a review from: ${reviewer}`);
+                } catch (error) {
+                  core.warning(
+                    `Could not request a review from ${reviewer}: ${error.message}`,
+                  );
+                }
+              }
+            };
+
+            const pullRequests =
+              context.eventName === "workflow_dispatch"
+                ? (
+                    await github.paginate(github.rest.pulls.list, {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      state: "open",
+                      per_page: 100,
+                    })
+                  ).filter(({ draft }) => draft === false)
+                : [context.payload.pull_request];
+
+            if (context.eventName === "workflow_dispatch") {
+              core.info(
+                `Backfill found ${pullRequests.length} ready open pull request(s).`,
+              );
+            }
+
+            for (const pullRequest of pullRequests) {
+              await processPullRequest(pullRequest);
             }
