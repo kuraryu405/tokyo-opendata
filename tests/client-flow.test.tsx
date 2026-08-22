@@ -219,6 +219,9 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "AI相談アシスタント" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
+    expect(screen.queryByText("相談窓口で何を確認するか、一緒に考えられます。")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "何を相談したいですか？" })).toBeNull();
+    expect(screen.queryByText(/返信にはCloudflare Workers AI/)).toBeNull();
 
     expect(screen.getByText(/状況確認の回答は自動送信されません/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談窓口で何を聞けばいい/ })).toBeTruthy();
