@@ -264,6 +264,37 @@ describe("StayBridge client flow", () => {
     });
   });
 
+  it("keeps a user-first alternating history on the fifth question", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      const payload = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
+      const question = payload.messages.at(-1)?.content ?? "";
+      return new Response(JSON.stringify({ reply: question.replace("質問", "回答") }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    for (let turn = 1; turn <= 5; turn += 1) {
+      await user.type(input, `質問${turn}`);
+      await user.click(screen.getByRole("button", { name: "送る" }));
+      expect(await screen.findByText(`回答${turn}`)).toBeTruthy();
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const [, fifthRequest] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const fifthPayload = JSON.parse(String(fifthRequest.body)) as { messages: Array<{ role: string; content: string }> };
+    expect(fifthPayload.messages).toHaveLength(7);
+    expect(fifthPayload.messages.map(({ role }) => role)).toEqual(["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
+    expect(fifthPayload.messages[0].content).toBe("質問2");
+    expect(fifthPayload.messages.at(-1)?.content).toBe("質問5");
+  });
+
   it("does not send an unfinished IME composition with Enter", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn<typeof fetch>();
