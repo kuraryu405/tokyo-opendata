@@ -2,7 +2,7 @@ name: Assign PR author and reviewers
 
 on:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -16,42 +16,140 @@ concurrency:
 jobs:
   assign:
     name: Assign the PR author and contributor reviewers
+    # Draft pull requests are handled once they become ready for review.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       # Do not check out or execute code from the pull request. This workflow
       # runs with write permissions so that fork pull requests are supported.
       - name: Assign the author and request reviews
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const pullRequest = context.payload.pull_request;
             const author = pullRequest.user.login;
 
-            const contributors = await github.paginate(
-              github.rest.repos.listContributors,
+            const { data: requestedReviewers } =
+              await github.rest.pulls.listRequestedReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullRequest.number,
+              });
+
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
               {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
+                pull_number: pullRequest.number,
                 per_page: 100,
               },
             );
 
+            const previouslyNotified = new Set([
+              ...requestedReviewers.users.map(({ login }) => login),
+              ...reviews.map(({ user }) => user?.login).filter(Boolean),
+            ]);
+            const requestedTeams = requestedReviewers.teams.map(
+              ({ slug }) => slug,
+            );
+
+            if (requestedTeams.length > 0) {
+              core.info(
+                `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
+                  "Skipping individual review requests.",
+              );
+            }
+
+            const contributors =
+              requestedTeams.length > 0
+                ? []
+                : await github.paginate(
+                    github.rest.repos.listContributors,
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      per_page: 100,
+                    },
+                  );
+
             // GitHub allows at most 15 users in one review request.
             const reviewers = contributors
-              .filter(({ type, login }) => type === "User" && login !== author)
+              .filter(
+                ({ type, login }) =>
+                  type === "User" &&
+                  login !== author &&
+                  !previouslyNotified.has(login),
+              )
               .map(({ login }) => login)
               .slice(0, 15);
 
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pullRequest.number,
-              assignees: [author],
-            });
+            const authorIsAssigned = pullRequest.assignees.some(
+              ({ login }) => login === author,
+            );
+
+            if (!authorIsAssigned) {
+              let authorCanBeAssigned = false;
+
+              try {
+                await github.request(
+                  "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pullRequest.number,
+                    assignee: author,
+                  },
+                );
+                authorCanBeAssigned = true;
+              } catch (error) {
+                const reason =
+                  error.status === 404
+                    ? "GitHub reports that this user is not assignable"
+                    : `assignment eligibility could not be verified: ${error.message}`;
+
+                core.warning(
+                  `PR author ${author} was not assigned to #${pullRequest.number}: ${reason}. ` +
+                    "Continuing with reviewer processing.",
+                );
+              }
+
+              if (authorCanBeAssigned) {
+                try {
+                  const { data: updatedPullRequest } =
+                    await github.rest.issues.addAssignees({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: pullRequest.number,
+                      assignees: [author],
+                    });
+
+                  const authorWasAssigned = updatedPullRequest.assignees.some(
+                    ({ login }) => login === author,
+                  );
+
+                  if (!authorWasAssigned) {
+                    core.warning(
+                      `GitHub accepted the assignment request for ${author}, but #${pullRequest.number} ` +
+                        "still does not list the author as an assignee. Continuing with reviewer processing.",
+                    );
+                  }
+                } catch (error) {
+                  core.warning(
+                    `Failed to assign PR author ${author} to #${pullRequest.number}: ${error.message}. ` +
+                      "Continuing with reviewer processing.",
+                  );
+                }
+              }
+            } else {
+              core.info(`PR author ${author} is already assigned.`);
+            }
 
             if (reviewers.length === 0) {
-              core.info("No other contributors are available to review this pull request.");
+              core.info(
+                "No new contributors are available to review this pull request.",
+              );
               return;
             }
 

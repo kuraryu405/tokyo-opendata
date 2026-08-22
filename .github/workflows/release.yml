@@ -31,12 +31,12 @@ jobs:
       municipality_staging_verification_url: ${{ steps.config.outputs.municipality_staging_verification_url }}
       municipality_production_verification_url: ${{ steps.config.outputs.municipality_production_verification_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-range-${{ github.event.workflow_run.head_sha }}
           path: release-metadata
@@ -117,7 +117,7 @@ jobs:
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
       (needs.deploy-user.result == 'success' || needs.deploy-user.result == 'skipped') &&
       (needs.deploy-municipality.result == 'success' || needs.deploy-municipality.result == 'skipped')
-    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@main
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@d1428640c266f8c6f3e21faee800b6763269fb12 # main@d142864
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
       user_url: ${{ needs.detect.outputs.user_production_verification_url }}

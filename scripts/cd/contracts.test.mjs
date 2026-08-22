@@ -166,12 +166,12 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.match(release, /production_verification_url:/);
   assert.match(
     release,
-    /kuraryu405\/StayBridgeTokyo-e2e\/\.github\/workflows\/acceptance\.yml@main/,
+    /kuraryu405\/StayBridgeTokyo-e2e\/\.github\/workflows\/acceptance\.yml@[0-9a-f]{40} # main@[0-9a-f]{7,40}/,
   );
   assert.doesNotMatch(release, /E2E_REPOSITORY_DISPATCH_TOKEN/);
   assert.doesNotMatch(release, /USER_(?:STAGING|PRODUCTION)_URL/);
   assert.doesNotMatch(release, /MUNICIPALITY_(?:STAGING|PRODUCTION)_URL/);
-  assert.match(deploy, /actions\/upload-artifact@v4/);
+  assert.match(deploy, /actions\/upload-artifact@[0-9a-f]{40} # v4\.\d+\.\d+/);
   assert.match(deploy, /sha256sum --check/);
   assert.match(deploy, /needs: \[configuration, build, staging\]/);
   assert.match(deploy, /ARTIFACT_NAME: staybridge-\$\{\{ inputs\.service \}\}-\$\{\{ inputs\.revision \}\}/);

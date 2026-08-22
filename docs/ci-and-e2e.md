@@ -7,6 +7,30 @@ pnpm lockfile. CI runs lint, TypeScript checks, all tests, and explicit builds
 for both `apps/user` and `apps/municipality`. Pull requests never have access to
 the release workflow and never deploy.
 
+## GitHub Actions supply-chain policy
+
+Every remote `uses:` reference in `.github/workflows` is pinned to a full
+40-character commit SHA. GitHub Actions include the release tag as a same-line
+comment. The external E2E reusable workflow has no release tags, so its comment
+records the source branch and the shortened pinned SHA instead.
+
+Dependabot checks the `github-actions` ecosystem weekly. For every update pull
+request, verify that the proposed commit belongs to its source repository and
+that its comment identifies the matching release or reusable-workflow revision
+before merging. `pnpm run test:workflows` rejects mutable action references and
+missing version comments.
+
+The workflow permission and secret boundaries are:
+
+| Workflow | Repository token permissions | Additional secret | Boundary |
+| --- | --- | --- | --- |
+| CI | `contents: read` | None | Checks out and tests pull-request code without persisted credentials. |
+| Assign PR author and reviewers | `contents: read`, `issues: write`, `pull-requests: write` | None | Uses `pull_request_target`; never checks out or executes pull-request code. |
+| Recognize contributors | `contents: read` | `CONTRIBUTOR_AUTOMATION_TOKEN` | Runs only after a non-bot pull request is merged and opens a reviewable follow-up pull request. |
+| Release Workers | `actions: read`, `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Runs only after successful CI on `main`, detects release scope, and passes deployment secrets only to the reusable deployment jobs. |
+| Deploy one Worker | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Builds once, promotes the verified artifact through staging and production, and rolls back failed production health checks. |
+| External E2E | Inherited from Release Workers | None | Runs only after the affected production deployments succeed; it cannot roll back a healthy release. |
+
 After a successful push CI on `main`, CI records the push event's exact
 `before` and `head` SHAs as a small release-range artifact. **Release Workers**
 downloads that artifact from the successful CI run and compares the complete
@@ -73,8 +97,8 @@ visibility, but cannot trigger the Worker rollback path after production health
 has succeeded.
 
 The release calls the public reusable workflow
-`kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@main`
-directly. It passes:
+`kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml` at its
+pinned `main` revision directly. It passes:
 
 - `target_commit`: the exact application revision;
 - `user_url` and `municipality_url`: the production targets;
