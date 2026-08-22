@@ -51,15 +51,28 @@ jobs:
               ...requestedReviewers.users.map(({ login }) => login),
               ...reviews.map(({ user }) => user?.login).filter(Boolean),
             ]);
-
-            const contributors = await github.paginate(
-              github.rest.repos.listContributors,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                per_page: 100,
-              },
+            const requestedTeams = requestedReviewers.teams.map(
+              ({ slug }) => slug,
             );
+
+            if (requestedTeams.length > 0) {
+              core.info(
+                `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
+                  "Skipping individual review requests.",
+              );
+            }
+
+            const contributors =
+              requestedTeams.length > 0
+                ? []
+                : await github.paginate(
+                    github.rest.repos.listContributors,
+                    {
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      per_page: 100,
+                    },
+                  );
 
             // GitHub allows at most 15 users in one review request.
             const reviewers = contributors

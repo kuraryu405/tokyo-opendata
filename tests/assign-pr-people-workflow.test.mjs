@@ -28,9 +28,15 @@ function extractGithubScript(source) {
   return scriptLines.join("\n");
 }
 
-function createGithubMock({ contributors, requestedUsers = [], reviews = [] }) {
+function createGithubMock({
+  contributors,
+  requestedTeams = [],
+  requestedUsers = [],
+  reviews = [],
+}) {
   const calls = {
     addAssignees: [],
+    listContributors: 0,
     requestReviewers: [],
   };
 
@@ -42,6 +48,7 @@ function createGithubMock({ contributors, requestedUsers = [], reviews = [] }) {
     github: {
       paginate: async (method) => {
         if (method === listContributors) {
+          calls.listContributors += 1;
           return contributors;
         }
 
@@ -59,7 +66,7 @@ function createGithubMock({ contributors, requestedUsers = [], reviews = [] }) {
         },
         pulls: {
           listRequestedReviewers: async () => ({
-            data: { users: requestedUsers, teams: [] },
+            data: { users: requestedUsers, teams: requestedTeams },
           }),
           listReviews,
           requestReviewers: async (parameters) => {
@@ -78,11 +85,13 @@ async function runWorkflowScript({
   action = "ready_for_review",
   assignees = [],
   contributors,
+  requestedTeams,
   requestedUsers,
   reviews,
 }) {
   const { calls, github } = createGithubMock({
     contributors,
+    requestedTeams,
     requestedUsers,
     reviews,
   });
@@ -158,6 +167,24 @@ test("ready PR still assigns the author when no new reviewer is available", asyn
   assert.equal(calls.requestReviewers.length, 0);
   assert.ok(
     logs.some((message) => message.includes("No new contributors")),
+  );
+});
+
+test("an existing team request suppresses individual review requests", async () => {
+  const { calls, logs } = await runWorkflowScript({
+    contributors: [
+      { login: "author", type: "User" },
+      { login: "team-member", type: "User" },
+      { login: "other-contributor", type: "User" },
+    ],
+    requestedTeams: [{ slug: "maintainers" }],
+  });
+
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.listContributors, 0);
+  assert.equal(calls.requestReviewers.length, 0);
+  assert.ok(
+    logs.some((message) => message.includes("team(s): maintainers")),
   );
 });
 
