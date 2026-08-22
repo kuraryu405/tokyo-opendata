@@ -96,7 +96,8 @@ export function SupportChat({ locale }: { locale: Locale }) {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
+    if (event.key === "Enter" && !event.shiftKey && !isComposing) {
       event.preventDefault();
       void sendMessage();
     }

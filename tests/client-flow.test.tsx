@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -285,6 +285,23 @@ describe("StayBridge client flow", () => {
     resolveResponse(new Response(JSON.stringify({ reply: "回答です。" }), { status: 200, headers: { "content-type": "application/json" } }));
     expect(await screen.findByText("回答です。")).toBeTruthy();
     expect(clearButton.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("does not send an unfinished IME composition with Enter", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "在留資格について");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((input as HTMLTextAreaElement).value).toBe("在留資格について");
   });
 
   it("shows no Kita resources before a municipality is selected", async () => {
