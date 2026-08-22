@@ -332,14 +332,18 @@ describe("StayBridge client flow", () => {
 
     const workAction = (await screen.findByRole("heading", { name: "働ける条件を先に確認する" })).closest("article");
     expect(workAction).not.toBeNull();
-    expect(within(workAction!).getAllByRole("link")).toHaveLength(2);
-    expect(within(workAction!).getAllByText(/確認日:/)).toHaveLength(2);
+    const workLinks = within(workAction!).getAllByRole("link");
+    expect(workLinks.length).toBeGreaterThan(2);
+    expect(workLinks.some((link) => link.getAttribute("href")?.includes("hataraku.metro.tokyo.lg.jp"))).toBe(true);
+    expect(within(workAction!).getAllByText(/確認日:/).length).toBeGreaterThan(2);
     expect(screen.queryByText("重要な順に並べました。すべてを今日終える必要はありません。")).toBeNull();
     expect(screen.queryByText("この地域で確認できる場所")).toBeNull();
     expect(screen.queryByText("人に相談する")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
-    await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(3));
+    expect(screen.getByText("関連する公式情報")).toBeTruthy();
+    expect(screen.getAllByText(/公式情報/).length).toBeGreaterThan(3);
   });
 
   it("routes consultation actions to people and local actions to their exact category", async () => {

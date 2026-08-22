@@ -6,6 +6,9 @@ import type { Action, NeedCategory, Situation } from "@/src/domain/types";
 import {
   localResources,
   sourceRegistry,
+  consultationSourcesByNeed,
+  humanHandoffSourceIds,
+  type DataSource,
   type LocalResource,
 } from "@/src/data";
 import {
@@ -668,7 +671,7 @@ export function StayBridgeApp() {
         {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
         {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} restart={assessmentComplete ? restartAssessment : undefined} openAction={openAction} />}
         {screen === "local" && <LocalAction t={t} resources={availableResources} filter={localFilter} setFilter={changeLocalFilter} />}
-        {screen === "help" && <HumanSupport t={t} locale={locale} summary={() => go("summary")} />}
+        {screen === "help" && <HumanSupport t={t} needs={situation.needs} summary={() => go("summary")} />}
         {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
         </>}
       </main>
@@ -800,10 +803,21 @@ function ResourceCard({ resource, t }: { resource: LocalResource; t: typeof copy
   return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{resource.category === "school" ? "学" : resource.category === "medical" ? "+" : resource.category === "child_support" ? "こ" : "公"}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof typeof t] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2>{resource.description && <p>{resource.description}</p>}<dl><div><dt>ADDRESS</dt><dd>{resource.address || "—"}</dd></div>{resource.phone && <div><dt>PHONE</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.publisher || "Public data"}</a><small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
 }
 
-function HumanSupport({ t, locale, summary }: { t: typeof copy[Locale]; locale: Locale; summary: () => void }) {
-  const supportIds = ["FRESC", "ISA", "TOKYO_CONSULTATION"];
-  const supportSources = supportIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []).filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">HUMAN HANDOFF</span><h1>{t.helpTitle}</h1></div><div className="handoff-grid"><div className="support-list">{supportSources.map((source, index) => <article className="support-card" key={source.id}><span className="support-index">0{index + 1}</span><div><small>OFFICIAL SUPPORT</small><h2>{source.title}</h2><p>{source.notes || (locale === "en" ? "Check current services, languages and opening hours on the official page." : "対応内容・言語・受付時間は公式ページで確認してください。")}</p><a href={source.url} target="_blank" rel="noreferrer">{t.details} ↗</a></div></article>)}</div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span aria-hidden>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+function HumanSupport({ t, needs, summary }: { t: typeof copy[Locale]; needs: NeedCategory[]; summary: () => void }) {
+  const infoSources = needs
+    .flatMap((need) => consultationSourcesByNeed[need] ?? [])
+    .map((id) => sourceRegistry[id])
+    .filter((source): source is DataSource => Boolean(source))
+    .filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index);
+  const handoffSources = humanHandoffSourceIds
+    .map((id) => sourceRegistry[id])
+    .filter((source): source is DataSource => Boolean(source));
+
+  return <section className="content-page"><div className="page-heading"><span className="section-label">HUMAN HANDOFF</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{t.helpInfoTitle}</h2><p className="handoff-group-note">{t.helpInfoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} source={source} index={index} label={t.supportInfoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{t.helpEmptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{t.helpTalkTitle}</h2><p className="handoff-group-note">{t.helpTalkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} source={source} index={index} label="OFFICIAL SUPPORT" details={t.details} />)}</div></section></div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span aria-hidden>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+}
+
+function SupportCard({ source, index, label, details }: { source: DataSource; index: number; label: string; details: string }) {
+  return <article className="support-card"><span className="support-index">0{index + 1}</span><div><small>{label}</small><h2>{source.title}</h2>{source.answersInText && <p className="support-answer">{source.answersInText}</p>}{source.notes && <p className="support-note">{source.notes}</p>}<a href={source.url} target="_blank" rel="noreferrer">{details} ↗</a></div></article>;
 }
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: typeof copy[Locale]; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {
