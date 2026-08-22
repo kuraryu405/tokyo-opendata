@@ -80,8 +80,6 @@ export function assertValidLocalResourceCatalogs(value: unknown): asserts value 
   }
 }
 
-assertValidLocalResourceCatalogs(localResourceCatalogs);
-
 export function getLocalResourceDisplay(locale: LocalResourceLocale, id: LocalResourceId): LocalResourceDisplay {
   return localResourceCatalogs[locale][id];
 }

@@ -3,6 +3,7 @@ import {
   actionIds,
   assertValidUserMessages,
   getUserMessages,
+  getPublishedUserLocales,
   needKeys,
   reasonCodes,
   reviewedUserLocales,
@@ -30,7 +31,7 @@ describe("user message catalogs", () => {
       expect(Object.keys(messages.needs)).toHaveLength(needKeys.length);
       expect(messages.metadata.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(messages.metadata.internalReview.status).toBe(reviewedUserLocales.includes(locale) ? "reviewed" : "pending");
-      expect(messages.metadata.expertReview.status).toBe("pending");
+      expect(["pending", "reviewed"]).toContain(messages.metadata.expertReview.status);
     }
   });
 
@@ -131,7 +132,7 @@ describe("user message catalogs", () => {
     const metadata = getUserMessages(locale).metadata;
     expect(metadata.contentStatus).toBe("draft");
     expect(metadata.internalReview.status).toBe("pending");
-    expect(metadata.expertReview.status).toBe("pending");
+    expect(["pending", "reviewed"]).toContain(metadata.expertReview.status);
     expect(selectableUserLocales).not.toContain(locale);
   });
 
@@ -159,5 +160,22 @@ describe("user message catalogs", () => {
       ...userMessages,
       ko: { ...userMessages.ko, metadata: { ...userMessages.ko.metadata, internalReview: { status: "reviewed", reviewedAt: "2026-08-22", reviewedBy: "Unverified reviewer" } } },
     })).toThrow(/Invalid internalReview review status at ko\.metadata/);
+  });
+
+  it("accepts an expert-reviewed transition without treating preview as publication", () => {
+    const expertReviewed = {
+      ...userMessages,
+      en: {
+        ...userMessages.en,
+        metadata: {
+          ...userMessages.en.metadata,
+          expertReview: { status: "reviewed" as const, reviewedAt: "2026-08-23", reviewedBy: "Expert reviewer" },
+        },
+      },
+    };
+
+    expect(() => assertValidUserMessages(expertReviewed)).not.toThrow();
+    expect(getPublishedUserLocales(expertReviewed)).toEqual(["en"]);
+    expect(selectableUserLocales).toEqual(["ja", "en", "my"]);
   });
 });

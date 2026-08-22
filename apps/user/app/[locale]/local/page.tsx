@@ -1,4 +1,4 @@
-import { selectableUserLocales, type SelectableUserLocale } from "@staybridge/i18n";
+import { selectableUserLocales, type SelectableUserLocale } from "@staybridge/i18n/client";
 import { notFound } from "next/navigation";
 import { StayBridgeApp } from "../../../src/components/StayBridgeApp";
 

@@ -11,9 +11,9 @@ import type {
 import {
   selectableUserLocales,
   type SelectableUserLocale,
-} from "@staybridge/i18n";
+} from "@staybridge/i18n/client";
 
-/** Locales that have passed review and may be used by the public client. */
+/** Explicit preview allowlist exposed by the public client catalog. */
 export type Locale = SelectableUserLocale;
 export type StayAnswer = "known" | "unknown" | "documents";
 export type FamilyAnswer = "none" | "children" | "spouse" | "other";
