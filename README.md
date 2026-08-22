@@ -51,6 +51,17 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 人口・施設は、公的な公開データ/公式一覧から確認した北区の一部レコードをデモ安定性のためローカルへキャッシュしています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
+### Open Dataキャッシュの更新
+
+リポジトリルートで次を実行すると、東京都の外国人人口CSVから北区・ミャンマーの1行だけを取得・検証し、`packages/data/src/normalized/kita-myanmar-population.json`を更新します。
+
+```bash
+pnpm data:fetch
+pnpm test
+```
+
+取得処理は、CSVの必須列・列数・北区行の一意性・自治体名・人口値を検証し、成功時だけキャッシュを置き換えます。`dataUpdatedAt`は統計の基準日、`fetchedAt`は取得日であり、同じ意味ではありません。実行後はJSONの差分と出典metadataを確認してください。学校・医療等の公式ページ／PDFは自動取得の対象外で、正規化レコードを変える前に人が原資料を確認します。
+
 ## 安全性
 
 StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性を判定しません。必要な場面では公式窓口・行政機関・専門家へ接続します。氏名、旅券番号、正確な住所、政治・宗教・迫害に関する情報は要求しません。

@@ -13,3 +13,11 @@
 |Demo fixture|架空Persona AとSituation回答|画面・ルール・デモの安定動作|両方|実在人物・個別ケースを表さない|
 
 形式は Raw Open Data → Adapter → Normalizer → Common Schema とする。Sourceにはタイトル、提供者、URL、種別、カテゴリ、更新日、取得日、確認日、注記を持たせる。数値・施設情報・対応範囲の根拠は必ず該当metadataへ遡れるようにする。
+
+## 人口キャッシュの取得と検証
+
+- `pnpm data:fetch`は東京都のCSVを取得し、北区（地域コード`13117`）・ミャンマーの1レコードだけを`packages/data/src/normalized/kita-myanmar-population.json`へ保存する。
+- 必須列、全行の列数、対象行の一意性、自治体名、地域階層、人口の非負整数を確認できない場合は失敗し、既存キャッシュを変更しない。
+- `dataUpdatedAt`は統計の基準日、`fetchedAt`は取得日として別々に保持する。取得しただけで内容を人が確認済みとは扱わない。
+- 実行後は`git diff -- packages/data/src/normalized/kita-myanmar-population.json`と`pnpm test`で差分と利用側の整合を確認する。
+- 学校・医療・子ども施設・図書館の公式ページ／PDFは自動取得せず、原資料を人が確認してからキュレート済みキャッシュを更新する。
