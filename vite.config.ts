@@ -31,6 +31,14 @@ const localBindingConfig = {
         },
       ]
     : [],
+  ai: { binding: "AI", remote: true },
+  ratelimits: [
+    {
+      name: "SUPPORT_CHAT_RATE_LIMITER",
+      namespace_id: "202608230020",
+      simple: { limit: 20, period: 60 as const },
+    },
+  ],
 };
 
 export default defineConfig(async () => {

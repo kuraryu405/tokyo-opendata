@@ -12,6 +12,10 @@
 
 Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグループ化し、優先度順に表示する。各主要アクションは「なぜこの案内？」と User Input → Rule → Action → Source を開示する。学校カードには就学可否を断定しない注意、医療カードにはデータに存在する項目だけを表示する。
 
+## AI support preparation
+
+Personal Roadmap画面では、左にアクションカード、右に開閉操作のないAIチャットを常時表示する。狭い画面ではチャットをロードマップの上へ移して縦積みにする。初期表示はタイトル、簡潔な注意、質問例、自由入力に絞り、縦方向の余白は会話表示へ割り当てる。AIは窓口で説明する内容と確認する質問の整理に限定する。Situation Checkの回答は自動送信せず、チャット入力と直近7件までの会話だけをCloudflare Workers AIへ送る。会話は再読み込みで消去し、ユーザーは画面上からも消去できる。モデル未接続、推論失敗、レート超過時は公式相談先を使うよう案内し、他の画面・機能を停止しない。
+
 ## Crisis View
 
 MVPでは対応済みの固定対象（北区・ミャンマー）について、Potential Impact、Existing Resources、Data Gap、対応検討項目を表示する。未対応の国籍・自治体を選択できるようには見せない。「不足」と断定せず、能力は要確認とする。人口統計のcoverage noteを常時示す。

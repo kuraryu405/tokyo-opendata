@@ -1,8 +1,11 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
 
 interface Env {
+  AI?: SupportChatAi;
+  SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -27,6 +30,13 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/support-chat") {
+      return handleSupportChatRequest(request, {
+        ai: env.AI,
+        rateLimiter: env.SUPPORT_CHAT_RATE_LIMITER,
+      });
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

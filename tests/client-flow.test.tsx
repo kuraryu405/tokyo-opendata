@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -199,10 +199,141 @@ describe("StayBridge client flow", () => {
     expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "相談前に準備すること" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談内容をまとめる/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "AI相談アシスタント" })).toBeNull();
     expect(screen.queryByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
     expect(screen.getByRole("heading", { name: "相談員に見せるサマリー" })).toBeTruthy();
+  });
+
+  it("uses AI to organize a question without sending saved assessment answers", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      reply: "窓口では、滞在について確認したいことを最初に伝えてください。",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "AI相談アシスタント" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
+    expect(screen.queryByText("相談窓口で何を確認するか、一緒に考えられます。")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "何を相談したいですか？" })).toBeNull();
+    expect(screen.queryByText(/返信にはCloudflare Workers AI/)).toBeNull();
+
+    expect(screen.getByText(/状況確認の回答は自動送信されません/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /相談窓口で何を聞けばいい/ })).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "窓口で何を聞けばいいですか？");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+
+    expect(await screen.findByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toEqual({
+      locale: "ja",
+      messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
+    });
+    expect(String(request.body)).not.toContain(demoSituation.knownStayDeadline);
+    expect(String(request.body)).not.toContain(demoSituation.nationality);
+
+    await user.click(screen.getByRole("button", { name: "会話を消去" }));
+    expect(screen.queryByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeNull();
+  });
+
+  it("starts the AI chat from a suggested question", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      reply: "今困っていることと、確認したいことを短く伝えてください。",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    await user.click(screen.getByRole("button", { name: "今の状況をどう説明すればいい？" }));
+
+    expect(await screen.findByText("今困っていることと、確認したいことを短く伝えてください。")).toBeTruthy();
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toEqual({
+      locale: "ja",
+      messages: [{ role: "user", content: "今の状況をどう説明すればいい？" }],
+    });
+  });
+
+  it("keeps a user-first alternating history on the fifth question", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      const payload = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
+      const question = payload.messages.at(-1)?.content ?? "";
+      return new Response(JSON.stringify({ reply: question.replace("質問", "回答") }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    for (let turn = 1; turn <= 5; turn += 1) {
+      await user.type(input, `質問${turn}`);
+      await user.click(screen.getByRole("button", { name: "送る" }));
+      expect(await screen.findByText(`回答${turn}`)).toBeTruthy();
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const [, fifthRequest] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const fifthPayload = JSON.parse(String(fifthRequest.body)) as { messages: Array<{ role: string; content: string }> };
+    expect(fifthPayload.messages).toHaveLength(7);
+    expect(fifthPayload.messages.map(({ role }) => role)).toEqual(["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
+    expect(fifthPayload.messages[0].content).toBe("質問2");
+    expect(fifthPayload.messages.at(-1)?.content).toBe("質問5");
+  });
+
+  it("does not send an unfinished IME composition with Enter", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "在留資格について");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((input as HTMLTextAreaElement).value).toBe("在留資格について");
+  });
+
+  it("keeps a cleared conversation empty when an earlier reply arrives", async () => {
+    const user = userEvent.setup();
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await openCompletedRoadmap(user);
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "窓口で何を聞けばいいですか？");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+    await user.click(await screen.findByRole("button", { name: "会話を消去" }));
+
+    expect(screen.queryByText("窓口で何を聞けばいいですか？")).toBeNull();
+    expect((input as HTMLTextAreaElement).disabled).toBe(false);
+    await act(async () => {
+      resolveFetch(new Response(JSON.stringify({ reply: "古い回答" }), { status: 200 }));
+    });
+    expect(screen.queryByText("古い回答")).toBeNull();
   });
 
   it("shows no Kita resources before a municipality is selected", async () => {

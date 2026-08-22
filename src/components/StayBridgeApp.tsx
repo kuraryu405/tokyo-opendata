@@ -19,6 +19,7 @@ import {
   type Locale,
   type StayAnswer,
 } from "@/src/components/staybridge-session";
+import { SupportChat } from "@/src/components/SupportChat";
 
 type Screen = "landing" | "check" | "status" | "roadmap" | "local" | "help" | "summary";
 type CopyState = "idle" | "copied" | "error";
@@ -780,7 +781,7 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
 
 function Roadmap({ locale, t, actions, restart, openAction }: { locale: Locale; t: typeof copy[Locale]; actions: Action[]; restart?: () => void; openAction: (actionId: string) => void }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">PERSONAL ROADMAP</span><h1>{t.roadmapTitle}</h1></div><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{timingLabel[locale][group.timing]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div>{restart && <aside className="roadmap-restart"><p>{t.restartPrompt}</p><button className="text-button" onClick={restart}><span aria-hidden="true">↺</span> {t.restart}</button></aside>}</section>;
+  return <section className="content-page roadmap-page"><div className="page-heading"><span className="section-label">PERSONAL ROADMAP</span><h1>{t.roadmapTitle}</h1></div><div className="roadmap-layout"><div className="roadmap-main"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{timingLabel[locale][group.timing]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div>{restart && <aside className="roadmap-restart"><p>{t.restartPrompt}</p><button className="text-button" onClick={restart}><span aria-hidden="true">↺</span> {t.restart}</button></aside>}</div><aside className="roadmap-chat"><SupportChat locale={locale} /></aside></div></section>;
 }
 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: typeof copy[Locale]; action: Action; number: number; openAction: (actionId: string) => void }) {
