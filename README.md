@@ -18,7 +18,7 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログイン・AI APIを必要としません。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログインを必要としません。主要導線はAIに依存せず、相談内容の整理にだけCloudflare Workers AIを使用します。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -36,9 +36,11 @@ Thanks to everyone who has contributed code through a merged pull request.
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## 翻訳モック
+## AI相談と翻訳モック
 
-日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+「相談先」画面ではCloudflare Workers AIを使って、公式窓口で伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。状況確認の回答はAIへ自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
+
+日本語・English・မြန်မာဘာသာの画面表示は、MVPでは静的な翻訳モックです。翻訳にLLMや外部翻訳APIは使用していません。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
 ## データ
 

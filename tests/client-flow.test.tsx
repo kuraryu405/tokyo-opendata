@@ -205,6 +205,39 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: "相談員に見せるサマリー" })).toBeTruthy();
   });
 
+  it("uses AI to organize a question without sending saved assessment answers", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      reply: "窓口では、滞在について確認したいことを最初に伝えてください。",
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await screen.findByRole("button", { name: "相談先" });
+    await user.click(screen.getByRole("button", { name: "相談先" }));
+    await user.click(screen.getByRole("button", { name: "AIで相談内容を整理する" }));
+
+    expect(screen.getByText(/状況確認の回答は自動送信されず/)).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "窓口で何を聞けばいいですか？");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+
+    expect(await screen.findByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toEqual({
+      locale: "ja",
+      messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
+    });
+    expect(String(request.body)).not.toContain(demoSituation.knownStayDeadline);
+    expect(String(request.body)).not.toContain(demoSituation.nationality);
+
+    await user.click(screen.getByRole("button", { name: "会話を消去" }));
+    expect(screen.queryByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeNull();
+  });
+
   it("shows no Kita resources before a municipality is selected", async () => {
     const user = userEvent.setup();
     restoreCompleteEmptySession();

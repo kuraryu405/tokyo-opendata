@@ -62,6 +62,38 @@ test("derives absolute social image URLs from the incoming production host", asy
   assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
 });
 
+test("routes support chat requests through the Workers AI binding", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-support-chat`);
+  const { default: worker } = await import(workerUrl.href);
+  let inference;
+
+  const response = await worker.fetch(
+    new Request("https://staybridge.example/api/support-chat", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://staybridge.example",
+        "cf-connecting-ip": "192.0.2.10",
+      },
+      body: JSON.stringify({
+        locale: "ja",
+        messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
+      }),
+    }),
+    {
+      AI: { run: async (model, input) => { inference = { model, input }; return { response: "確認したいことを一つずつ整理しましょう。" }; } },
+      SUPPORT_CHAT_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { reply: "確認したいことを一つずつ整理しましょう。" });
+  assert.equal(inference.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  assert.equal(inference.input.messages.at(-1).content, "窓口で何を聞けばいいですか？");
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
