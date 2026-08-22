@@ -3,6 +3,7 @@
 :root {
   --ink: #142c38;
   --muted: #62757e;
+  --accessible-text: #4f6269;
   --paper: #f7f8f3;
   --white: #ffffff;
   --blue: #126b86;
@@ -134,3 +135,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
   .site-header, .site-footer, .page-heading, .summary-toolbar { display: none !important; }
   body, .app-shell { background: white; }.summary-page { padding: 0; }.summary-sheet { box-shadow: none; border: 0; }
 }
+
+/* Issue #14: semantic text color for normal-size copy on pale surfaces. */
+.step-number,
+.action-number,
+.review-chip,
+.location-pill,
+.resource-main dt { color: var(--accessible-text); }
