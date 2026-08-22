@@ -7,6 +7,7 @@ const dependabotFile = new URL("../.github/dependabot.yml", import.meta.url);
 const remoteActionPattern = /^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#\s*(\S.*))?$/;
 const fullCommitPattern = /^[0-9a-f]{40}$/;
 const releaseCommentPattern = /^v\d+(?:\.\d+){1,2}$/;
+const reusableWorkflowCommentPattern = /^[a-z][a-z0-9-]*@[0-9a-f]{7,40}$/;
 const expectedPermissions = {
   "assign-pr-people.yml": {
     contents: "read",
@@ -15,8 +16,8 @@ const expectedPermissions = {
   },
   "ci.yml": { contents: "read" },
   "contributors.yml": { contents: "read" },
-  "deploy.yml": { contents: "read" },
-  "e2e-dispatch.yml": { contents: "read" },
+  "deploy-worker.yml": { contents: "read" },
+  "release.yml": { actions: "read", contents: "read" },
 };
 
 function readTopLevelPermissions(contents) {
@@ -31,7 +32,7 @@ function readTopLevelPermissions(contents) {
   );
 }
 
-test("remote GitHub Actions are pinned to full commit SHAs with release comments", async () => {
+test("remote Actions and reusable workflows are pinned to commit SHAs", async () => {
   const workflowFiles = (await readdir(workflowsDirectory))
     .filter((fileName) => /\.ya?ml$/.test(fileName))
     .sort();
@@ -53,7 +54,12 @@ test("remote GitHub Actions are pinned to full commit SHAs with release comments
 
       remoteActionCount += 1;
       const releaseComment = match[2];
-      if (!fullCommitPattern.test(reference) || !releaseCommentPattern.test(releaseComment ?? "")) {
+      const isReusableWorkflow = repository.includes("/.github/workflows/");
+      const hasExpectedComment = isReusableWorkflow
+        ? reusableWorkflowCommentPattern.test(releaseComment ?? "")
+        : releaseCommentPattern.test(releaseComment ?? "");
+
+      if (!fullCommitPattern.test(reference) || !hasExpectedComment) {
         mutableReferences.push(`${fileName}:${index + 1}: ${line.trim()}`);
       }
     });
@@ -63,7 +69,7 @@ test("remote GitHub Actions are pinned to full commit SHAs with release comments
   assert.deepEqual(
     mutableReferences,
     [],
-    `remote actions must use a 40-character commit SHA and version comment:\n${mutableReferences.join("\n")}`,
+    `remote references must use a 40-character commit SHA and an approved version comment:\n${mutableReferences.join("\n")}`,
   );
 });
 

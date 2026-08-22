@@ -1,0 +1,21 @@
+{
+  "name": "@staybridge/domain",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./demo": "./src/demo.ts",
+    "./rules": "./src/rules.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
+  },
+  "devDependencies": {
+    "oxlint": "^1.78.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "type": "module"
+}
