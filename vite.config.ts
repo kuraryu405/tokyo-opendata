@@ -14,6 +14,11 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  ai: { binding: "AI" },
+  ratelimits: [
+    { name: "AI_USER_RATE_LIMITER", namespace_id: "56001", simple: { limit: 10, period: 60 as const } },
+    { name: "AI_GLOBAL_RATE_LIMITER", namespace_id: "56002", simple: { limit: 30, period: 60 as const } },
+  ],
   d1_databases: d1
     ? [
         {

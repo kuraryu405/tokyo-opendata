@@ -2,8 +2,26 @@ import type { Action, LocalResourceCategory, Situation } from "./types";
 
 type ActionSeed = Omit<Action, "priority" | "reasonCode" | "reasonText" | "localResourceCategories">;
 
-/** Inject `asOfDate` in tests (or a request boundary) to make deadline rules repeatable. */
-export type RuleContext = { asOfDate?: string };
+/** Workers AI may only choose from this safety-reviewed card catalogue. */
+export const AI_SELECTABLE_ACTION_IDS = [
+  "CHECK_STAY_STATUS",
+  "CONTACT_OFFICIAL_SUPPORT",
+  "CHECK_CHILD_EDUCATION",
+  "PLAN_TEMPORARY_LIVING",
+  "CHECK_MEDICAL_OPTIONS",
+  "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH",
+  "FIND_LANGUAGE_SUPPORT",
+  "CHECK_CHILD_LOCAL_SUPPORT",
+  "CHECK_LIVING_COST_SUPPORT",
+] as const;
+
+export type AiSelectableActionId = typeof AI_SELECTABLE_ACTION_IDS[number];
+
+/** Inject request-derived values to keep action generation deterministic and testable. */
+export type RuleContext = {
+  asOfDate?: string;
+  recommendedActionIds?: readonly AiSelectableActionId[];
+};
 
 const stayDisclaimer = "Your available options depend on your individual status. Please confirm them with an official support service.";
 
@@ -60,6 +78,23 @@ const actionSeeds: Record<string, ActionSeed> = {
     disclaimer: "Available support depends on your individual circumstances. Please confirm it with a support service.",
   },
 };
+
+const aiLocalResourceCategories: Partial<Record<AiSelectableActionId, LocalResourceCategory[]>> = {
+  CHECK_CHILD_EDUCATION: ["school"],
+  PLAN_TEMPORARY_LIVING: ["accommodation"],
+  CHECK_MEDICAL_OPTIONS: ["medical"],
+  CHECK_CHILD_LOCAL_SUPPORT: ["child_support", "public_facility"],
+  CHECK_LIVING_COST_SUPPORT: ["foreign_support", "consultation"],
+};
+
+export function isAiSelectableActionId(value: unknown): value is AiSelectableActionId {
+  return typeof value === "string" && (AI_SELECTABLE_ACTION_IDS as readonly string[]).includes(value);
+}
+
+export function parseAiActionIds(value: unknown): AiSelectableActionId[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(isAiSelectableActionId))].slice(0, 3);
+}
 
 const toCalendarDate = (value: string): string | undefined => {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
@@ -154,6 +189,16 @@ export function generateActions(situation: Situation, context: RuleContext = {})
     add("CONTACT_OFFICIAL_SUPPORT", 105, "STAY_DEADLINE_PASSED", "The stay deadline you entered has passed, so contact an official support service immediately.", undefined, "today");
   } else if (situation.stayDeadlineKnown && situation.knownStayDeadline) {
     add("CHECK_BEFORE_STAY_DEADLINE", 88, "KNOWN_STAY_DEADLINE", "You entered a stay deadline, so an official check should be planned before that date.");
+  }
+
+  for (const id of context.recommendedActionIds ?? []) {
+    add(
+      id,
+      55,
+      "OTHER_VISIT_PURPOSE",
+      "The additional visit-purpose note indicates that this may be a useful next step to check.",
+      aiLocalResourceCategories[id],
+    );
   }
 
   // A municipality is optional. The UI can show citywide resources whenever it is absent.

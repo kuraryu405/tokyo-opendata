@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "../src/domain/demo";
-import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
+import { createInitialSituation, parseStoredSession, serializeStoredSession } from "../src/components/staybridge-session";
 
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={String(href)} {...props}>{children}</a>,
@@ -194,6 +194,141 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("checkbox", { name: "相談先" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByRole("radio", { name: "ほとんど話せない" }).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("requires and restores free text for area and nationality Other answers", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+    await user.click(screen.getByRole("button", { name: "今の状況を確認する" }));
+
+    await user.click(screen.getByRole("radio", { name: "その他" }));
+    const areaInput = screen.getByRole("textbox", { name: "滞在している区市町村を教えてください" });
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByText("この内容はWorkers AIには送信されません。", { exact: false })).toBeTruthy();
+    await user.type(areaInput, "世田谷区");
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+
+    await user.click(screen.getByRole("radio", { name: "その他" }));
+    const nationalityInput = screen.getByRole("textbox", { name: "国籍・地域を教えてください" });
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).not.toBeNull();
+    await user.type(nationalityInput, "タイ");
+    await user.click(screen.getByRole("button", { name: "戻る" }));
+    expect((screen.getByRole("textbox", { name: "滞在している区市町村を教えてください" }) as HTMLTextAreaElement).value).toBe("世田谷区");
+    await waitFor(() => {
+      const restored = parseStoredSession(sessionStorage.getItem("staybridge.session"));
+      expect(restored?.situation.currentMunicipalityOther).toBe("世田谷区");
+      expect(restored?.situation.nationalityOther).toBe("タイ");
+    });
+  });
+
+  it("requires and restores free text after selecting Other", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...createInitialSituation(), currentMunicipality: "Kita", nationality: "MMR" },
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1],
+    }));
+    window.history.replaceState(null, "", "/?screen=check&step=2");
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("radio", { name: "その他" }));
+    const input = screen.getByRole("textbox", { name: "その他の予定を教えてください" });
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).not.toBeNull();
+    await user.type(input, "国際会議に参加するため");
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).toBeNull();
+    await waitFor(() => expect(parseStoredSession(sessionStorage.getItem("staybridge.session"))?.situation.visitPurposeOther).toBe("国際会議に参加するため"));
+
+    await user.click(screen.getByRole("button", { name: "戻る" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("radio", { name: "その他" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("textbox", { name: "その他の予定を教えてください" }) as HTMLTextAreaElement).value).toBe("国際会議に参加するため");
+  });
+
+  it("requires free text when Other family is selected", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1, 2, 3, 4, 5],
+    }));
+    window.history.replaceState(null, "", "/?screen=check&step=6");
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("checkbox", { name: "その他家族がいる" }));
+    const familyInput = screen.getByRole("textbox", { name: "一緒にいる家族について教えてください" });
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).not.toBeNull();
+    await user.type(familyInput, "親");
+    expect(screen.getByRole("button", { name: "次へ" }).getAttribute("disabled")).toBeNull();
+    await waitFor(() => expect(parseStoredSession(sessionStorage.getItem("staybridge.session"))?.situation.familyOther).toBe("親"));
+  });
+
+  it("uses validated Workers AI card ids and sends only the Other text", async () => {
+    const user = userEvent.setup();
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      actionIds: ["CHECK_LIVING_COST_SUPPORT", "NOT_ALLOWED"],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", request);
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "other", visitPurposeOther: "家族の生活費を手伝うため" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    window.history.replaceState({ staybridge: { screen: "check", step: 9 } }, "", "/?screen=check&step=9");
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "状況を整理する" }));
+    await screen.findByRole("heading", { name: "今の状況を整理しました" }, { timeout: 1200 });
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0]?.[0]).toBe("/api/recommend-actions");
+    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ text: "家族の生活費を手伝うため" });
+    await user.click(screen.getByRole("button", { name: "次のステップを見る" }));
+    expect(await screen.findByRole("heading", { name: "当面の生活費について相談する" })).toBeTruthy();
+    expect(screen.queryByText("NOT_ALLOWED")).toBeNull();
+  });
+
+  it("clears stale Workers AI cards when Question 3 is edited", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "other", visitPurposeOther: "生活費を手伝うため" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      recommendedActionIds: ["CHECK_LIVING_COST_SUPPORT"],
+    }));
+    window.history.replaceState(null, "", "/?screen=check&step=2");
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("radio", { name: "旅行" }));
+    await waitFor(() => expect(parseStoredSession(sessionStorage.getItem("staybridge.session"))?.recommendedActionIds).toEqual([]));
+
+    cleanup();
+    window.history.replaceState(null, "", "/?screen=roadmap");
+    render(<StayBridgeApp />);
+    expect(await screen.findByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+  });
+
+  it("falls back to rule cards when Workers AI is unavailable", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(new Error("offline")));
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "other", visitPurposeOther: "イベントに参加するため" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    window.history.replaceState({ staybridge: { screen: "check", step: 9 } }, "", "/?screen=check&step=9");
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "状況を整理する" }));
+    await screen.findByRole("heading", { name: "今の状況を整理しました" }, { timeout: 1200 });
+    await user.click(screen.getByRole("button", { name: "次のステップを見る" }));
+    expect(await screen.findByRole("heading", { name: "日本に滞在できる期間を確認する" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
   });
 
   it("does not re-enter the previous assessment flow from history after start over", async () => {

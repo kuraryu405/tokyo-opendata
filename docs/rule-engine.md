@@ -1,6 +1,6 @@
 # Rule Engine
 
-ルールは決定論的で、同じ Situation と評価日（`asOfDate`）なら同じ Action を返す。LLMは判断に介入しない。
+ルールは決定論的で、同じ Situation、評価日（`asOfDate`）、検証済み追加Action IDなら同じ Action を返す。Workers AIは来日目的「その他」の自由記述から許可済みAction IDを0〜3件提案できるが、Rule Engineのカードを削除・上書きできない。AI失敗時は追加IDを空にして従来ルールだけで継続する。
 
 |Rule ID|入力・条件|Action / 理由|Risk / Source requirement|
 |---|---|---|---|
@@ -13,5 +13,6 @@
 |R-MED-01|medical needs|NEXT 30 DAYS: 医療を確認、medicalを有効化|診療内容・利用可否を推測しない|
 |R-CHILD-01|子どもがいる|NEXT 30 DAYS: 子育て・公共資源を表示|対象条件は施設へ確認|
 |R-WORK-01|employment/living cost needs|NEXT 30 DAYS: 就労前に現在の滞在状況で就労可能か確認|求人直接誘導は禁止。公式確認が必要|
+|AI-OTHER-01|来日目的「その他」の自由記述|許可済みActionを最大3件、priority 55で追加|自由記述だけを送信。法的判断禁止。JSON Schemaとallowlistで再検証。Rule結果を上書きしない|
 
 各Actionには `reasonCode`、`reasonText`、`sourceIds`、`humanReviewRequired` を保存し、理由をUIで表示する。

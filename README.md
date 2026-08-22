@@ -11,6 +11,7 @@
 `Landing → Language → Situation Check → Personal Roadmap → Local Action → Human Support → Consultation Summary`
 
 - 決定論的なRule Engineが、回答から TODAY / THIS WEEK / NEXT 30 DAYS の行動を生成
+- 地域、国籍・地域、来日目的、同伴家族の「その他」は自由記述でき、来日目的の記述だけをCloudflare Workers AIが安全確認済みカードIDへ分類
 - 公式情報は「何を確認するか」、Open Dataは「地域で何を確認できるか」を支える
 - 行政向け Crisis Support View は Potential Impact、Existing Resources、Data Gap、対応検討項目を表示
 
@@ -18,7 +19,7 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログイン・AI APIを必要としません。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログインは必要ありません。来日目的「その他」の分類にはWorkers AI bindingを使い、利用できない場合はRule Engineだけで継続します。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -38,7 +39,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 翻訳モック
 
-日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。翻訳にLLMや外部翻訳APIは使用しません。主要な行動決定は言語にかかわらずRule Engineで行い、Workers AIは来日目的「その他」の自由記述から許可済みカードを追加提案する用途だけに限定します。本番翻訳と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
 ## データ
 
@@ -48,7 +49,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 安全性
 
-StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性を判定しません。必要な場面では公式窓口・行政機関・専門家へ接続します。氏名、旅券番号、正確な住所、政治・宗教・迫害に関する情報は要求しません。
+StayBridge Tokyo とWorkers AIは、在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性を判定しません。必要な場面では公式窓口・行政機関・専門家へ接続します。氏名、旅券番号、正確な住所、政治・宗教・迫害に関する情報は要求しません。Workers AIへ送る利用者入力は来日目的「その他」の自由記述だけです。
 
 ## 制約
 

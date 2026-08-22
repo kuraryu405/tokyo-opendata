@@ -8,6 +8,6 @@
 
 **1:15–1:35 — Open Data / admin** Crisis Support ViewでMVPの固定対象（北区・Myanmar）を確認する。人口参考データ、既存資源、短期滞在者を完全には捉えないData Gap、対応検討項目を表示する。
 
-**1:35–1:50 — Safety** AIには在留や就労を決めさせない。公式情報、決定論的Rule Engine、Human Handoffを組み合わせる。
+**1:35–1:50 — Safety** AIには在留や就労を決めさせない。「その他」の自由記述は許可済みカードの追加選定だけに使い、公式情報、決定論的Rule Engine、Human Handoffを組み合わせる。
 
 **1:50–2:00 — Closing** StayBridge Tokyo は新制度ではない。既存の情報を、その人が東京で動ける「次の一歩」へ変える。

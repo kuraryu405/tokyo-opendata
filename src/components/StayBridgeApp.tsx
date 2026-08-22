@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { generateActions } from "@/src/domain/rules";
+import {
+  generateActions,
+  parseAiActionIds,
+  type AiSelectableActionId,
+} from "@/src/domain/rules";
 import type { Action, NeedCategory, Situation } from "@/src/domain/types";
 import {
   localResources,
@@ -358,6 +362,27 @@ const questionCopy = {
   ],
 } as const;
 
+const otherAnswerCopy: Record<Locale, Record<0 | 1 | 2 | 6, { label: string; placeholder: string; notice: string }>> = {
+  ja: {
+    0: { label: "滞在している区市町村を教えてください", placeholder: "例：世田谷区（正確な住所は不要です）", notice: "正確な住所や施設名は入力しないでください。この内容はWorkers AIには送信されません。" },
+    1: { label: "国籍・地域を教えてください", placeholder: "例：タイ", notice: "答えたくない場合は「答えたくない」を選べます。この内容はWorkers AIには送信されません。" },
+    2: { label: "その他の予定を教えてください", placeholder: "例：イベントに参加するため、家族の手伝いをするため", notice: "この入力だけを次のステップ選定のためCloudflare Workers AIへ送ります。氏名・書類番号・正確な住所は入力しないでください。" },
+    6: { label: "一緒にいる家族について教えてください", placeholder: "例：親、兄弟・姉妹", notice: "氏名は入力しないでください。この内容はWorkers AIには送信されません。" },
+  },
+  en: {
+    0: { label: "Tell us your city or municipality", placeholder: "For example: Setagaya City (no exact address)", notice: "Do not enter an exact address or facility name. This text is not sent to Workers AI." },
+    1: { label: "Tell us your nationality or region", placeholder: "For example: Thailand", notice: "You can choose “Prefer not to say” instead. This text is not sent to Workers AI." },
+    2: { label: "Tell us about your other plan", placeholder: "For example: to attend an event or help a family member", notice: "Only this text is sent to Cloudflare Workers AI to select next steps. Do not enter names, document numbers, or an exact address." },
+    6: { label: "Tell us which other family is with you", placeholder: "For example: parent, brother, or sister", notice: "Do not enter names. This text is not sent to Workers AI." },
+  },
+  my: {
+    0: { label: "နေထိုင်နေသော မြို့နယ်ကို ရေးပါ", placeholder: "ဥပမာ - ဆေတာဂယမြို့နယ် (လိပ်စာအတိအကျ မလိုပါ)", notice: "လိပ်စာအတိအကျ သို့မဟုတ် နေရာအမည် မရေးပါနှင့်။ ဤစာကို Workers AI သို့ မပို့ပါ။" },
+    1: { label: "နိုင်ငံသား သို့မဟုတ် ဒေသကို ရေးပါ", placeholder: "ဥပမာ - ထိုင်း", notice: "မဖြေလိုပါက မဖြေလိုကို ရွေးနိုင်ပါသည်။ ဤစာကို Workers AI သို့ မပို့ပါ။" },
+    2: { label: "အခြားအစီအစဉ်ကို ရေးပါ", placeholder: "ဥပမာ - ပွဲတစ်ခုတက်ရန် သို့မဟုတ် မိသားစုကို ကူညီရန်", notice: "နောက်အဆင့်ရွေးရန် ဤစာသားကိုသာ Cloudflare Workers AI သို့ ပို့ပါမည်။ အမည်၊ စာရွက်စာတမ်းနံပါတ် သို့မဟုတ် လိပ်စာအတိအကျ မထည့်ပါနှင့်။" },
+    6: { label: "အတူရှိသော အခြားမိသားစုကို ရေးပါ", placeholder: "ဥပမာ - မိဘ၊ အစ်ကို၊ အစ်မ", notice: "အမည်များ မရေးပါနှင့်။ ဤစာကို Workers AI သို့ မပို့ပါ။" },
+  },
+};
+
 const actionCopy: Record<Locale, Record<string, { title: string; desc: string; cta: string }>> = {
   ja: {
     CHECK_STAY_STATUS: { title: "日本に滞在できる期間を確認する", desc: "現在の滞在期限と、今確認すべき手続を公式窓口で確認します。", cta: "公式相談先を見る" },
@@ -419,6 +444,7 @@ const reasonCopy: Record<Locale, Record<string, string>> = {
     LANGUAGE_BARRIER: "日本語での相談に言語サポートが役立つ可能性があるため表示しています。",
     KNOWN_STAY_DEADLINE: "滞在できる期限を入力したため、その日より前に公式確認できるよう表示しています。",
     STAY_DEADLINE_PASSED: "入力した滞在期限を過ぎているため、すぐに公式窓口へ状況を確認する案内を表示しています。",
+    OTHER_VISIT_PURPOSE: "「その他」に記入した内容を参考に、確認すると役立つ可能性がある次のステップとして表示しています。",
   },
   en: {
     RETURN_DIFFICULT_SHORT_TERM: "You said you came for a short visit and now find it difficult to return as planned.",
@@ -435,6 +461,7 @@ const reasonCopy: Record<Locale, Record<string, string>> = {
     LANGUAGE_BARRIER: "Language support may help you explain your situation during official consultations.",
     KNOWN_STAY_DEADLINE: "You entered a stay deadline, so this is shown to help you confirm with an official service before that date.",
     STAY_DEADLINE_PASSED: "The stay deadline you entered has passed, so this directs you to confirm your situation with an official service now.",
+    OTHER_VISIT_PURPOSE: "The note you entered under Other indicates that this may be a useful next step to check.",
   },
   my: {
     RETURN_DIFFICULT_SHORT_TERM: "ခရီးတိုအတွက် လာပြီး ယခု စီစဉ်ထားသလို ပြန်ရန်ခက်ခဲသည်ဟု ဖြေထားသောကြောင့် ပြထားပါသည်။",
@@ -451,6 +478,7 @@ const reasonCopy: Record<Locale, Record<string, string>> = {
     LANGUAGE_BARRIER: "တရားဝင်တိုင်ပင်ရာတွင် ဘာသာစကားအကူအညီ အသုံးဝင်နိုင်သောကြောင့် ပြထားပါသည်။",
     KNOWN_STAY_DEADLINE: "နေထိုင်နိုင်သည့်ရက် ထည့်ထားသောကြောင့် ထိုရက်မတိုင်မီ တရားဝင်အတည်ပြုနိုင်ရန် ပြထားပါသည်။",
     STAY_DEADLINE_PASSED: "ထည့်ထားသော နေထိုင်ခွင့်နောက်ဆုံးရက် ကျော်လွန်နေသောကြောင့် တရားဝင်ဌာနသို့ ယခုချက်ချင်း အတည်ပြုရန် ပြထားပါသည်။",
+    OTHER_VISIT_PURPOSE: "အခြားအစီအစဉ်အဖြစ် ရေးထားသည့်စာကို အခြေခံ၍ အသုံးဝင်နိုင်သော နောက်အဆင့်အဖြစ် ပြထားပါသည်။",
   },
 };
 
@@ -462,6 +490,7 @@ export function StayBridgeApp() {
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
   const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
+  const [recommendedActionIds, setRecommendedActionIds] = useState<AiSelectableActionId[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -471,6 +500,7 @@ export function StayBridgeApp() {
   const [assessmentDate] = useState(currentTokyoDate);
   const skipNextSessionWrite = useRef(false);
   const completionTimer = useRef<number | undefined>(undefined);
+  const recommendationController = useRef<AbortController | undefined>(undefined);
   const answeredStepsRef = useRef(answeredSteps);
   const localeRef = useRef(locale);
   const screenRef = useRef(screen);
@@ -490,6 +520,7 @@ export function StayBridgeApp() {
         setStayAnswer(storedSession.stayAnswer);
         setFamilyAnswers(storedSession.familyAnswers);
         setAnsweredSteps(storedSession.answeredSteps);
+        setRecommendedActionIds(storedSession.recommendedActionIds);
       }
     } catch {
       setStorageError(true);
@@ -500,6 +531,7 @@ export function StayBridgeApp() {
 
   useEffect(() => () => {
     if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
+    recommendationController.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -528,8 +560,10 @@ export function StayBridgeApp() {
       if (completionTimer.current !== undefined) {
         window.clearTimeout(completionTimer.current);
         completionTimer.current = undefined;
-        setIsPreparingResults(false);
       }
+      recommendationController.current?.abort();
+      recommendationController.current = undefined;
+      setIsPreparingResults(false);
       const storedRoute = getHistoryScreen(event.state);
       if (storedRoute?.flowId && storedRoute.flowId !== flowIdRef.current) {
         const route = { screen: "landing" as const, step: 0, flowId: flowIdRef.current };
@@ -567,14 +601,17 @@ export function StayBridgeApp() {
       return;
     }
     try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({ situation, stayAnswer, familyAnswers, answeredSteps }));
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({ situation, stayAnswer, familyAnswers, answeredSteps, recommendedActionIds }));
     } catch {
       window.setTimeout(() => setStorageError(true), 0);
     }
-  }, [answeredSteps, familyAnswers, situation, stayAnswer, storageReady]);
+  }, [answeredSteps, familyAnswers, recommendedActionIds, situation, stayAnswer, storageReady]);
 
   const assessmentComplete = isAssessmentComplete(answeredSteps);
-  const actions = useMemo(() => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate }) : [], [assessmentComplete, assessmentDate, situation]);
+  const actions = useMemo(
+    () => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate, recommendedActionIds }) : [],
+    [assessmentComplete, assessmentDate, recommendedActionIds, situation],
+  );
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -609,14 +646,28 @@ export function StayBridgeApp() {
   };
 
   const complete = () => {
-    if (completionTimer.current !== undefined) return;
+    if (completionTimer.current !== undefined || recommendationController.current) return;
     if (!isAssessmentComplete(answeredSteps)) {
       go("check", getFirstUnansweredStep(answeredSteps));
       return;
     }
     setIsPreparingResults(true);
-    completionTimer.current = window.setTimeout(() => {
+    const controller = new AbortController();
+    recommendationController.current = controller;
+    const otherPurpose = situation.visitPurpose === "other" ? situation.visitPurposeOther?.trim() : "";
+    const recommendations = otherPurpose
+      ? (() => {
+          const timeout = window.setTimeout(() => controller.abort(), 8_000);
+          return requestRecommendedActions(otherPurpose, controller.signal)
+            .finally(() => window.clearTimeout(timeout));
+        })()
+      : Promise.resolve([]);
+    completionTimer.current = window.setTimeout(async () => {
       completionTimer.current = undefined;
+      const nextRecommendedActionIds = await recommendations;
+      if (recommendationController.current !== controller) return;
+      recommendationController.current = undefined;
+      setRecommendedActionIds(nextRecommendedActionIds);
       setIsPreparingResults(false);
       go("status");
     }, 650);
@@ -634,6 +685,7 @@ export function StayBridgeApp() {
     setStayAnswer("unknown");
     setFamilyAnswers([]);
     setAnsweredSteps([]);
+    setRecommendedActionIds([]);
     setLocalFilter("all");
     setCopyState("idle");
     setSummaryDate("");
@@ -663,7 +715,7 @@ export function StayBridgeApp() {
         {isPreparingResults ? <LoadingState t={t} /> : <>
         {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check", 0)} />}
         {screen === "check" && (
-          <SituationCheck locale={locale} t={t} step={step} goToQuestion={goToQuestion} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} backToLanding={() => go("landing")} restart={restartAssessment} finish={complete} />
+          <SituationCheck locale={locale} t={t} step={step} goToQuestion={goToQuestion} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} clearRecommendedActions={() => setRecommendedActionIds([])} assessmentDate={assessmentDate} backToLanding={() => go("landing")} restart={restartAssessment} finish={complete} />
         )}
         {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
         {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} restart={assessmentComplete ? restartAssessment : undefined} openAction={openAction} />}
@@ -702,8 +754,8 @@ function Landing({ t, showStart, start }: { t: typeof copy[Locale]; showStart: b
   </section>;
 }
 
-function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, backToLanding, restart, finish }: {
-  locale: Locale; t: typeof copy[Locale]; step: number; goToQuestion: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; backToLanding: () => void; restart: () => void; finish: () => void;
+function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, clearRecommendedActions, assessmentDate, backToLanding, restart, finish }: {
+  locale: Locale; t: typeof copy[Locale]; step: number; goToQuestion: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; clearRecommendedActions: () => void; assessmentDate: string; backToLanding: () => void; restart: () => void; finish: () => void;
 }) {
   const question = questionCopy[locale][step];
   const [title, , options] = question;
@@ -716,9 +768,26 @@ function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation
     setAnsweredSteps(next);
   };
   const choose = (value: string) => {
-    if (step === 0) setSituation({ ...situation, currentMunicipality: value });
-    if (step === 1) setSituation({ ...situation, nationality: value });
-    if (step === 2) setSituation({ ...situation, visitPurpose: value as Situation["visitPurpose"] });
+    if (step === 0) {
+      const currentMunicipalityOther = value === "Other" ? situation.currentMunicipalityOther ?? "" : "";
+      setSituation({ ...situation, currentMunicipality: value, currentMunicipalityOther });
+      markAnswered(value !== "Other" || Boolean(currentMunicipalityOther.trim()));
+      return;
+    }
+    if (step === 1) {
+      const nationalityOther = value === "OTHER" ? situation.nationalityOther ?? "" : "";
+      setSituation({ ...situation, nationality: value, nationalityOther });
+      markAnswered(value !== "OTHER" || Boolean(nationalityOther.trim()));
+      return;
+    }
+    if (step === 2) {
+      const visitPurpose = value as Situation["visitPurpose"];
+      const visitPurposeOther = visitPurpose === "other" ? situation.visitPurposeOther ?? "" : "";
+      clearRecommendedActions();
+      setSituation({ ...situation, visitPurpose, visitPurposeOther });
+      markAnswered(visitPurpose !== "other" || Boolean(visitPurposeOther.trim()));
+      return;
+    }
     if (step === 3) setSituation({ ...situation, originalDepartureWindow: value as Situation["originalDepartureWindow"] });
     if (step === 4) setSituation({ ...situation, returnStatus: value as Situation["returnStatus"] });
     if (step === 5) { setStayAnswer(value as StayAnswer); setSituation({ ...situation, knownStayDeadline: value === "known" ? situation.knownStayDeadline : undefined, stayDeadlineKnown: value === "known" && Boolean(situation.knownStayDeadline) }); }
@@ -731,15 +800,17 @@ function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation
           : [...familyAnswers.filter((item) => item !== "none"), answer];
       setFamilyAnswers(nextAnswers);
       const hasChildren = nextAnswers.includes("children");
+      const familyOther = nextAnswers.includes("other") ? situation.familyOther ?? "" : "";
       setSituation({
         ...situation,
+        familyOther,
         familyMembers: {
           children: hasChildren
             ? (situation.familyMembers.children.length ? situation.familyMembers.children : [{ ageGroup: "6-11" }])
             : [],
         },
       });
-      markAnswered(nextAnswers.length > 0);
+      markAnswered(nextAnswers.length > 0 && (!nextAnswers.includes("other") || Boolean(familyOther.trim())));
       return;
     }
     if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
@@ -752,15 +823,36 @@ function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
   };
-  const enabled = answeredSteps.includes(step) && (step === 6 ? familyAnswers.length > 0 : step === 8 ? situation.needs.length > 0 : Boolean(current));
+  const updateOtherAnswer = (value: string) => {
+    if (step === 0) setSituation({ ...situation, currentMunicipality: "Other", currentMunicipalityOther: value });
+    if (step === 1) setSituation({ ...situation, nationality: "OTHER", nationalityOther: value });
+    if (step === 2) {
+      clearRecommendedActions();
+      setSituation({ ...situation, visitPurpose: "other", visitPurposeOther: value });
+    }
+    if (step === 6) setSituation({ ...situation, familyOther: value });
+    markAnswered(Boolean(value.trim()));
+  };
+  const otherAnswer = getSelectedOtherAnswer(step, situation, familyAnswers);
+  const otherConfig = isOtherAnswerStep(step) ? otherAnswerCopy[locale][step] : undefined;
+  const enabled = answeredSteps.includes(step) && (
+    otherAnswer !== undefined
+      ? Boolean(otherAnswer.trim())
+      : step === 6
+        ? familyAnswers.length > 0
+        : step === 8
+          ? situation.needs.length > 0
+          : Boolean(current)
+  );
   return <section className="check-page">
     <div className="check-progress"><div className="progress-meta"><span>SITUATION CHECK</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">QUESTION {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
+        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : (answeredSteps.includes(step) || isOtherValue(step, current)) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
       </div>
+      {otherAnswer !== undefined && otherConfig && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherConfig.label}</label><textarea id={`other-answer-${step}`} maxLength={step === 2 ? 300 : 100} rows={3} value={otherAnswer} placeholder={otherConfig.placeholder} aria-describedby={`other-answer-${step}-notice`} onChange={(event) => updateOtherAnswer(event.target.value)} /><p id={`other-answer-${step}-notice`}>{otherConfig.notice}</p></div>}
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{["0-2", "3-5", "6-11", "12-14", "15-17", "18+"].map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age as Situation["familyMembers"]["children"][number]["ageGroup"] }] } })}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" min={assessmentDate} value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions">{step === 0 ? <button className="back-button" onClick={backToLanding}><span aria-hidden="true">←</span> {t.backToTop}</button> : <button className="back-button" onClick={() => goToQuestion(step - 1)}><span aria-hidden="true">←</span> {t.back}</button>}<button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : goToQuestion(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
@@ -769,13 +861,47 @@ function SituationCheck({ locale, t, step, goToQuestion, situation, setSituation
   </section>;
 }
 
+function isOtherAnswerStep(step: number): step is 0 | 1 | 2 | 6 {
+  return step === 0 || step === 1 || step === 2 || step === 6;
+}
+
+function isOtherValue(step: number, value: string): boolean {
+  return (step === 0 && value === "Other") || (step === 1 && value === "OTHER") || (step === 2 && value === "other");
+}
+
+function getSelectedOtherAnswer(step: number, situation: Situation, familyAnswers: FamilyAnswers): string | undefined {
+  if (step === 0 && situation.currentMunicipality === "Other") return situation.currentMunicipalityOther ?? "";
+  if (step === 1 && situation.nationality === "OTHER") return situation.nationalityOther ?? "";
+  if (step === 2 && situation.visitPurpose === "other") return situation.visitPurposeOther ?? "";
+  if (step === 6 && familyAnswers.includes("other")) return situation.familyOther ?? "";
+  return undefined;
+}
+
 function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
 }
 
+async function requestRecommendedActions(text: string, signal: AbortSignal): Promise<AiSelectableActionId[]> {
+  try {
+    const response = await fetch("/api/recommend-actions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (!response.ok) return [];
+    const payload: unknown = await response.json();
+    return payload && typeof payload === "object" && "actionIds" in payload
+      ? parseAiActionIds(payload.actionIds)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, roadmap, edit }: { locale: Locale; t: typeof copy[Locale]; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; roadmap: () => void; edit: () => void }) {
   const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps);
-  return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">SITUATION REVIEW</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
+  return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">SITUATION REVIEW</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span aria-hidden="true">→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
 function Roadmap({ locale, t, actions, restart, openAction }: { locale: Locale; t: typeof copy[Locale]; actions: Action[]; restart?: () => void; openAction: (actionId: string) => void }) {
@@ -828,15 +954,19 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
   const find = (q: number, value: string) => labels[q][2].find(([v]) => v === value)?.[1] || value;
   const child = s.familyMembers.children[0];
   const byStep: Record<number, string | undefined> = {
-    0: s.currentMunicipality ? `${locale === "en" ? "Area" : locale === "my" ? "ဒေသ" : "地域"}: ${find(0, s.currentMunicipality)}` : undefined,
-    1: s.nationality ? `${locale === "en" ? "Nationality/region" : locale === "my" ? "နိုင်ငံသား/ဒေသ" : "国籍・地域"}: ${find(1, s.nationality)}` : undefined,
-    2: find(2, s.visitPurpose),
+    0: s.currentMunicipality ? `${locale === "en" ? "Area" : locale === "my" ? "ဒေသ" : "地域"}: ${s.currentMunicipality === "Other" && s.currentMunicipalityOther?.trim() ? s.currentMunicipalityOther.trim() : find(0, s.currentMunicipality)}` : undefined,
+    1: s.nationality ? `${locale === "en" ? "Nationality/region" : locale === "my" ? "နိုင်ငံသား/ဒေသ" : "国籍・地域"}: ${s.nationality === "OTHER" && s.nationalityOther?.trim() ? s.nationalityOther.trim() : find(1, s.nationality)}` : undefined,
+    2: s.visitPurpose === "other" && s.visitPurposeOther?.trim()
+      ? `${find(2, s.visitPurpose)}: ${s.visitPurposeOther.trim()}`
+      : find(2, s.visitPurpose),
     3: find(3, s.originalDepartureWindow),
     4: find(4, s.returnStatus),
     5: s.knownStayDeadline ? `${find(5, stayAnswer)}: ${s.knownStayDeadline}` : find(5, stayAnswer),
     6: familyAnswers.length
       ? familyAnswers.map((answer) => answer === "children" && child
         ? `${find(6, answer)} · ${locale === "en" ? "age" : locale === "my" ? "အသက်" : "年齢"}: ${child.ageGroup}`
+        : answer === "other" && s.familyOther?.trim()
+          ? `${find(6, answer)}: ${s.familyOther.trim()}`
         : find(6, answer)).join(" / ")
       : undefined,
     7: find(7, s.accommodation),
