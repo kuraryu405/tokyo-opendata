@@ -1,7 +1,6 @@
 import type { LocalResourceId } from "@staybridge/data";
-import type { UserLocale } from "./index";
-
-const localResourceLocales = ["ja", "en", "my"] as const satisfies readonly UserLocale[];
+export const localResourceLocales = ["ja", "en", "my"] as const;
+export type LocalResourceLocale = (typeof localResourceLocales)[number];
 
 /** User-facing copy only. Source-backed values remain in @staybridge/data. */
 export type LocalResourceDisplay = {
@@ -12,7 +11,7 @@ export type LocalResourceDisplay = {
 };
 
 export type LocalResourceCatalog = Record<LocalResourceId, LocalResourceDisplay>;
-export type LocalResourceCatalogByLocale = Record<UserLocale, LocalResourceCatalog>;
+export type LocalResourceCatalogByLocale = Record<LocalResourceLocale, LocalResourceCatalog>;
 
 const ja = {
   "kita-school-toyokawa": { name: "豊川小学校", municipality: "北区", address: "東京都北区豊島3-10-23", description: "北区立の小学校です。" },
@@ -83,6 +82,6 @@ export function assertValidLocalResourceCatalogs(value: unknown): asserts value 
 
 assertValidLocalResourceCatalogs(localResourceCatalogs);
 
-export function getLocalResourceDisplay(locale: UserLocale, id: LocalResourceId): LocalResourceDisplay {
+export function getLocalResourceDisplay(locale: LocalResourceLocale, id: LocalResourceId): LocalResourceDisplay {
   return localResourceCatalogs[locale][id];
 }
