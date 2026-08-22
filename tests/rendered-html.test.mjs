@@ -94,6 +94,19 @@ test("routes support chat requests through the Workers AI binding", async () => 
   assert.equal(inference.input.messages.at(-1).content, "窓口で何を聞けばいいですか？");
 });
 
+test("declares production AI and rate-limit bindings", async () => {
+  const config = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+
+  assert.deepEqual(config.ai, { binding: "AI" });
+  assert.deepEqual(config.ratelimits, [
+    {
+      name: "SUPPORT_CHAT_RATE_LIMITER",
+      namespace_id: "202608230020",
+      simple: { limit: 20, period: 60 },
+    },
+  ]);
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
