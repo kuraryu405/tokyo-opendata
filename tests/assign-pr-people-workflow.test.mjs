@@ -32,19 +32,23 @@ function createGithubMock({
   authorAssignable = true,
   assignedAuthors = [{ login: "author" }],
   assignmentError,
-  contributors,
+  collaborators = [],
+  collaboratorError,
+  requestedReviewersError,
   requestedTeams = [],
   requestedUsers = [],
+  reviewerFailures = new Set(),
   reviews = [],
 }) {
   const calls = {
     addAssignees: [],
     checkUserCanBeAssigned: [],
-    listContributors: 0,
+    listCollaborators: [],
     requestReviewers: [],
+    sequence: [],
   };
 
-  const listContributors = async () => ({ data: contributors });
+  const listCollaborators = async () => ({ data: collaborators });
   const listReviews = async () => ({ data: reviews });
 
   return {
@@ -56,6 +60,7 @@ function createGithubMock({
           "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
         );
         calls.checkUserCanBeAssigned.push(parameters);
+        calls.sequence.push("checkUserCanBeAssigned");
 
         if (!authorAssignable) {
           throw Object.assign(new Error("Not Found"), { status: 404 });
@@ -63,13 +68,20 @@ function createGithubMock({
 
         return { status: 204 };
       },
-      paginate: async (method) => {
-        if (method === listContributors) {
-          calls.listContributors += 1;
-          return contributors;
+      paginate: async (method, parameters) => {
+        if (method === listCollaborators) {
+          calls.listCollaborators.push(parameters);
+          calls.sequence.push("listCollaborators");
+
+          if (collaboratorError) {
+            throw collaboratorError;
+          }
+
+          return collaborators;
         }
 
         if (method === listReviews) {
+          calls.sequence.push("listReviews");
           return reviews;
         }
 
@@ -79,6 +91,7 @@ function createGithubMock({
         issues: {
           addAssignees: async (parameters) => {
             calls.addAssignees.push(parameters);
+            calls.sequence.push("addAssignees");
 
             if (assignmentError) {
               throw assignmentError;
@@ -88,16 +101,26 @@ function createGithubMock({
           },
         },
         pulls: {
-          listRequestedReviewers: async () => ({
-            data: { users: requestedUsers, teams: requestedTeams },
-          }),
+          listRequestedReviewers: async () => {
+            calls.sequence.push("listRequestedReviewers");
+
+            if (requestedReviewersError) {
+              throw requestedReviewersError;
+            }
+
+            return { data: { users: requestedUsers, teams: requestedTeams } };
+          },
           listReviews,
           requestReviewers: async (parameters) => {
             calls.requestReviewers.push(parameters);
+
+            if (reviewerFailures.has(parameters.reviewers[0])) {
+              throw new Error(`Cannot request ${parameters.reviewers[0]}`);
+            }
           },
         },
         repos: {
-          listContributors,
+          listCollaborators,
         },
       },
     },
@@ -110,21 +133,28 @@ async function runWorkflowScript({
   authorAssignable,
   assignedAuthors,
   assignmentError,
-  contributors,
+  collaborators = [],
+  collaboratorError,
+  requestedReviewersError,
   requestedTeams,
   requestedUsers,
+  reviewerFailures,
   reviews,
 }) {
   const { calls, github } = createGithubMock({
     authorAssignable,
     assignedAuthors,
     assignmentError,
-    contributors,
+    collaborators,
+    collaboratorError,
+    requestedReviewersError,
     requestedTeams,
     requestedUsers,
+    reviewerFailures,
     reviews,
   });
   const logs = [];
+  const warnings = [];
   const context = {
     payload: {
       action,
@@ -138,7 +168,6 @@ async function runWorkflowScript({
     },
     repo: { owner: "example", repo: "staybridge" },
   };
-  const warnings = [];
   const core = {
     info: (message) => logs.push(message),
     warning: (message) => warnings.push(message),
@@ -170,12 +199,21 @@ test("draft PRs wait until ready_for_review before assignment runs", () => {
 
 test("ready fork PR assigns the author and requests only a new reviewer", async () => {
   const { calls } = await runWorkflowScript({
-    contributors: [
-      { login: "author", type: "User" },
-      { login: "already-requested", type: "User" },
-      { login: "already-reviewed", type: "User" },
-      { login: "new-reviewer", type: "User" },
-      { login: "automation", type: "Bot" },
+    collaborators: [
+      { login: "author", type: "User", permissions: { push: true } },
+      {
+        login: "already-requested",
+        type: "User",
+        permissions: { push: true },
+      },
+      {
+        login: "already-reviewed",
+        type: "User",
+        permissions: { push: true },
+      },
+      { login: "new-reviewer", type: "User", permissions: { push: true } },
+      { login: "past-contributor", type: "User", permissions: { push: false } },
+      { login: "automation", type: "Bot", permissions: { push: true } },
     ],
     requestedUsers: [{ login: "already-requested" }],
     reviews: [{ user: { login: "already-reviewed" } }],
@@ -186,12 +224,15 @@ test("ready fork PR assigns the author and requests only a new reviewer", async 
   assert.deepEqual(calls.addAssignees[0].assignees, ["author"]);
   assert.equal(calls.requestReviewers.length, 1);
   assert.deepEqual(calls.requestReviewers[0].reviewers, ["new-reviewer"]);
+  assert.equal(calls.listCollaborators[0].permission, "push");
 });
 
 test("unassignable fork author is warned about without blocking review requests", async () => {
   const { calls, warnings } = await runWorkflowScript({
     authorAssignable: false,
-    contributors: [{ login: "reviewer", type: "User" }],
+    collaborators: [
+      { login: "reviewer", type: "User", permissions: { push: true } },
+    ],
   });
 
   assert.equal(calls.checkUserCanBeAssigned.length, 1);
@@ -212,7 +253,9 @@ test("assignment API failures are warned about without blocking review requests"
     assignmentError: Object.assign(new Error("Validation Failed"), {
       status: 422,
     }),
-    contributors: [{ login: "reviewer", type: "User" }],
+    collaborators: [
+      { login: "reviewer", type: "User", permissions: { push: true } },
+    ],
   });
 
   assert.equal(calls.checkUserCanBeAssigned.length, 1);
@@ -230,7 +273,9 @@ test("assignment API failures are warned about without blocking review requests"
 test("a successful API response that omits the author is not treated as assigned", async () => {
   const { calls, warnings } = await runWorkflowScript({
     assignedAuthors: [],
-    contributors: [{ login: "reviewer", type: "User" }],
+    collaborators: [
+      { login: "reviewer", type: "User", permissions: { push: true } },
+    ],
   });
 
   assert.equal(calls.addAssignees.length, 1);
@@ -246,9 +291,9 @@ test("a successful API response that omits the author is not treated as assigned
 
 test("ready PR still assigns the author when no new reviewer is available", async () => {
   const { calls, logs } = await runWorkflowScript({
-    contributors: [
-      { login: "author", type: "User" },
-      { login: "automation", type: "Bot" },
+    collaborators: [
+      { login: "author", type: "User", permissions: { push: true } },
+      { login: "automation", type: "Bot", permissions: { push: true } },
     ],
   });
 
@@ -256,22 +301,26 @@ test("ready PR still assigns the author when no new reviewer is available", asyn
   assert.deepEqual(calls.addAssignees[0].assignees, ["author"]);
   assert.equal(calls.requestReviewers.length, 0);
   assert.ok(
-    logs.some((message) => message.includes("No new contributors")),
+    logs.some((message) => message.includes("No new collaborators")),
   );
 });
 
 test("an existing team request suppresses individual review requests", async () => {
   const { calls, logs } = await runWorkflowScript({
-    contributors: [
-      { login: "author", type: "User" },
-      { login: "team-member", type: "User" },
-      { login: "other-contributor", type: "User" },
+    collaborators: [
+      { login: "author", type: "User", permissions: { push: true } },
+      { login: "team-member", type: "User", permissions: { push: true } },
+      {
+        login: "other-collaborator",
+        type: "User",
+        permissions: { push: true },
+      },
     ],
     requestedTeams: [{ slug: "maintainers" }],
   });
 
   assert.equal(calls.addAssignees.length, 1);
-  assert.equal(calls.listContributors, 0);
+  assert.equal(calls.listCollaborators.length, 0);
   assert.equal(calls.requestReviewers.length, 0);
   assert.ok(
     logs.some((message) => message.includes("team(s): maintainers")),
@@ -282,10 +331,18 @@ test("reruns do not reassign the author or notify previous reviewers", async () 
   const { calls, logs } = await runWorkflowScript({
     action: "reopened",
     assignees: [{ login: "author" }],
-    contributors: [
-      { login: "author", type: "User" },
-      { login: "already-requested", type: "User" },
-      { login: "already-reviewed", type: "User" },
+    collaborators: [
+      { login: "author", type: "User", permissions: { push: true } },
+      {
+        login: "already-requested",
+        type: "User",
+        permissions: { push: true },
+      },
+      {
+        login: "already-reviewed",
+        type: "User",
+        permissions: { push: true },
+      },
     ],
     requestedUsers: [{ login: "already-requested" }],
     reviews: [{ user: { login: "already-reviewed" } }],
@@ -296,6 +353,89 @@ test("reruns do not reassign the author or notify previous reviewers", async () 
   assert.equal(calls.requestReviewers.length, 0);
   assert.ok(logs.some((message) => message.includes("already assigned")));
   assert.ok(
-    logs.some((message) => message.includes("No new contributors")),
+    logs.some((message) => message.includes("No new collaborators")),
+  );
+});
+
+test("reviewer discovery failure does not undo or block author assignment", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    collaboratorError: new Error("temporary collaborator API failure"),
+  });
+
+  assert.deepEqual(calls.sequence, [
+    "checkUserCanBeAssigned",
+    "addAssignees",
+    "listRequestedReviewers",
+    "listReviews",
+    "listCollaborators",
+  ]);
+  assert.equal(calls.requestReviewers.length, 0);
+  assert.ok(
+    warnings.some((message) =>
+      message.includes(
+        "Reviewer discovery failed after author assignment processing: " +
+          "temporary collaborator API failure",
+      ),
+    ),
+  );
+});
+
+test("the first reviewer discovery API failure happens after author processing", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    requestedReviewersError: new Error("temporary review request API failure"),
+  });
+
+  assert.deepEqual(calls.sequence, [
+    "checkUserCanBeAssigned",
+    "addAssignees",
+    "listRequestedReviewers",
+  ]);
+  assert.equal(calls.requestReviewers.length, 0);
+  assert.ok(
+    warnings.some((message) =>
+      message.includes("temporary review request API failure"),
+    ),
+  );
+});
+
+test("review requests are capped at three reviewable collaborators", async () => {
+  const { calls } = await runWorkflowScript({
+    collaborators: [
+      "reviewer-d",
+      "reviewer-b",
+      "reviewer-c",
+      "reviewer-a",
+    ].map((login) => ({ login, type: "User", permissions: { push: true } })),
+  });
+
+  assert.deepEqual(
+    calls.requestReviewers.map(({ reviewers }) => reviewers),
+    [["reviewer-a"], ["reviewer-b"], ["reviewer-c"]],
+  );
+});
+
+test("one invalid reviewer does not prevent requests to other valid reviewers", async () => {
+  const { calls, logs, warnings } = await runWorkflowScript({
+    collaborators: [
+      "a-invalid",
+      "b-valid",
+      "c-valid",
+      "d-valid",
+    ].map((login) => ({ login, type: "User", permissions: { push: true } })),
+    reviewerFailures: new Set(["a-invalid"]),
+  });
+
+  assert.deepEqual(
+    calls.requestReviewers.map(({ reviewers }) => reviewers),
+    [["a-invalid"], ["b-valid"], ["c-valid"], ["d-valid"]],
+  );
+  assert.ok(
+    warnings.some((message) =>
+      message.includes("a-invalid: Cannot request a-invalid"),
+    ),
+  );
+  assert.equal(
+    logs.filter((message) => message.includes("Requested a review from")).length,
+    3,
   );
 });
