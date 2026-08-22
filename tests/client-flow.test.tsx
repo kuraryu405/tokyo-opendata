@@ -228,7 +228,7 @@ describe("StayBridge client flow", () => {
 
     expect(screen.getByRole("status").textContent).toContain("次のステップを準備しています");
     expect(screen.queryByRole("button", { name: "わたしのステップ" })).toBeNull();
-    expect(screen.getByRole("button", { name: "StayBridge Tokyo home" }).getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "StayBridge Tokyo · ホーム" }).getAttribute("disabled")).not.toBeNull();
     expect(await screen.findByRole("heading", { name: "今の状況を整理しました" }, { timeout: 1200 })).toBeTruthy();
   });
 
@@ -431,6 +431,35 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
+  });
+
+  it("keeps the contextual brand control operable and localized", async () => {
+    const user = userEvent.setup();
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await screen.findByRole("button", { name: "わたしのステップ" });
+    for (const destination of ["わたしのステップ", "近くの支援", "相談先"]) {
+      await user.click(screen.getByRole("button", { name: destination }));
+      await user.click(screen.getByRole("button", { name: "わたしのステップへ戻る" }));
+      expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    }
+
+    await user.click(screen.getByRole("button", { name: "相談先" }));
+    await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
+    await user.click(screen.getByRole("button", { name: "わたしのステップへ戻る" }));
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+
+    const brand = screen.getByRole("button", { name: "わたしのステップへ戻る" });
+    brand.focus();
+    expect(document.activeElement).toBe(brand);
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+
+    await user.selectOptions(screen.getByRole("combobox"), "en");
+    expect(screen.getByRole("button", { name: "Go to my steps" })).toBeTruthy();
+    await user.selectOptions(screen.getByRole("combobox"), "my");
+    expect(screen.getByRole("button", { name: "ကျွန်ုပ်၏ အဆင့်များသို့ ပြန်သွားရန်" })).toBeTruthy();
   });
 
   it("leaves the previous assessment flow with one real browser back after start over", async () => {

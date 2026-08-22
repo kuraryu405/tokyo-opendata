@@ -34,6 +34,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
 .brand { display: inline-flex; align-items: center; gap: 11px; border: 0; background: none; font-size: 17px; font-weight: 700; letter-spacing: -.02em; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .brand b { color: var(--blue); }
 .brand-mark { width: 34px; height: 34px; display: inline-grid; place-items: center; border-radius: 50% 50% 50% 13px; background: var(--blue); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .04em; flex: 0 0 auto; }
+.brand-home-label { display: none; color: var(--ink); font-size: 12px; font-weight: 800; }
 .site-header nav { display: flex; align-items: stretch; gap: 8px; margin-left: auto; height: 100%; }
 .site-header nav button { border: 0; background: none; padding: 0 13px; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; position: relative; }
 .site-header nav button.active, .site-header nav button:hover { color: var(--ink); }
@@ -123,7 +124,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
 }
 
 @media (max-width: 600px) {
-  .brand > span:last-child { display: none; }.site-header { position: sticky; }.site-header .brand-mark { width: 32px; height: 32px; }.language-select select { max-width: 112px; }
+  .brand-name { display: none; }.brand-home-label { display: inline; }.site-header { position: sticky; }.site-header .brand-mark { width: 32px; height: 32px; }.language-select select { max-width: 112px; }
   .hero { padding: 46px 20px 66px; }.hero h1 { font-size: 42px; }.lede { font-size: 15px; }.hero-actions { display: grid; }.hero-actions button { width: 100%; }.trust-row { display: grid; gap: 8px; }.roadmap-preview { padding: 20px 18px; }.timeline-line { left: 31px; }
   .principles { padding: 60px 20px; }.principle-grid { grid-template-columns: 1fr; }.principle-grid article { min-height: 160px; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.14); }.principle-grid h3 { margin-top: 20px; }
   .check-page { padding: 32px 14px 60px; }.question-card { padding: 28px 20px; }.option-grid { grid-template-columns: 1fr; }.question-actions button { flex: 1; padding: 0 13px; gap: 9px; }

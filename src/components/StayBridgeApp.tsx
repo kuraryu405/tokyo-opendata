@@ -106,6 +106,7 @@ function currentTokyoDate(): string {
 const copy = {
   ja: {
     skip: "本文へ移動",
+    home: "ホーム",
     navSteps: "わたしのステップ",
     brandToSteps: "わたしのステップへ戻る",
     navLocal: "近くの支援",
@@ -177,6 +178,7 @@ const copy = {
   },
   en: {
     skip: "Skip to content",
+    home: "Home",
     navSteps: "My steps",
     brandToSteps: "Go to my steps",
     navLocal: "Local support",
@@ -248,6 +250,7 @@ const copy = {
   },
   my: {
     skip: "အကြောင်းအရာသို့ သွားရန်",
+    home: "ပင်မ",
     navSteps: "ကျွန်ုပ်၏ အဆင့်များ",
     brandToSteps: "ကျွန်ုပ်၏ အဆင့်များသို့ ပြန်သွားရန်",
     navLocal: "အနီးအနား အကူအညီ",
@@ -680,8 +683,9 @@ function Header({ locale, setLocale, screen, hasCompletedAssessment, isPreparing
   const t = copy[locale];
   const isAnswering = screen === "check" || isPreparingResults;
   const returnsToRoadmap = hasCompletedAssessment && !isAnswering;
+  const brandLabel = returnsToRoadmap ? t.navSteps : t.home;
   return <header className="site-header">
-    <button className="brand" onClick={() => go(returnsToRoadmap ? "roadmap" : "landing")} aria-label={returnsToRoadmap ? t.brandToSteps : "StayBridge Tokyo home"} disabled={isPreparingResults}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></button>
+    <button className="brand" onClick={() => go(returnsToRoadmap ? "roadmap" : "landing")} aria-label={returnsToRoadmap ? t.brandToSteps : `StayBridge Tokyo · ${t.home}`} disabled={isPreparingResults}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{brandLabel}</span></button>
     {hasCompletedAssessment && !isAnswering && <nav aria-label="Primary">
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
