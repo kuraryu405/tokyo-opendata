@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildStayBridgePath,
   canonicalizeStayBridgePath,
+  equivalentStayBridgePath,
   isLocalFilter,
   isSelectableLocale,
   parseStayBridgeRoute,
@@ -43,6 +44,12 @@ describe("StayBridge URL routes", () => {
     expect(canonicalizeStayBridgePath("/ja/check", { step: "nope" })).toBe("/ja/check?step=0");
     expect(canonicalizeStayBridgePath("/ja/local", { filter: "unknown" })).toBe("/ja/local?filter=all");
     expect(canonicalizeStayBridgePath("/ja/status", { step: "7", filter: "medical" })).toBe("/ja/status");
+  });
+
+  it("treats Vinext's locale-root trailing-slash normalization as equivalent", () => {
+    expect(equivalentStayBridgePath("/ja", "/ja/")).toBe(true);
+    expect(equivalentStayBridgePath("/ja/check?step=2", "/ja/check/?step=2")).toBe(true);
+    expect(equivalentStayBridgePath("/ja/check?step=2", "/ja/check?step=3")).toBe(false);
   });
 
   it("keeps the selectable locale boundary separate from the twelve-value catalog", () => {

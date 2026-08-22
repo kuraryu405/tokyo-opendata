@@ -21,6 +21,7 @@ import {
 } from "@staybridge/i18n";
 import {
   buildStayBridgePath,
+  equivalentStayBridgePath,
   parseStayBridgeRoute,
   type LocalFilter,
   type StayBridgeQuery,
@@ -113,7 +114,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   useEffect(() => {
     if (!pathname) return;
     const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
-    if (currentPath !== parsedRoute.canonicalPath) router.replace(parsedRoute.canonicalPath);
+    if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
+      router.replace(parsedRoute.canonicalPath);
+    }
   }, [parsedRoute.canonicalPath, pathname, router, searchParams]);
 
   useEffect(() => {

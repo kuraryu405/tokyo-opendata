@@ -127,6 +127,17 @@ export function canonicalizeStayBridgePath(
   return parseStayBridgeRoute(pathname, searchParams).canonicalPath;
 }
 
+export function equivalentStayBridgePath(left: string, right: string): boolean {
+  const normalize = (value: string) => {
+    const url = new URL(value, "https://staybridge.local");
+    const pathname = url.pathname.length > 1
+      ? url.pathname.replace(/\/+$/, "")
+      : url.pathname;
+    return `${pathname}${url.search}`;
+  };
+  return normalize(left) === normalize(right);
+}
+
 export function selectableLocalePath(
   locale: string,
   screen: StayBridgeScreen = "landing",
