@@ -84,6 +84,37 @@ describe("support chat worker endpoint", () => {
     expect(unavailable.status).toBe(503);
   });
 
+  it("keeps a long model reply valid for the next conversation turn", async () => {
+    const run = vi.fn<SupportChatAi["run"]>()
+      .mockResolvedValueOnce({ response: "a".repeat(801) })
+      .mockResolvedValueOnce({ response: "Ask the desk to confirm the next step." });
+    const firstUserMessage = { role: "user" as const, content: "What should I ask?" };
+
+    const firstResponse = await handleSupportChatRequest(
+      chatRequest({ locale: "en", messages: [firstUserMessage] }),
+      { ai: { run } },
+    );
+    const firstBody = await firstResponse.json() as { reply: string };
+    expect(firstResponse.status).toBe(200);
+    expect(firstBody.reply).toHaveLength(800);
+
+    const secondResponse = await handleSupportChatRequest(
+      chatRequest({
+        locale: "en",
+        messages: [
+          firstUserMessage,
+          { role: "assistant", content: firstBody.reply },
+          { role: "user", content: "What should I bring?" },
+        ],
+      }),
+      { ai: { run } },
+    );
+
+    expect(secondResponse.status).toBe(200);
+    await expect(secondResponse.json()).resolves.toEqual({ reply: "Ask the desk to confirm the next step." });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
   it("stops reading a streamed body as soon as the byte limit is exceeded", async () => {
     const chunk = new TextEncoder().encode("x".repeat(1024));
     let pulls = 0;

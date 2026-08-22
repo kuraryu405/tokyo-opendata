@@ -115,7 +115,9 @@ async function readLimitedBody(request: Request): Promise<string | null> {
 function readModelReply(result: unknown): string | null {
   if (!result || typeof result !== "object") return null;
   const response = (result as Record<string, unknown>).response;
-  return typeof response === "string" && response.trim() ? response.trim() : null;
+  if (typeof response !== "string") return null;
+  const reply = response.trim();
+  return reply ? reply.slice(0, MAX_MESSAGE_LENGTH).trimEnd() : null;
 }
 
 export async function handleSupportChatRequest(
