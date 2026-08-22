@@ -83,4 +83,54 @@ describe("support chat worker endpoint", () => {
     );
     expect(unavailable.status).toBe(503);
   });
+
+  it("stops reading a streamed body as soon as the byte limit is exceeded", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(1024));
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }, { highWaterMark: 0 });
+    const request = new Request("https://staybridge.example/api/support-chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://staybridge.example" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+
+    const response = await handleSupportChatRequest(request, {});
+
+    expect(response.status).toBe(413);
+    expect(pulls).toBe(10);
+    expect(cancelled).toBe(true);
+  });
+
+  it("applies the rate limit before reading a streamed body", async () => {
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new TextEncoder().encode("x"));
+      },
+    }, { highWaterMark: 0 });
+    const request = new Request("https://staybridge.example/api/support-chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://staybridge.example" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+
+    const response = await handleSupportChatRequest(request, {
+      rateLimiter: { limit: vi.fn<SupportChatRateLimiter["limit"]>().mockResolvedValue({ success: false }) },
+    });
+
+    expect(response.status).toBe(429);
+    expect(pulls).toBe(0);
+  });
 });

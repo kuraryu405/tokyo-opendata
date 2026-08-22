@@ -2,7 +2,7 @@ export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 const MAX_MESSAGES = 8;
 const MAX_MESSAGE_LENGTH = 800;
-const MAX_BODY_LENGTH = 10_000;
+const MAX_BODY_BYTES = 10_000;
 
 type SupportChatLocale = "ja" | "en" | "my";
 type SupportChatRole = "user" | "assistant";
@@ -87,6 +87,31 @@ function parsePayload(value: unknown): { locale: SupportChatLocale; messages: Su
   return { locale: record.locale, messages };
 }
 
+async function readLimitedBody(request: Request): Promise<string | null> {
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let byteLength = 0;
+  let body = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      byteLength += value.byteLength;
+      if (byteLength > MAX_BODY_BYTES) {
+        await reader.cancel("REQUEST_TOO_LARGE");
+        return null;
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return body + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function readModelReply(result: unknown): string | null {
   if (!result || typeof result !== "object") return null;
   const response = (result as Record<string, unknown>).response;
@@ -111,17 +136,23 @@ export async function handleSupportChatRequest(
   }
 
   const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_LENGTH) {
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return json({ error: "REQUEST_TOO_LARGE" }, 413);
   }
 
-  let rawBody: string;
+  if (bindings.rateLimiter) {
+    const actor = request.headers.get("cf-connecting-ip") ?? "local";
+    const { success } = await bindings.rateLimiter.limit({ key: `support-chat:${actor}` });
+    if (!success) return json({ error: "RATE_LIMITED" }, 429, { "retry-after": "60" });
+  }
+
+  let rawBody: string | null;
   try {
-    rawBody = await request.text();
+    rawBody = await readLimitedBody(request);
   } catch {
     return json({ error: "INVALID_REQUEST" }, 400);
   }
-  if (rawBody.length > MAX_BODY_LENGTH) return json({ error: "REQUEST_TOO_LARGE" }, 413);
+  if (rawBody === null) return json({ error: "REQUEST_TOO_LARGE" }, 413);
 
   let payload: unknown;
   try {
@@ -131,12 +162,6 @@ export async function handleSupportChatRequest(
   }
   const parsed = parsePayload(payload);
   if (!parsed) return json({ error: "INVALID_MESSAGES" }, 400);
-
-  if (bindings.rateLimiter) {
-    const actor = request.headers.get("cf-connecting-ip") ?? "local";
-    const { success } = await bindings.rateLimiter.limit({ key: `support-chat:${actor}` });
-    if (!success) return json({ error: "RATE_LIMITED" }, 429, { "retry-after": "60" });
-  }
 
   if (!bindings.ai) return json({ error: "AI_UNAVAILABLE" }, 503);
 
