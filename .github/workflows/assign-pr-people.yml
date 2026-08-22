@@ -2,7 +2,7 @@ name: Assign PR author and reviewers
 
 on:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -16,6 +16,8 @@ concurrency:
 jobs:
   assign:
     name: Assign the PR author and contributor reviewers
+    # Draft pull requests are handled once they become ready for review.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -28,6 +30,28 @@ jobs:
             const pullRequest = context.payload.pull_request;
             const author = pullRequest.user.login;
 
+            const { data: requestedReviewers } =
+              await github.rest.pulls.listRequestedReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullRequest.number,
+              });
+
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullRequest.number,
+                per_page: 100,
+              },
+            );
+
+            const previouslyNotified = new Set([
+              ...requestedReviewers.users.map(({ login }) => login),
+              ...reviews.map(({ user }) => user?.login).filter(Boolean),
+            ]);
+
             const contributors = await github.paginate(
               github.rest.repos.listContributors,
               {
@@ -39,19 +63,34 @@ jobs:
 
             // GitHub allows at most 15 users in one review request.
             const reviewers = contributors
-              .filter(({ type, login }) => type === "User" && login !== author)
+              .filter(
+                ({ type, login }) =>
+                  type === "User" &&
+                  login !== author &&
+                  !previouslyNotified.has(login),
+              )
               .map(({ login }) => login)
               .slice(0, 15);
 
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pullRequest.number,
-              assignees: [author],
-            });
+            const authorIsAssigned = pullRequest.assignees.some(
+              ({ login }) => login === author,
+            );
+
+            if (!authorIsAssigned) {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                assignees: [author],
+              });
+            } else {
+              core.info(`PR author ${author} is already assigned.`);
+            }
 
             if (reviewers.length === 0) {
-              core.info("No other contributors are available to review this pull request.");
+              core.info(
+                "No new contributors are available to review this pull request.",
+              );
               return;
             }
 
