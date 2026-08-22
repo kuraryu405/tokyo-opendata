@@ -7,8 +7,10 @@ pnpm lockfile. CI runs lint, TypeScript checks, all tests, and explicit builds
 for both `apps/user` and `apps/municipality`. Pull requests never have access to
 the release workflow and never deploy.
 
-After a successful push CI on `main`, **Release Workers** compares the commit
-with its first parent:
+After a successful push CI on `main`, CI records the push event's exact
+`before` and `head` SHAs as a small release-range artifact. **Release Workers**
+downloads that artifact from the successful CI run and compares the complete
+push range, including pushes that contain more than one commit:
 
 - a change under `apps/user/` releases only the user Worker;
 - a change under `apps/municipality/` releases only the municipality Worker;

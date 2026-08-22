@@ -32,3 +32,20 @@ jobs:
       - run: pnpm test
       - run: pnpm build:user
       - run: pnpm build:municipality
+      - name: Record the complete main push range
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          jq -n --arg base "$BASE_SHA" --arg head "$HEAD_SHA" \
+            '{base: $base, head: $head}' > release-range.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: release-range-${{ github.sha }}
+          path: release-range.json
+          if-no-files-found: error
+          retention-days: 7

@@ -109,6 +109,9 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     assert.match(ci, new RegExp(command.replaceAll("-", "\\-")));
   }
   assert.match(release, /github\.event\.workflow_run\.event == 'push'/);
+  assert.match(ci, /release-range-\$\{\{ github\.sha \}\}/);
+  assert.match(release, /github\.event\.workflow_run\.id/);
+  assert.match(release, /release-metadata\/release-range\.json/);
   assert.match(deploy, /actions\/upload-artifact@v4/);
   assert.match(deploy, /sha256sum --check/);
   assert.match(deploy, /wrangler@4\.92\.0 versions upload/);
