@@ -24,6 +24,12 @@ on:
       production_environment:
         required: true
         type: string
+      staging_database_id:
+        required: true
+        type: string
+      production_database_id:
+        required: true
+        type: string
       staging_verification_url:
         required: true
         type: string
@@ -71,6 +77,8 @@ jobs:
           PRODUCTION_WORKER_INPUT: ${{ inputs.production_worker }}
           STAGING_ENVIRONMENT: ${{ inputs.staging_environment }}
           PRODUCTION_ENVIRONMENT: ${{ inputs.production_environment }}
+          STAGING_DATABASE_ID: ${{ inputs.staging_database_id }}
+          PRODUCTION_DATABASE_ID: ${{ inputs.production_database_id }}
           STAGING_VERIFICATION_URL: ${{ inputs.staging_verification_url }}
           PRODUCTION_VERIFICATION_URL: ${{ inputs.production_verification_url }}
         run: |
@@ -97,6 +105,26 @@ jobs:
             echo "Release environments must be staging and production." >&2
             exit 1
           }
+          d1_id_pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          [[ "$STAGING_DATABASE_ID" =~ $d1_id_pattern ]] && [[ "$PRODUCTION_DATABASE_ID" =~ $d1_id_pattern ]] || {
+            echo "Environment-specific D1 database IDs must be configured." >&2
+            exit 1
+          }
+          staging_database_id="${STAGING_DATABASE_ID,,}"
+          production_database_id="${PRODUCTION_DATABASE_ID,,}"
+          [ "$staging_database_id" != "$production_database_id" ] || {
+            echo "Staging and production must not use the same D1 database." >&2
+            exit 1
+          }
+          for placeholder in \
+            00000000-0000-4000-8000-000000000001 \
+            00000000-0000-4000-8000-000000000002 \
+            00000000-0000-4000-8000-000000000003; do
+            [ "$staging_database_id" != "$placeholder" ] && [ "$production_database_id" != "$placeholder" ] || {
+              echo "Placeholder D1 database IDs cannot be deployed." >&2
+              exit 1
+            }
+          done
           [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* ]] || {
             echo "Verification URLs must use HTTPS." >&2
             exit 1
@@ -186,6 +214,13 @@ jobs:
           sha256sum --check "${ARTIFACT_NAME}.tar.gz.sha256"
           mkdir dist-package
           tar -xzf "${ARTIFACT_NAME}.tar.gz" -C dist-package
+      - name: Configure the staging D1 binding
+        env:
+          D1_DATABASE_ID: ${{ inputs.staging_database_id }}
+        run: >-
+          node scripts/cd/configure-d1.mjs
+          "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
+          staging "$D1_DATABASE_ID"
       - name: Upload and deploy the staging Worker Version
         shell: bash
         env:
@@ -253,6 +288,13 @@ jobs:
           sha256sum --check "${ARTIFACT_NAME}.tar.gz.sha256"
           mkdir dist-package
           tar -xzf "${ARTIFACT_NAME}.tar.gz" -C dist-package
+      - name: Configure the production D1 binding
+        env:
+          D1_DATABASE_ID: ${{ inputs.production_database_id }}
+        run: >-
+          node scripts/cd/configure-d1.mjs
+          "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
+          production "$D1_DATABASE_ID"
       - name: Capture the previous production version
         id: previous
         shell: bash

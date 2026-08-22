@@ -47,10 +47,13 @@ under `dist/.openai`. Staging and production download the same tarball and check
 its SHA-256 before use.
 
 Wrangler 4.92.0 uploads a tagged Worker Version, deploys it to 100% traffic,
-and applies the `workers.dev` trigger. Staging `/healthz` must report the target
-service and commit SHA before production starts. Production does the same. If
-production health fails, the workflow rolls back to the version that was active
-before release when one exists, verifies that version is active, and fails.
+and applies the `workers.dev` trigger. The workflow injects only the target
+environment's D1 ID into the verified artifact configuration; it does not run a
+migration. Staging `/healthz` must report the target service and commit SHA and
+`/readyz` must confirm the D1 Binding before production starts. Production does
+the same. If production liveness or readiness fails, the workflow rolls back to
+the version that was active before release when one exists, verifies that
+version is active, and fails.
 There is no pull-request preview or custom-domain setup in this pipeline.
 
 Production releases are serialized per service and a running release is never
@@ -82,6 +85,13 @@ empty. The workflow derives each verification URL as
 to localhost or an unrelated custom domain. The immutable `APP_REVISION` value
 is derived from the successful CI commit and is installed as a plain Worker
 variable during Version upload.
+
+The repository variables `STAYBRIDGE_STAGING_D1_DATABASE_ID` and
+`STAYBRIDGE_PRODUCTION_D1_DATABASE_ID` are also required. They must contain
+different, non-placeholder D1 IDs. They are runtime configuration rather than
+secrets; the workflow does not print them. Database creation and migration are
+separate operator procedures documented in
+[Workers・D1バックエンド基盤](backend-d1.md).
 
 The reusable workflow receives the app directory, Worker names, GitHub
 Environment names, verification URLs, and revision as non-secret inputs. The
