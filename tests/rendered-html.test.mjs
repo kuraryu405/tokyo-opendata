@@ -79,6 +79,7 @@ test("removes disposable starter assets and keeps site metadata", async () => {
 test("keeps the mobile navigation viewport-fixed outside the filtered header context", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header \{[^}]*backdrop-filter: none;/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header \{[^}]*background: var\(--paper\);[^}]*backdrop-filter: none;/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*position: fixed;[^}]*inset: auto 0 0;/);
+  assert.doesNotMatch(css, /var\(--bg\)/);
 });
