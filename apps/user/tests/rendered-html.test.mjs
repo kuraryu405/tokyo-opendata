@@ -28,21 +28,27 @@ async function render(pathname = "/", origin = "http://localhost") {
   );
 }
 
-test("server-renders a neutral shell before client session restoration", async () => {
-  const response = await render();
+test("redirects the root URL to the reviewed Japanese route", async () => {
+  const response = await render("/");
+  assert.ok(response.status >= 300 && response.status < 400);
+  assert.equal(new URL(response.headers.get("location") ?? "", "http://localhost").pathname, "/ja/");
+});
+
+test("server-renders the StayBridge landing page without starter metadata", async () => {
+  const response = await render("/ja");
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
   assert.match(html, /StayBridge/);
-  assert.doesNotMatch(html, /今の状況を確認する/);
+  assert.match(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
 });
 
 test("derives absolute social image URLs from the incoming production host", async () => {
-  const response = await render("/", "https://staybridge.example");
+  const response = await render("/ja", "https://staybridge.example");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /property="og:image" content="https:\/\/staybridge\.example\/og\.png"/i);
@@ -50,18 +56,38 @@ test("derives absolute social image URLs from the incoming production host", asy
   assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
 });
 
-test("renders localized facility display values for locale Local Action routes", async () => {
-  const [englishResponse, burmeseResponse] = await Promise.all([render("/en/local"), render("/my/local")]);
-  assert.equal(englishResponse.status, 200);
-  assert.equal(burmeseResponse.status, 200);
+test("links to the municipality app through the local default URL", async () => {
+  const response = await render("/ja");
+  const html = await response.text();
+  assert.match(html, /href="http:\/\/localhost:3001"/i);
+});
 
-  const [english, burmese] = await Promise.all([englishResponse.text(), burmeseResponse.text()]);
-  assert.match(english, /Toyokawa Elementary School/);
-  assert.match(english, /3-10-23 Toshima, Kita City, Tokyo/);
-  assert.doesNotMatch(english, /豊川小学校/);
-  assert.match(burmese, /တိုယိုကာဝါ မူလတန်းကျောင်း/);
-  assert.match(burmese, /တိုကျို၊ ကီတာမြို့နယ်၊ တိုယိုရှီမာ ၃-၁၀-၂၃/);
-  assert.doesNotMatch(burmese, /豊川小学校/);
+test("server-renders each URL-driven reviewed route", async () => {
+  for (const pathname of [
+    "/ja",
+    "/en/check?step=4",
+    "/my/status",
+    "/ja/roadmap",
+    "/en/local?filter=medical",
+    "/my/help",
+    "/ja/summary",
+  ]) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200, pathname);
+    assert.match(await response.text(), /StayBridge/);
+  }
+});
+
+test("redirects draft locales and invalid route queries canonically", async () => {
+  const draftResponse = await render("/zh-CN/check?step=3");
+  assert.ok(draftResponse.status >= 300 && draftResponse.status < 400);
+  assert.equal(new URL(draftResponse.headers.get("location") ?? "", "http://localhost").pathname, "/ja/check");
+  assert.equal(new URL(draftResponse.headers.get("location") ?? "", "http://localhost").search, "?step=3");
+
+  const invalidResponse = await render("/ja/local?filter=not-a-filter");
+  assert.ok(invalidResponse.status >= 300 && invalidResponse.status < 400);
+  assert.equal(new URL(invalidResponse.headers.get("location") ?? "", "http://localhost").pathname, "/ja/local");
+  assert.equal(new URL(invalidResponse.headers.get("location") ?? "", "http://localhost").search, "?filter=all");
 });
 
 test("removes disposable starter assets and keeps site metadata", async () => {

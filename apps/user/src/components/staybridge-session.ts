@@ -8,10 +8,7 @@ import type {
   Situation,
   VisitPurpose,
 } from "@staybridge/domain/types";
-import {
-  selectableUserLocales,
-  type SelectableUserLocale,
-} from "@staybridge/i18n";
+import type { SelectableUserLocale } from "@staybridge/i18n";
 
 /** Locales that have passed review and may be used by the public client. */
 export type Locale = SelectableUserLocale;
@@ -132,10 +129,6 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
     return null;
   }
   return null;
-}
-
-export function readStoredLocale(raw: string | null): Locale | null {
-  return selectableUserLocales.includes(raw as Locale) ? raw as Locale : null;
 }
 
 export function serializeStoredSession(session: Omit<StoredSession, "version">): string {
