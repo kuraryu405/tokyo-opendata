@@ -2,6 +2,28 @@
 
 Every pull request and push to `main` runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` through the **CI** workflow.
 
+## GitHub Actions supply-chain policy
+
+Every third-party `uses:` reference in `.github/workflows` is pinned to a full
+40-character commit SHA. Keep the release tag on the same line as a comment so
+reviewers and Dependabot can show which release the SHA represents.
+
+Dependabot checks the `github-actions` ecosystem weekly. For every update pull
+request, verify that the proposed commit belongs to the action's official
+repository and that the version comment matches a release tag before merging.
+`pnpm run test:workflows` rejects mutable action references and missing version
+comments.
+
+The workflow permission and secret boundaries are:
+
+| Workflow | Repository token permissions | Additional secret | Boundary |
+| --- | --- | --- | --- |
+| CI | `contents: read` | None | Checks out and tests pull-request code without persisted credentials. |
+| Assign PR author and reviewers | `contents: read`, `issues: write`, `pull-requests: write` | None | Uses `pull_request_target`; never checks out or executes pull-request code. |
+| Recognize contributors | `contents: read` | `CONTRIBUTOR_AUTOMATION_TOKEN` | Runs only after a non-bot pull request is merged and opens a reviewable follow-up pull request. |
+| Deploy | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Runs from `main` or by manual dispatch; secrets are scoped to the deploy step. |
+| Dispatch E2E | `contents: read` | `E2E_REPOSITORY_DISPATCH_TOKEN` | Sends a fixed metadata payload and never includes the token in it. |
+
 ## Separate Playwright repository
 
 The **Dispatch E2E** workflow starts the external Playwright suite only after CI succeeds on `main`. Configure it once in this repository:

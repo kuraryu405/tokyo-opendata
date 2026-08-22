@@ -12,13 +12,19 @@
     "build": "pnpm --filter @staybridge/user run build && pnpm --filter @staybridge/municipality run build",
     "build:user": "pnpm --filter @staybridge/user run build",
     "build:municipality": "pnpm --filter @staybridge/municipality run build",
-    "test": "pnpm run test:workflow && pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/user --filter @staybridge/municipality -r run test",
+    "test": "pnpm run test:workflow && pnpm run test:workflows && pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/user --filter @staybridge/municipality -r run test",
     "test:workflow": "node --test tests/assign-pr-people-workflow.test.mjs",
+    "test:workflows": "node --test tests/github-actions-security.test.mjs",
     "typecheck": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/user --filter @staybridge/municipality -r run typecheck",
     "lint": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/user --filter @staybridge/municipality -r run lint",
     "lint:fix": "pnpm --filter @staybridge/user --filter @staybridge/municipality -r run lint:fix",
     "test:rendered": "pnpm --filter @staybridge/user run test:rendered && pnpm --filter @staybridge/municipality run test:rendered",
     "data:fetch": "pnpm --filter @staybridge/data data:fetch"
+  },
+  "dependencies": {
+    "next": "^16.3.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
