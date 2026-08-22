@@ -1,4 +1,5 @@
 export * from "./sources";
+export * from "./support-copy";
 export * from "./adapters/types";
 export * from "./adapters/open-data";
 export * from "./adapters/population-cache";

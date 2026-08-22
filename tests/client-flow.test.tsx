@@ -6,6 +6,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "../src/domain/demo";
+import type { VisitPurpose } from "../src/domain/types";
+import { sourceRegistry, supportCopy } from "../src/data";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 vi.mock("next/link", () => ({
@@ -187,7 +189,7 @@ describe("StayBridge client flow", () => {
     back.mockRestore();
   });
 
-  it("keeps the consultation preparation card without the supplementary introduction", async () => {
+  it("shows the consultation preparation card with the support introduction", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
     render(<StayBridgeApp />);
@@ -199,7 +201,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "相談前に準備すること" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談内容をまとめる/ })).toBeTruthy();
-    expect(screen.queryByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeNull();
+    expect(screen.getByText(/この内容は、あなたの滞在状況によって手続が変わる/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
     expect(screen.getByRole("heading", { name: "相談員に見せるサマリー" })).toBeTruthy();
@@ -332,14 +334,139 @@ describe("StayBridge client flow", () => {
 
     const workAction = (await screen.findByRole("heading", { name: "働ける条件を先に確認する" })).closest("article");
     expect(workAction).not.toBeNull();
-    expect(within(workAction!).getAllByRole("link")).toHaveLength(2);
-    expect(within(workAction!).getAllByText(/確認日:/)).toHaveLength(2);
+    const workLinks = within(workAction!).getAllByRole("link");
+    expect(workLinks.length).toBeGreaterThan(2);
+    expect(workLinks.some((link) => link.getAttribute("href")?.includes("hataraku.metro.tokyo.lg.jp"))).toBe(true);
+    expect(within(workAction!).getAllByText(/確認日:/).length).toBeGreaterThan(2);
     expect(screen.queryByText("重要な順に並べました。すべてを今日終える必要はありません。")).toBeNull();
     expect(screen.queryByText("この地域で確認できる場所")).toBeNull();
     expect(screen.queryByText("人に相談する")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     await waitFor(() => expect(screen.getAllByText(/OFFICIAL SUPPORT/)).toHaveLength(2));
+    expect(screen.getByRole("heading", { name: sourceRegistry.FRESC.title })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TMC_NAVI.title })).toBeNull();
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title })).toBeNull();
+    expect(screen.getByText("関連する公式情報")).toBeTruthy();
+    expect(screen.getAllByText(/公式情報/).length).toBeGreaterThan(3);
+  });
+
+  it.each([
+    ["tourism", false, false],
+    ["visiting_family_or_friends", false, false],
+    ["other", false, false],
+    ["unknown", false, false],
+    ["work", true, false],
+    ["study", true, false],
+    ["resident", true, true],
+  ] satisfies Array<[VisitPurpose, boolean, boolean]>)(
+    "filters visit-purpose-limited sources for %s",
+    async (visitPurpose, showsStatusConsultation, showsTmcNavi) => {
+      localStorage.setItem("staybridge.locale", "en");
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({
+        situation: { ...demoSituation, visitPurpose },
+        stayAnswer: "unknown",
+        familyAnswers: ["children"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+      const user = userEvent.setup();
+      render(<StayBridgeApp />);
+
+      await user.click(await screen.findByRole("button", { name: "My steps" }));
+      const roadmapLinks = screen.getAllByRole("link");
+      expect(roadmapLinks.some((link) => link.textContent?.includes(sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title))).toBe(showsStatusConsultation);
+      expect(roadmapLinks.some((link) => link.textContent?.includes(sourceRegistry.TMC_NAVI.title))).toBe(showsTmcNavi);
+
+      await user.click(screen.getByRole("button", { name: "Get help" }));
+      expect(Boolean(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_FRESC_STATUS_CONSULT.title }))).toBe(showsStatusConsultation);
+      expect(Boolean(screen.queryByRole("heading", { name: sourceRegistry.TMC_NAVI.title }))).toBe(showsTmcNavi);
+      expect(screen.getByRole("heading", { name: sourceRegistry.FRESC.title })).toBeTruthy();
+    },
+  );
+
+  it("hides the resident-only medical TMC Navi card for tourism", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "tourism", needs: ["medical"] },
+      stayAnswer: "unknown",
+      familyAnswers: ["none"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "相談先" }));
+
+    expect(screen.queryByRole("heading", { name: sourceRegistry.TOKYO_MEDICAL_TMCNAVI.title })).toBeNull();
+    expect(screen.getByRole("heading", { name: sourceRegistry.TOKYO_MEDICAL_INFO.title })).toBeTruthy();
+  });
+
+  it("keeps support card indexes at two digits after the ninth card", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: {
+        ...demoSituation,
+        visitPurpose: "resident",
+        needs: ["stay", "consultation", "accommodation", "living_cost", "education", "childcare", "medical", "employment", "language", "daily_life"],
+      },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    await user.click(await screen.findByRole("button", { name: "相談先" }));
+
+    const firstSupportGroup = document.querySelector(".handoff-group");
+    expect(firstSupportGroup).not.toBeNull();
+    const indexes = [...firstSupportGroup!.querySelectorAll(".support-index")].map((element) => element.textContent);
+    expect(indexes.length).toBeGreaterThan(10);
+    expect(indexes.slice(0, 11)).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]);
+    expect(indexes).not.toContain("010");
+  });
+
+  it.each([
+    ["en", supportCopy.FRESC.answersInText.en, supportCopy.FRESC.notes.en],
+    ["my", supportCopy.FRESC.answersInText.my, supportCopy.FRESC.notes.my],
+  ] as const)("shows only %s support copy after entering help from the roadmap", async (locale, answer, note) => {
+    localStorage.setItem("staybridge.locale", locale);
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "resident" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+
+    const navigation = await screen.findByRole("navigation", { name: "Primary" });
+    await user.click(within(navigation).getAllByRole("button")[0]);
+    await user.click(within(navigation).getAllByRole("button")[2]);
+
+    expect(screen.getByText(answer)).toBeTruthy();
+    expect(screen.getByText(note)).toBeTruthy();
+    expect(screen.queryByText(supportCopy.FRESC.answersInText.ja)).toBeNull();
+    expect(screen.queryByText(supportCopy.FRESC.notes.ja)).toBeNull();
+  });
+
+  it("hides a missing localized line instead of falling back to Japanese", async () => {
+    localStorage.setItem("staybridge.locale", "en");
+    restoreCompleteDemoSession();
+    const originalAnswers = sourceRegistry.FRESC.answersInText;
+    sourceRegistry.FRESC.answersInText = { ...supportCopy.FRESC.answersInText, en: "" };
+    const user = userEvent.setup();
+
+    try {
+      render(<StayBridgeApp />);
+      const navigation = await screen.findByRole("navigation", { name: "Primary" });
+      await user.click(within(navigation).getAllByRole("button")[2]);
+
+      const card = screen.getByRole("heading", { name: sourceRegistry.FRESC.title }).closest("article");
+      expect(card).not.toBeNull();
+      expect(card!.querySelector(".support-answer")).toBeNull();
+      expect(within(card!).queryByText(supportCopy.FRESC.answersInText.ja)).toBeNull();
+    } finally {
+      sourceRegistry.FRESC.answersInText = originalAnswers;
+    }
   });
 
   it("routes consultation actions to people and local actions to their exact category", async () => {
