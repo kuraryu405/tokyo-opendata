@@ -1,5 +1,6 @@
 import kitaMyanmarPopulationJson from "./normalized/kita-myanmar-population.json";
 import type { PopulationCache } from "./adapters/types";
+import { TOKYO_FOREIGN_POPULATION_SOURCE } from "./source-descriptors";
 
 /**
  * A deliberately small registry of sources used by the MVP.  `fetchedAt` is
@@ -25,11 +26,11 @@ const fetchedAt = "2026-08-14";
 const kitaMyanmarPopulationCache = kitaMyanmarPopulationJson as PopulationCache;
 
 export const sourceRegistry: Record<string, DataSource> = {
-  TOKYO_FOREIGN_POPULATION_2026_01: {
-    id: "TOKYO_FOREIGN_POPULATION_2026_01",
+  [TOKYO_FOREIGN_POPULATION_SOURCE.id]: {
+    id: TOKYO_FOREIGN_POPULATION_SOURCE.id,
     title: "Foreign population, January 2026: municipality and nationality/region",
     publisher: "Tokyo Metropolitan Government, Bureau of General Affairs, Statistics Division",
-    url: "https://www.toukei.metro.tokyo.lg.jp/gaikoku/2026/ga26ev0300.csv",
+    url: TOKYO_FOREIGN_POPULATION_SOURCE.url,
     sourceType: "open_data",
     category: "foreign resident population",
     dataUpdatedAt: kitaMyanmarPopulationCache.dataUpdatedAt,
