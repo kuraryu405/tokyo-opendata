@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   assign:
-    name: Assign the PR author and contributor reviewers
+    name: Assign the PR author and reviewable collaborators
     # Draft pull requests are handled once they become ready for review.
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
@@ -29,61 +29,7 @@ jobs:
           script: |
             const pullRequest = context.payload.pull_request;
             const author = pullRequest.user.login;
-
-            const { data: requestedReviewers } =
-              await github.rest.pulls.listRequestedReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pullRequest.number,
-              });
-
-            const reviews = await github.paginate(
-              github.rest.pulls.listReviews,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pullRequest.number,
-                per_page: 100,
-              },
-            );
-
-            const previouslyNotified = new Set([
-              ...requestedReviewers.users.map(({ login }) => login),
-              ...reviews.map(({ user }) => user?.login).filter(Boolean),
-            ]);
-            const requestedTeams = requestedReviewers.teams.map(
-              ({ slug }) => slug,
-            );
-
-            if (requestedTeams.length > 0) {
-              core.info(
-                `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
-                  "Skipping individual review requests.",
-              );
-            }
-
-            const contributors =
-              requestedTeams.length > 0
-                ? []
-                : await github.paginate(
-                    github.rest.repos.listContributors,
-                    {
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      per_page: 100,
-                    },
-                  );
-
-            // GitHub allows at most 15 users in one review request.
-            const reviewers = contributors
-              .filter(
-                ({ type, login }) =>
-                  type === "User" &&
-                  login !== author &&
-                  !previouslyNotified.has(login),
-              )
-              .map(({ login }) => login)
-              .slice(0, 15);
+            const maximumReviewers = 3;
 
             const authorIsAssigned = pullRequest.assignees.some(
               ({ login }) => login === author,
@@ -146,19 +92,99 @@ jobs:
               core.info(`PR author ${author} is already assigned.`);
             }
 
-            if (reviewers.length === 0) {
-              core.info(
-                "No new contributors are available to review this pull request.",
+            let requestedReviewers;
+            let reviews;
+            let collaborators;
+
+            try {
+              ({ data: requestedReviewers } =
+                await github.rest.pulls.listRequestedReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequest.number,
+                }));
+
+              reviews = await github.paginate(
+                github.rest.pulls.listReviews,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequest.number,
+                  per_page: 100,
+                },
+              );
+
+              const requestedTeams = requestedReviewers.teams.map(
+                ({ slug }) => slug,
+              );
+
+              if (requestedTeams.length > 0) {
+                core.info(
+                  `Review already requested from team(s): ${requestedTeams.join(", ")}. ` +
+                    "Skipping individual review requests.",
+                );
+                return;
+              }
+
+              collaborators = await github.paginate(
+                github.rest.repos.listCollaborators,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  permission: "push",
+                  per_page: 100,
+                },
+              );
+            } catch (error) {
+              core.warning(
+                `Reviewer discovery failed after author assignment processing: ${error.message}`,
               );
               return;
             }
 
-            await github.rest.pulls.requestReviewers({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pullRequest.number,
-              reviewers,
-              team_reviewers: [],
-            });
+            const previouslyNotified = new Set([
+              ...requestedReviewers.users.map(({ login }) => login),
+              ...reviews.map(({ user }) => user?.login).filter(Boolean),
+            ]);
 
-            core.info(`Requested reviews from: ${reviewers.join(", ")}`);
+            const reviewerCandidates = collaborators
+              .filter(
+                ({ type, login, permissions }) =>
+                  type === "User" &&
+                  permissions?.push === true &&
+                  login !== author &&
+                  !previouslyNotified.has(login),
+              )
+              .map(({ login }) => login)
+              .sort();
+
+            if (reviewerCandidates.length === 0) {
+              core.info(
+                "No new collaborators with push access are available to review this pull request.",
+              );
+              return;
+            }
+
+            let requestedReviewCount = 0;
+
+            for (const reviewer of reviewerCandidates) {
+              if (requestedReviewCount >= maximumReviewers) {
+                break;
+              }
+
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullRequest.number,
+                  reviewers: [reviewer],
+                  team_reviewers: [],
+                });
+                requestedReviewCount += 1;
+                core.info(`Requested a review from: ${reviewer}`);
+              } catch (error) {
+                core.warning(
+                  `Could not request a review from ${reviewer}: ${error.message}`,
+                );
+              }
+            }

@@ -24,6 +24,29 @@ The workflow permission and secret boundaries are:
 | Deploy | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Runs from `main` or by manual dispatch; secrets are scoped to the deploy step. |
 | Dispatch E2E | `contents: read` | `E2E_REPOSITORY_DISPATCH_TOKEN` | Sends a fixed metadata payload and never includes the token in it. |
 
+## Pull request assignment and review requests
+
+The **Assign PR author and reviewers** workflow processes a ready pull request's
+author assignment before it discovers reviewer candidates. An unassignable
+author is reported as a warning, while reviewer processing continues. Reviewer
+discovery is a separate best-effort step, so a temporary discovery failure
+cannot prevent the assignment attempt.
+
+Individual reviewer candidates come from the repository collaborators API with
+the `push` permission filter. The workflow also verifies each returned user's
+`permissions.push` value, then excludes the pull request author, bots, current
+review requests, and users who have already reviewed. It requests at most three
+individual reviewers, trying candidates in login order until three requests
+succeed. An existing team review request suppresses additional individual
+requests.
+
+Each individual review request is isolated. If a collaborator loses permission
+between discovery and the request, the workflow records a warning and continues
+with the remaining candidates. Reopened pull requests and reruns reuse the
+existing assignee and review history to avoid duplicate notifications. The
+workflow uses `pull_request_target` but never checks out or executes pull-request
+code.
+
 ## Separate Playwright repository
 
 The **Dispatch E2E** workflow starts the external Playwright suite only after CI succeeds on `main`. Configure it once in this repository:
