@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
 import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client";
-import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
+import { serializeStoredSession } from "../src/components/staybridge-session";
 
 const navigation = vi.hoisted(() => {
   let currentPath = "/ja/";
@@ -67,20 +67,6 @@ function restoreCompleteDemoSession() {
     familyAnswers: ["children"],
     answeredSteps: Array.from({ length: 10 }, (_, index) => index),
   }));
-}
-
-function restoreCompleteEmptySession() {
-  sessionStorage.setItem("staybridge.session", serializeStoredSession({
-    situation: createInitialSituation(),
-    stayAnswer: "unknown",
-    familyAnswers: ["none"],
-    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-  }));
-}
-
-async function openCompletedRoadmap(user: ReturnType<typeof userEvent.setup>) {
-  await screen.findByRole("button", { name: "わたしのステップ" });
-  await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
 }
 
 beforeEach(() => {
