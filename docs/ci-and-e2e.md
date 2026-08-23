@@ -54,6 +54,18 @@ existing assignee and review history to avoid duplicate notifications. The
 workflow uses `pull_request_target` but never checks out or executes pull-request
 code.
 
+When the workflow is introduced after pull requests are already open, run
+**Assign PR author and reviewers** once from the Actions tab with
+`workflow_dispatch`, selecting the repository's default branch. Runs for other
+branches are skipped. The backfill lists every open, non-draft pull request and
+passes each one through the same assignment and reviewer-selection logic used by
+new pull-request events. Draft pull requests remain untouched until they become
+ready for review. Re-running the backfill is safe: existing assignees, requested
+reviewers, team requests, and review history are reused, and previous individual
+review participants who still have push access count toward the three-person
+limit. Reviews from external users or bots do not consume trusted reviewer
+slots. Manual backfill does not check out pull-request code.
+
 ## Release range and deployment
 
 After a successful push CI on `main`, CI records the push event's exact
