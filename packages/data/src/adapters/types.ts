@@ -48,4 +48,11 @@ export type PopulationCache = {
   coverageNotes: string[];
 };
 
+/** A reproducible, bundled subset selected from verified Open Data rows. */
+export type LocalResourcesCache = {
+  fetchedAt: string;
+  resources: LocalResource[];
+  coverageNotes: string[];
+};
+
 export type DataGap = { id: string; category: string; title: string; description: string; whyItMatters: string };

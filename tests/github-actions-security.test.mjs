@@ -113,8 +113,8 @@ test("Cloudflare credentials are scoped to deployment steps", async () => {
   const scopedSecretBlocks = contents.match(/\n        env:\n((?:          [^\n]+\n)+)/g) ?? [];
   assert.equal(
     scopedSecretBlocks.filter((block) => block.includes("CLOUDFLARE_API_TOKEN")).length,
-    4,
-    "Cloudflare credentials should be present only on staging deploy, production previous-version, production deploy, and rollback steps",
+    5,
+    "Cloudflare credentials should be present only on D1 identity verification, staging deploy, production previous-version, production deploy, and rollback steps",
   );
 });
 
@@ -134,4 +134,13 @@ test("the Issue 60 and 62 integration workflow is dispatch-only and staging-only
   assert.match(contents, /0003_open_data_cache\.sql/);
   assert.match(contents, /trap cleanup EXIT/);
   assert.match(contents, /sit_issue60_e2e_/);
+  assert.match(contents, /--branch test\/issues-60-62-staging/);
+  assert.match(contents, /c9cf471d29694790c473bf75b7fbdda8901a3b73/);
+  assert.match(contents, /BASE_URL="\$user_url" MUNICIPALITY_URL="\$municipality_url"/);
+  assert.match(contents, /playwright test e2e\/staging-issues-60-62\.spec\.ts --project=functional/);
+  const externalSetup = contents.indexOf("e2e_commit=c9cf471d29694790c473bf75b7fbdda8901a3b73");
+  const fixtureInsert = contents.indexOf("INSERT INTO situation_submissions");
+  const playwrightRun = contents.indexOf("playwright test e2e/staging-issues-60-62.spec.ts --project=functional");
+  assert.ok(externalSetup >= 0 && externalSetup < fixtureInsert, "external E2E setup must finish before the fixture insert");
+  assert.ok(fixtureInsert >= 0 && fixtureInsert < playwrightRun, "Playwright must run after the fixture insert");
 });

@@ -1,20 +1,16 @@
 # Safety and Privacy
 
-## Verified assistant
-
-assistant入力は旅券・在留カードらしい識別子を拒否し、検出可能な連絡先・住所をマスクしてからWorkers AIへ渡す。raw入力、外部HTML、任意URL、SQLはAIへ渡さない。会話のD1保存は明示された会話保存同意があり、かつassistantがサーバー生成した場合だけである。保存なしではconversation tableへ書き込まない。保存成功時だけIDと削除コードを返し、保持者は `DELETE /api/conversations/:con_id` で削除できる。複数の保存turnは同じtabの資格情報配列へ全件保持し、削除成功したrecordだけを除去するため、部分失敗で他recordの削除資格情報を失わない。Crisis Viewに会話本文は公開しない。
-
 ## No legal or immigration decision
 
 StayBridge Tokyo は在留延長、在留資格変更、難民・補完的保護、就労資格、就学、給付、母国の安全性を判定・予測しない。表示は CHECK / CONSULT を原則とし、公式情報・行政機関・専門家へのHuman Handoffを置く。
 
 ## AI limitations and traceability
 
-主要導線はRule Engineで動作し、Actionは入力、ルール、出典を追跡できる。MVPの翻訳は静的モックであり、AI障害や会話保存失敗があっても現在のテンプレートでRoadmap、理由、Local Action、Handoffを表示する。LLMへ渡す会話は、利用者が保存に同意したかどうかにかかわらず、サーバー側でNFKC正規化と同じマスキング・拒否処理を先に通す。#59は公開会話作成APIを持たず、Roadmapの操作は将来の保存同意preferenceを設定するだけで、会話保存済みとは表示しない。
+主要導線はRule Engineで動作し、Actionは採用回答コード、安定したRule ID、Action ID、Source Registry出典を追跡できる。Action Cardの本文・注意事項・CTAはレビュー期限を持つ静的カタログで管理し、実行時に生成しない。未レビュー、期限切れ、出典不明のカードは表示せず、公式相談先へfallbackする。MVPの翻訳は静的モックでありAI/APIは未接続。将来AIを使う場合も翻訳・やさしい日本語・定型説明の補助に限定し、自由記述やAI出力が固定ルールのカードを削除・上書き・並べ替えない。AI障害時も同じRoadmap、理由、Local Action、Handoffを表示する。LLMへ渡す会話は、利用者が保存に同意したかどうかにかかわらず、サーバー側でNFKC正規化と同じマスキング・拒否処理を先に通す。#59は公開会話作成APIを持たず、Roadmapの操作は将来の保存同意preferenceを設定するだけで、会話保存済みとは表示しない。
 
 ## Minimal data
 
-ログイン不要。氏名、連絡先、旅券・在留カード番号、画像、正確な住所、母国住所、政治・宗教・政党、政治活動、迫害内容を求めない。位置情報は任意で、未許可でも自治体単位で使える。端末内セッション保存とサーバー保存は別物である。POST前に生成したidempotency keyと削除コードはtab限定`sessionStorage`へ保存し、応答不明時もreload後の再試行で同じ値を使う。保存済み・送信結果不明のSituationがある間は、回答変更routeと端末データ消去をサーバー記録の状態が解決するまでblockする。
+ログイン不要。氏名、連絡先、旅券・在留カード番号、画像、正確な住所、母国住所、政治・宗教・政党、政治活動、迫害内容を求めない。国籍・地域の回答は相談サマリー以外のカード選定に使わない。位置情報は任意で、未許可でも自治体単位で使える。端末内セッション保存とサーバー保存は別物である。POST前に生成したidempotency keyと削除コードはtab限定`sessionStorage`へ保存し、応答不明時もreload後の再試行で同じ値を使う。保存済み・送信結果不明のSituationがある間は、回答変更routeと端末データ消去をサーバー記録の状態が解決するまでblockする。
 
 Situation Check回答とLLM会話は別同意・別version・別テーブルで管理する。Situation側は国籍、正確な滞在期限、自由記述を送らず、自治体コード、選択式回答、粗い時間・年齢区分だけを保存する。公開デモfixtureはsession内provenanceで区別してUI保存を拒否する。ただし公開Situation APIは認証APIではなく、入力が実在利用者本人の回答であることまでは証明しない。会話側は#62のserver生成経路だけから、利用者・モデルのマスキング済み本文、サーバー固定のモデルID、trusted Source Registryで検証済みのsource ID、作成日時を保存する。Situation IDは`sit_`、会話IDは`con_`で始まる別々のサーバー生成random UUIDとし、恒久ユーザーID、アカウント、Cookieによる訪問横断追跡を持たない。
 
@@ -24,7 +20,7 @@ Situation Check回答とLLM会話は別同意・別version・別テーブルで�
 
 ## Crisis View
 
-自治体単位の集計に限定し、個人位置・住所・追跡・個人リスク推定を表示しない。国籍データはセンシティブな文脈で使われうるため、支援準備以外の用途や能力・不足の断定を避ける。会話本文、conversation ID、source IDの個票、モデル応答をCrisis ViewのAPIや画面へ返さない。#59は保存境界までであり、Situation回答の匿名集計とCrisis View反映は#60の別責務とする。
+自治体単位の集計に限定し、個人位置・住所・追跡・個人リスク推定を表示しない。国籍データはセンシティブな文脈で使われうるため、支援準備以外の用途や能力・不足の断定を避ける。自治体Workerの固定`GET /api/crisis/needs`は、同意済み` situation_submissions `だけを対象にし、全体・カテゴリともk=5未満を抑制する。会話本文、conversation ID、source ID、会話集計、モデル応答、Situation個票をCrisis ViewのAPIや画面へ返さず、query・SQLとも会話テーブルに触れない。最終更新は個人時刻でなくJST日付へ粗視化し、回答者数とともにk以上の場合だけ返す。任意回答の匿名集計はOpen Data、人口、支援不足、優先度、サービス提供能力の指標ではない。
 
 ## Freshness
 

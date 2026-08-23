@@ -1,9 +1,5 @@
 # CI, CD, and external E2E
 
-## Verified assistant checks
-
-Worker testではcontent type/origin/stream size/history/rate limit/timeout、AIの不正JSON・未知ID・prompt injection、D1/AI障害、consent falseのD1 writeなし、consent trueのmasked server-internal persistence/deletionを確認する。ブラウザE2EではJA/EN/MyanmarのRoadmapでIME変換中Enterが送信しないこと、fallback後もRule Engine・Local Support・Human Supportが操作可能なこと、source cardのURL/update/fetch/coverage表示と390px overflowなしを確認する。
-
 ## CI and release gates
 
 Every pull request and push to `main` runs the **CI** workflow with a frozen
@@ -96,8 +92,6 @@ different, non-placeholder D1 IDs. They are runtime configuration rather than
 secrets; the workflow does not print them. Database creation and migration are
 separate operator procedures documented in
 [Workers・D1バックエンド基盤](backend-d1.md).
-
-自治体Workerの`OPEN_DATA_SYNC_SECRET`はCloudflare Worker secretとしてstaging/productionへ別途登録する。これはrepository secretからbuildへ渡さず、公開GET、`/healthz`、`/readyz`には不要である。Open Data migration後のstaging確認は、認証付き`dry_run=true`、実同期、両Workerの`GET /api/open-data/resources?municipality=Kita&category=emergency_shelter`の順で行う。
 
 The reusable workflow receives the app directory, Worker names, GitHub
 Environment names, verification URLs, and revision as non-secret inputs. The

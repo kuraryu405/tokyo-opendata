@@ -23,39 +23,55 @@ export type SituationSubmissionSecrets = {
 
 export type ConversationCredentials = SavedRecordCredentials;
 export const createConversationSecrets = createSituationSubmissionSecrets;
+
 export function parseSavedConversationCredentials(value: string | null): ConversationCredentials[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value) as unknown;
-    const values = Array.isArray(parsed) ? parsed : [parsed]; // migrate the #62 single-record shape.
+    const values = Array.isArray(parsed) ? parsed : [parsed];
     const credentials = values.flatMap((item) => {
       const credential = parseConversationCredential(item);
       return credential ? [credential] : [];
     });
     return credentials.filter((credential, index, all) => all.findIndex((candidate) => candidate.id === credential.id) === index);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
+
 export function serializeSavedConversationCredentials(credentials: ConversationCredentials[]): string {
   return JSON.stringify(credentials);
 }
+
 export function appendSavedConversationCredential(
   credentials: ConversationCredentials[],
   credential: ConversationCredentials,
 ): ConversationCredentials[] {
   return credentials.some((item) => item.id === credential.id) ? credentials : [...credentials, credential];
 }
+
 export async function deleteConversation(credentials: ConversationCredentials): Promise<void> {
-  const response = await fetch(`/api/conversations/${encodeURIComponent(credentials.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${credentials.deletionToken}` } });
+  const response = await fetch(`/api/conversations/${encodeURIComponent(credentials.id)}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${credentials.deletionToken}` },
+  });
   if (response.status === 404) return;
   const body = await readSuccessBody(response);
   if (!body || body.deleted !== true) throw new Error("CONVERSATION_DELETION_FAILED");
 }
+
 export { CONVERSATION_CONSENT_VERSION };
 
 function parseConversationCredential(value: unknown): ConversationCredentials | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const parsed = value as Record<string, unknown>;
-  if (Object.keys(parsed).length !== 2 || typeof parsed.id !== "string" || !/^con_[0-9a-f-]{36}$/u.test(parsed.id) || typeof parsed.deletionToken !== "string" || !/^[A-Za-z0-9_-]{43}$/u.test(parsed.deletionToken)) return null;
+  if (
+    Object.keys(parsed).length !== 2
+    || typeof parsed.id !== "string"
+    || !/^con_[0-9a-f-]{36}$/u.test(parsed.id)
+    || typeof parsed.deletionToken !== "string"
+    || !/^[A-Za-z0-9_-]{43}$/u.test(parsed.deletionToken)
+  ) return null;
   return { id: parsed.id, deletionToken: parsed.deletionToken };
 }
 

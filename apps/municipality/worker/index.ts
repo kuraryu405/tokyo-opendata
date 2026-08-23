@@ -55,12 +55,12 @@ const worker = {
       return createMethodNotAllowedResponse();
     }
 
-    if (url.pathname === "/api/open-data/resources") {
-      return handleOpenDataResourcesRequest(request, env);
-    }
-
     if (url.pathname === "/api/crisis/needs") {
       return handleCrisisNeedsRequest(request, env?.STAYBRIDGE_DB);
+    }
+
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
     }
 
     if (url.pathname === "/internal/open-data/sync") {

@@ -179,6 +179,10 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.doesNotMatch(release, /MUNICIPALITY_(?:STAGING|PRODUCTION)_URL/);
   assert.match(deploy, /actions\/upload-artifact@[0-9a-f]{40} # v4\.\d+\.\d+/);
   assert.match(deploy, /sha256sum --check/);
+  assert.match(deploy, /d1_identity:\n    needs: configuration/);
+  assert.match(deploy, /build:\n    needs: \[configuration, d1_identity\]/);
+  assert.match(deploy, /wrangler@4\.92\.0 d1 list --json/);
+  assert.match(deploy, /node scripts\/cd\/validate-d1-inventory\.mjs/);
   assert.match(deploy, /needs: \[configuration, build, staging\]/);
   assert.match(deploy, /ARTIFACT_NAME: staybridge-\$\{\{ inputs\.service \}\}-\$\{\{ inputs\.revision \}\}/);
   assert.match(deploy, /name: \$\{\{ inputs\.staging_environment \}\}/);

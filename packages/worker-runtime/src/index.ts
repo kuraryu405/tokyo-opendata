@@ -115,7 +115,7 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
   return { ...init, headers };
 }
 
-export * from "./open-data";
-export * from "./crisis-needs";
 export * from "./persistence";
+export * from "./crisis-needs";
+export * from "./open-data";
 export * from "./verified-assistant";

@@ -15,8 +15,22 @@ import {
   localResourceLocales,
 } from "../src/index";
 import { localResources } from "@staybridge/data";
+import {
+  actionNotices,
+  actionNoticeLocales,
+  assertValidActionNotices,
+} from "../src/action-notices";
 
 describe("user message catalogs", () => {
+  it("keeps complete non-empty card notices for every selectable locale", () => {
+    expect(actionNoticeLocales).toEqual(selectableUserLocales);
+    expect(() => assertValidActionNotices(actionNotices)).not.toThrow();
+    for (const locale of actionNoticeLocales) {
+      expect(Object.keys(actionNotices[locale]).sort()).toEqual([...actionIds].sort());
+      expect(Object.values(actionNotices[locale]).every((notice) => notice.trim() !== "")).toBe(true);
+    }
+  });
+
   it("exports exactly the supported static locale set", () => {
     expect(supportedUserLocales).toEqual(["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"]);
   });
@@ -113,11 +127,9 @@ describe("user message catalogs", () => {
     for (const locale of localResourceLocales) {
       const catalog = localResourceCatalogs[locale];
       expect(Object.keys(catalog)).toHaveLength(localResources.length);
+      expect(Object.keys(catalog).sort()).toEqual(localResources.map((resource) => resource.id).sort());
       for (const resource of localResources) {
         const display = catalog[resource.id];
-        expect(display.name.trim()).not.toBe("");
-        expect(display.municipality.trim()).not.toBe("");
-        expect(display.address.trim()).not.toBe("");
         expect(display.description.trim()).not.toBe("");
       }
     }

@@ -1,4 +1,9 @@
 import type { UserLocale, UserMessages } from "./index";
+export {
+  actionNotices,
+  getActionNotice,
+  type ActionNoticeLocale,
+} from "./action-notices";
 
 export type PublicUserMessages = UserMessages & {
   ui: UserMessages["ui"] & {
@@ -32,7 +37,7 @@ export const jaMessages = {
   metadata: { label: "Japanese", nativeLabel: "日本語", contentStatus: "reviewed", updatedAt: "2026-08-22", internalReview: { status: "reviewed", reviewedAt: "2026-08-22", reviewedBy: "StayBridge team" }, expertReview: { status: "pending" } },
   ui: {
     skip: "本文へ移動", navSteps: "わたしのステップ", brandToSteps: "わたしのステップへ戻る", navLocal: "近くの支援", navHelp: "相談先", crisis: "行政・支援者向け Preparedness View",
-    eyebrow: "東京で、予定外に生活を続けることになった方へ", hero: "国には帰れない。\nでも、東京での次の一歩は見つけられる。",
+    eyebrow: "東京で、予定外に生活を続けることになった方へ", hero: "見つけよう。\n東京での第一歩を。",
     intro: "帰国する予定だったのに、母国の状況が変わって帰ることが難しくなった方へ。今の状況に合わせて、東京で当面生活するために確認したいことを整理します。",
     start: "今の状況を確認する", demo: "デモの状況を読み込む", noLogin: "登録不要", noAddress: "正確な住所は不要", official: "公式情報につなぐ",
     notDecision: "在留資格や法律上の判断は行いません", privacyTitle: "答えるのは、次の行動に必要なことだけです",

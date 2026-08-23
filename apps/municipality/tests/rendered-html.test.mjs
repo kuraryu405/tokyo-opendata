@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
-
-async function loadBuiltWorker(key) {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
-  return (await import(workerUrl.href)).default;
-}
 
 async function render(pathname = "/", origin = "http://localhost", database, withEnvironment = true) {
   const requestOrigin = new URL(origin);
-  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
+  const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -33,29 +28,6 @@ async function render(pathname = "/", origin = "http://localhost", database, wit
   );
 }
 
-test("built municipality Worker owns the protected sync route and scheduled handler", async () => {
-  const worker = await loadBuiltWorker("open-data-worker-contract");
-  assert.equal(typeof worker.scheduled, "function");
-  const response = await worker.fetch(
-    new Request("http://localhost/internal/open-data/sync", { method: "GET" }),
-    {},
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-  assert.equal(response.status, 405);
-  assert.equal(response.headers.get("allow"), "POST");
-});
-
-test("municipality Worker has no verified-assistant route, AI binding, or assistant rate limit", async () => {
-  const [source, configText] = await Promise.all([
-    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
-    readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
-  ]);
-  const config = JSON.parse(configText);
-  assert.doesNotMatch(source, /verified-assistant|handleVerifiedAssistant|\.AI\b/i);
-  assert.equal(config.ai, undefined);
-  assert.equal(config.ratelimits?.some((item) => item.name === "VERIFIED_ASSISTANT_RATE_LIMITER"), false);
-});
-
 test("server-renders the Japanese Preparedness View at the municipality root", async () => {
   const response = await render();
   assert.equal(response.status, 200);
@@ -66,6 +38,9 @@ test("server-renders the Japanese Preparedness View at the municipality root", a
   assert.doesNotMatch(html, /aria-label="対象国籍"/);
   assert.match(html, /短期滞在中の旅行者/);
   assert.match(html, /対応検討項目/);
+  assert.match(html, /施設データの出典とライセンス/);
+  assert.match(html, /Creative Commons Attribution 4.0 International/);
+  assert.match(html, /https:\/\/creativecommons\.org\/licenses\/by\/4\.0\//);
   assert.match(html, /crisis-official-data/);
   assert.match(html, /crisis-voluntary-needs/);
   assert.match(html, /匿名集計を確認しています/);

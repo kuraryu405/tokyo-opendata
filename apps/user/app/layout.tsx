@@ -31,6 +31,7 @@ function resolveSiteUrl(requestHeaders: Pick<Headers, "get">): URL | undefined {
 export async function generateMetadata(): Promise<Metadata> {
   const siteUrl = resolveSiteUrl(await headers());
   const imageUrl = siteUrl ? new URL("/og.png", siteUrl).toString() : undefined;
+  const tagline = "見つけよう。東京での第一歩を。";
 
   return {
     metadataBase: siteUrl,
@@ -39,17 +40,17 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | StayBridge Tokyo",
     },
     description:
-      "Official information and open data, organized into the next steps for people unexpectedly unable to return home from Tokyo.",
+      `${tagline} Official information and open data, organized into practical next steps for people unexpectedly staying in Tokyo.`,
     openGraph: {
-      title: "StayBridge Tokyo",
-      description: "国には帰れない。でも、東京での次の一歩は見つけられる。",
+      title: `${tagline} | StayBridge Tokyo`,
+      description: tagline,
       type: "website",
-      images: imageUrl ? [{ url: imageUrl, width: 1728, height: 909, alt: "StayBridge Tokyo — 次の一歩を時間軸で示す生活再建ナビゲーション" }] : undefined,
+      images: imageUrl ? [{ url: imageUrl, width: 1728, height: 909, alt: `${tagline} StayBridge Tokyo` }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
-      title: "StayBridge Tokyo",
-      description: "国には帰れない。でも、東京での次の一歩は見つけられる。",
+      title: `${tagline} | StayBridge Tokyo`,
+      description: tagline,
       images: imageUrl ? [imageUrl] : undefined,
     },
   };

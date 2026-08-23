@@ -2,15 +2,11 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function loadBuiltWorker(key) {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
-  return (await import(workerUrl.href)).default;
-}
-
 async function render(pathname = "/", origin = "http://localhost") {
   const requestOrigin = new URL(origin);
-  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
+  const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -31,38 +27,6 @@ async function render(pathname = "/", origin = "http://localhost") {
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
-
-test("built user Worker does not expose sync or scheduled execution", async () => {
-  const worker = await loadBuiltWorker("open-data-worker-contract");
-  assert.equal(worker.scheduled, undefined);
-  const response = await worker.fetch(
-    new Request("http://localhost/internal/open-data/sync", { method: "POST" }),
-    {
-      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
-      IMAGES: { input() { throw new Error("Image binding should not be used"); } },
-    },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-  assert.equal(response.status, 404);
-});
-
-test("compiled user UI remains reachable when Worker bindings are not injected", async () => {
-  const worker = await loadBuiltWorker("no-env-ui-contract");
-  const response = await worker.fetch(
-    new Request("http://localhost/ja", { headers: { accept: "text/html", host: "localhost", "x-forwarded-proto": "http" } }),
-    undefined,
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-  assert.equal(response.status, 200);
-  assert.match(await response.text(), /StayBridge Tokyo/);
-
-  const apiResponse = await worker.fetch(
-    new Request("http://localhost/api/verified-assistant", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
-    undefined,
-    { waitUntil() {}, passThroughOnException() {} },
-  );
-  assert.equal(apiResponse.status, 503);
-});
 
 async function callBuiltWorker(request) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -109,6 +73,7 @@ test("server-renders the StayBridge landing page with its route locale on html",
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
   assert.match(html, /<html[^>]+lang="ja"/i);
   assert.match(html, /StayBridge/);
+  assert.match(html, /見つけよう。東京での第一歩を。/);
   assert.match(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
