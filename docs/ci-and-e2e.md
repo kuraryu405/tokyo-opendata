@@ -31,6 +31,31 @@ The workflow permission and secret boundaries are:
 | Deploy one Worker | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Builds once, promotes the verified artifact through staging and production, and rolls back failed production health checks. |
 | External E2E | Inherited from Release Workers | None | Runs only after the affected production deployments succeed; it cannot roll back a healthy release. |
 
+## Pull request assignment and review requests
+
+The **Assign PR author and reviewers** workflow processes a ready pull request's
+author assignment before it discovers reviewer candidates. An unassignable
+author is reported as a warning, while reviewer processing continues. Reviewer
+discovery is a separate best-effort step, so a temporary discovery failure
+cannot prevent the assignment attempt.
+
+Individual reviewer candidates come from the repository collaborators API with
+the `push` permission filter. The workflow also verifies each returned user's
+`permissions.push` value, then excludes the pull request author, bots, current
+review requests, and users who have already reviewed. It limits the total to
+three trusted individual participants across prior requests, prior reviews, and
+new requests, trying candidates in login order until that limit is reached. An
+existing team review request suppresses additional individual requests.
+
+Each individual review request is isolated. If a collaborator loses permission
+between discovery and the request, the workflow records a warning and continues
+with the remaining candidates. Reopened pull requests and reruns reuse the
+existing assignee and review history to avoid duplicate notifications. The
+workflow uses `pull_request_target` but never checks out or executes pull-request
+code.
+
+## Release range and deployment
+
 After a successful push CI on `main`, CI records the push event's exact
 `before` and `head` SHAs as a small release-range artifact. **Release Workers**
 downloads that artifact from the successful CI run and compares the complete
@@ -47,10 +72,13 @@ under `dist/.openai`. Staging and production download the same tarball and check
 its SHA-256 before use.
 
 Wrangler 4.92.0 uploads a tagged Worker Version, deploys it to 100% traffic,
-and applies the `workers.dev` trigger. Staging `/healthz` must report the target
-service and commit SHA before production starts. Production does the same. If
-production health fails, the workflow rolls back to the version that was active
-before release when one exists, verifies that version is active, and fails.
+and applies the `workers.dev` trigger. The workflow injects only the target
+environment's D1 ID into the verified artifact configuration; it does not run a
+migration. Staging `/healthz` must report the target service and commit SHA and
+`/readyz` must confirm the D1 Binding before production starts. Production does
+the same. If production liveness or readiness fails, the workflow rolls back to
+the version that was active before release when one exists, verifies that
+version is active, and fails.
 There is no pull-request preview or custom-domain setup in this pipeline.
 
 Production releases are serialized per service and a running release is never
@@ -82,6 +110,13 @@ empty. The workflow derives each verification URL as
 to localhost or an unrelated custom domain. The immutable `APP_REVISION` value
 is derived from the successful CI commit and is installed as a plain Worker
 variable during Version upload.
+
+The repository variables `STAYBRIDGE_STAGING_D1_DATABASE_ID` and
+`STAYBRIDGE_PRODUCTION_D1_DATABASE_ID` are also required. They must contain
+different, non-placeholder D1 IDs. They are runtime configuration rather than
+secrets; the workflow does not print them. Database creation and migration are
+separate operator procedures documented in
+[Workers・D1バックエンド基盤](backend-d1.md).
 
 The reusable workflow receives the app directory, Worker names, GitHub
 Environment names, verification URLs, and revision as non-secret inputs. The

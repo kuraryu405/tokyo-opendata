@@ -13,7 +13,7 @@ describe("StayBridge session data", () => {
     expect(parseStoredSession("not-json")).toBeNull();
     expect(parseStoredSession(JSON.stringify({ needs: ["medical"] }))).toBeNull();
     expect(parseStoredSession(JSON.stringify({ version: 1, situation: { needs: [] } }))).toBeNull();
-    expect(parseStoredSession(serializeStoredSession({ situation: demoSituation, stayAnswer: "unknown", familyAnswers: ["children"], answeredSteps: Array(10).fill(0) }))).toBeNull();
+    expect(parseStoredSession(serializeStoredSession({ provenance: "user", situation: demoSituation, stayAnswer: "unknown", familyAnswers: ["children"], answeredSteps: Array(10).fill(0) }))).toBeNull();
   });
 
   it("requires every distinct assessment step before generating a roadmap", () => {
@@ -24,13 +24,15 @@ describe("StayBridge session data", () => {
 
   it("round-trips form-only state with its answer markers", () => {
     const serialized = serializeStoredSession({
+      provenance: "user",
       situation: demoSituation,
       stayAnswer: "unknown",
       familyAnswers: ["children", "spouse"],
       answeredSteps: [0, 1, 6, 8],
     });
     expect(parseStoredSession(serialized)).toEqual({
-      version: 2,
+      version: 3,
+      provenance: "user",
       situation: demoSituation,
       stayAnswer: "unknown",
       familyAnswers: ["children", "spouse"],
@@ -64,7 +66,14 @@ describe("StayBridge session data", () => {
     ]);
   });
 
-  it("migrates version 1 family answers without losing existing sessions", () => {
+  it("migrates sessions without provenance as demo-derived until the user re-answers", () => {
+    const versionTwo = JSON.stringify({
+      version: 2,
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    });
     const versionOne = JSON.stringify({
       version: 1,
       situation: demoSituation,
@@ -72,7 +81,9 @@ describe("StayBridge session data", () => {
       familyAnswer: "children",
       answeredSteps: [6],
     });
+    expect(parseStoredSession(versionTwo)?.provenance).toBe("demo");
     expect(parseStoredSession(versionOne)?.familyAnswers).toEqual(["children"]);
+    expect(parseStoredSession(versionOne)?.provenance).toBe("demo");
   });
 
   it("summarizes a spouse and child together", () => {

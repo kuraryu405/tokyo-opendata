@@ -65,9 +65,13 @@ test("requires the repository subdomain and derives workers.dev URLs", () => {
 
 test("smoke health validates service, revision, and cache policy", async (t) => {
   const server = createServer((request, response) => {
-    assert.equal(request.url, "/healthz");
     response.setHeader("Content-Type", "application/json");
     response.setHeader("Cache-Control", "no-store");
+    if (request.url === "/readyz") {
+      response.end(JSON.stringify({ ok: true, data: { status: "ready" } }));
+      return;
+    }
+    assert.equal(request.url, "/healthz");
     response.end(
       JSON.stringify({ status: "ok", service: "user", revision: "sha-1" }),
     );
@@ -162,6 +166,8 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.match(release, /app_directory: apps\/municipality/);
   assert.match(release, /staging_environment: staging/);
   assert.match(release, /production_environment: production/);
+  assert.match(release, /STAYBRIDGE_STAGING_D1_DATABASE_ID/);
+  assert.match(release, /STAYBRIDGE_PRODUCTION_D1_DATABASE_ID/);
   assert.match(release, /staging_verification_url:/);
   assert.match(release, /production_verification_url:/);
   assert.match(
@@ -173,12 +179,25 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.doesNotMatch(release, /MUNICIPALITY_(?:STAGING|PRODUCTION)_URL/);
   assert.match(deploy, /actions\/upload-artifact@[0-9a-f]{40} # v4\.\d+\.\d+/);
   assert.match(deploy, /sha256sum --check/);
+  assert.match(deploy, /d1_identity:\n    needs: configuration/);
+  assert.match(deploy, /build:\n    needs: \[configuration, d1_identity\]/);
+  assert.match(deploy, /wrangler@4\.92\.0 d1 list --json/);
+  assert.match(deploy, /node scripts\/cd\/validate-d1-inventory\.mjs/);
   assert.match(deploy, /needs: \[configuration, build, staging\]/);
   assert.match(deploy, /ARTIFACT_NAME: staybridge-\$\{\{ inputs\.service \}\}-\$\{\{ inputs\.revision \}\}/);
   assert.match(deploy, /name: \$\{\{ inputs\.staging_environment \}\}/);
   assert.match(deploy, /name: \$\{\{ inputs\.production_environment \}\}/);
   assert.match(deploy, /wrangler@4\.92\.0 versions upload/);
   assert.match(deploy, /wrangler@4\.92\.0 versions deploy/);
+  assert.match(deploy, /node scripts\/cd\/configure-d1\.mjs/);
+  assert.equal(
+    deploy.match(/node scripts\/cd\/configure-ai-binding\.mjs/g)?.length,
+    2,
+  );
+  assert.equal(
+    deploy.match(/node scripts\/cd\/configure-rate-limits\.mjs/g)?.length,
+    2,
+  );
   assert.match(deploy, /wrangler@4\.92\.0 rollback/);
   assert.match(deploy, /steps\.production_smoke\.outcome == 'failure'/);
   assert.match(deploy, /steps\.previous\.outputs\.version_id/);
