@@ -132,13 +132,15 @@ test("the Issue 60 and 62 integration workflow is isolated to its staging branch
   assert.match(contents, /0001_backend_foundation\.sql/);
   assert.match(contents, /0002_consented_persistence\.sql/);
   assert.match(contents, /0003_open_data_cache\.sql/);
-  assert.match(contents, /trap cleanup EXIT/);
+  assert.match(contents, /trap finish EXIT/);
+  assert.match(contents, /SELECT COUNT\(\*\) AS remaining FROM situation_submissions/);
+  assert.match(contents, /Synthetic staging rows were removed and verified/);
   assert.match(contents, /sit_issue60_e2e_/);
   assert.match(contents, /--branch test\/issues-60-62-staging/);
-  assert.match(contents, /c9cf471d29694790c473bf75b7fbdda8901a3b73/);
+  assert.match(contents, /b0bcbc603b2cb5ff19c7b89af8485b469c7714a6/);
   assert.match(contents, /BASE_URL="\$user_url" MUNICIPALITY_URL="\$municipality_url"/);
   assert.match(contents, /playwright test e2e\/staging-issues-60-62\.spec\.ts --project=functional/);
-  const externalSetup = contents.indexOf("e2e_commit=c9cf471d29694790c473bf75b7fbdda8901a3b73");
+  const externalSetup = contents.indexOf("e2e_commit=b0bcbc603b2cb5ff19c7b89af8485b469c7714a6");
   const fixtureInsert = contents.indexOf("INSERT INTO situation_submissions");
   const playwrightRun = contents.indexOf("playwright test e2e/staging-issues-60-62.spec.ts --project=functional");
   assert.ok(externalSetup >= 0 && externalSetup < fixtureInsert, "external E2E setup must finish before the fixture insert");

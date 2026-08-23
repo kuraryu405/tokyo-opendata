@@ -101,7 +101,7 @@ jobs:
           node scripts/cd/smoke-health.mjs "$user_url" user "$revision"
           node scripts/cd/smoke-health.mjs "$municipality_url" municipality "$revision"
 
-          e2e_commit=c9cf471d29694790c473bf75b7fbdda8901a3b73
+          e2e_commit=b0bcbc603b2cb5ff19c7b89af8485b469c7714a6
           e2e_directory="$RUNNER_TEMP/staybridge-issues-60-62-e2e"
           git clone --depth 1 --branch test/issues-60-62-staging \
             https://github.com/kuraryu405/StayBridgeTokyo-e2e.git "$e2e_directory" >/dev/null
@@ -112,12 +112,27 @@ jobs:
           pnpm --dir "$e2e_directory" install --frozen-lockfile
           pnpm --dir "$e2e_directory" exec playwright install --with-deps chromium
 
-          synthetic_prefix="sit_issue60_e2e_${RUN_ID}_"
+          synthetic_family="sit_issue60_e2e_"
+          synthetic_prefix="${synthetic_family}${RUN_ID}_"
           cleanup() {
             $wrangler d1 execute STAYBRIDGE_DB --remote --config "$d1_config" \
-              --command "DELETE FROM situation_submissions WHERE id LIKE '${synthetic_prefix}%';" >/dev/null || true
+              --command "DELETE FROM situation_submissions WHERE id LIKE '${synthetic_family}%';" >/dev/null || return 1
+            cleanup_result="$($wrangler d1 execute STAYBRIDGE_DB --remote --config "$d1_config" \
+              --command "SELECT COUNT(*) AS remaining FROM situation_submissions WHERE id LIKE '${synthetic_family}%';" --json)" || return 1
+            jq -e '.[0].success == true and .[0].results[0].remaining == 0' <<<"$cleanup_result" >/dev/null
           }
-          trap cleanup EXIT
+          finish() {
+            status=$?
+            trap - EXIT
+            if cleanup; then
+              echo "Synthetic staging rows were removed and verified."
+            else
+              echo "Synthetic staging row cleanup could not be verified." >&2
+              status=1
+            fi
+            exit "$status"
+          }
+          trap finish EXIT
           cleanup
           for row in 1 2 3 4 5; do
             printf -v deletion_hash '%064x' "$row"
