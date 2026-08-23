@@ -129,6 +129,12 @@ test("redirects draft locales and invalid route queries canonically", async () =
   assert.equal(new URL(invalidResponse.headers.get("location") ?? "", "http://localhost").search, "?filter=all");
 });
 
+test("redirects the legacy crisis path to the municipality app", async () => {
+  const response = await render("/crisis");
+  assert.ok([307, 308].includes(response.status));
+  assert.equal(response.headers.get("location"), "http://localhost:3001/");
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),

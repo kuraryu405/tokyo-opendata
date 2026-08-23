@@ -38,6 +38,7 @@ import {
   type Locale,
   type StayAnswer,
 } from "./staybridge-session";
+import { resolveMunicipalityAppUrl } from "../municipality-url";
 
 type Screen = StayBridgeScreen;
 type CopyState = "idle" | "copied" | "error";
@@ -56,10 +57,6 @@ const actionDestinations: Record<string, { screen: "local" | "help"; filter?: Lo
   CHECK_MEDICAL_OPTIONS: { screen: "local", filter: "medical" },
   CHECK_CHILD_LOCAL_SUPPORT: { screen: "local", filter: "child_support" },
 };
-
-const municipalityAppUrl =
-  process.env.NEXT_PUBLIC_MUNICIPALITY_APP_URL?.replace(/\/+$/, "") ||
-  "http://localhost:3001";
 
 function currentTokyoDate(): string {
   const parts = new Intl.DateTimeFormat("en", {
@@ -83,6 +80,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const { locale, screen, query } = parsedRoute.route;
   const step = query.step ?? 0;
   const localFilter = query.filter ?? "all";
+  const municipalityAppUrl = resolveMunicipalityAppUrl();
   const [situation, setSituation] = useState<Situation>(createInitialSituation);
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
@@ -263,7 +261,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} start={() => go("check")} demo={loadDemo} />}
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
@@ -299,14 +297,14 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, start, demo }: { t: UserCopy; start: () => void; demo: () => void }) {
+function Landing({ t, showStart, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
   return <>
     <section className="hero">
       <div className="hero-copy">
         <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
         <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
         <p className="lede">{t.intro}</p>
-        <div className="hero-actions"><button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button><button className="secondary-button" onClick={demo}>{t.demo}</button></div>
+        <div className="hero-actions">{showStart && <button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button>}<button className="secondary-button" onClick={demo}>{t.demo}</button></div>
         <div className="trust-row"><span>✓ {t.noLogin}</span><span>✓ {t.noAddress}</span><span>✓ {t.official}</span></div>
       </div>
       <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
@@ -388,7 +386,7 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{["0-2", "3-5", "6-11", "12-14", "15-17", "18+"].map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age as Situation["familyMembers"]["children"][number]["ageGroup"] }] } })}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" min={assessmentDate} value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
-      {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" onClick={restart}>↺ {restartLabel}</button></div>}
+      {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
     <p className="privacy-line">◉ {t.privacyText}</p>
   </section>;
@@ -405,7 +403,7 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
 
 function Roadmap({ locale, t, actions, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (actionId: string) => void }) {

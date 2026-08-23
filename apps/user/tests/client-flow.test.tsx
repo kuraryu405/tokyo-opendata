@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
 import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client";
-import { serializeStoredSession } from "../src/components/staybridge-session";
+import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 const navigation = vi.hoisted(() => {
   let currentPath = "/ja/";
@@ -60,6 +60,29 @@ function memoryStorage(): Storage {
   };
 }
 
+function restoreCompleteDemoSession() {
+  sessionStorage.setItem("staybridge.session", serializeStoredSession({
+    situation: demoSituation,
+    stayAnswer: "unknown",
+    familyAnswers: ["children"],
+    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+  }));
+}
+
+function restoreCompleteEmptySession() {
+  sessionStorage.setItem("staybridge.session", serializeStoredSession({
+    situation: createInitialSituation(),
+    stayAnswer: "unknown",
+    familyAnswers: ["none"],
+    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+  }));
+}
+
+async function openCompletedRoadmap(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole("button", { name: "わたしのステップ" });
+  await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+}
+
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -73,6 +96,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("StayBridge client flow", () => {
@@ -95,6 +119,47 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: messages.ui.helpTitle })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: new RegExp(messages.ui.summary) }));
     expect(screen.getByRole("heading", { name: messages.ui.summaryTitle })).toBeTruthy();
+  });
+
+  it("links from the user landing page to the municipality preparedness view", async () => {
+    render(<StayBridgeApp />);
+
+    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("http://localhost:3001");
+  });
+
+  it("uses the configured production municipality URL in the landing link", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
+    render(<StayBridgeApp />);
+
+    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
+  });
+
+  it("offers start over after completed answers and returns to the first question", async () => {
+    const user = userEvent.setup();
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await screen.findByRole("button", { name: "わたしのステップ" });
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+    expect(screen.getByRole("button", { name: "最初からやり直す" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "最初からやり直す" }));
+    expect(screen.getByRole("heading", { name: "今、東京のどの地域に滞在していますか？" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "北区" }).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("keeps completed answers navigable without a landing start button", async () => {
+    const user = userEvent.setup();
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp />);
+
+    await screen.findByRole("button", { name: "わたしのステップ" });
+    expect(screen.queryByRole("button", { name: "今の状況を確認する" })).toBeNull();
+    expect(screen.getByRole("banner").querySelector(".header-restart")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "最初からやり直す" })).toBeTruthy();
   });
 
   it("does not invent location, nationality, or needs when Help is opened directly", async () => {
@@ -120,7 +185,7 @@ describe("StayBridge client flow", () => {
   });
 
   it("restores locale and all persisted form state safely", async () => {
-    navigation.reset("/en/");
+    navigation.reset("/en/check?step=0");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       situation: demoSituation,
       stayAnswer: "documents",
@@ -131,7 +196,6 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp />);
 
     await screen.findByRole("button", { name: "My steps" });
-    await user.click(screen.getByRole("button", { name: "Check my situation" }));
     expect(screen.getByRole("radio", { name: /Kita City/ }).getAttribute("aria-checked")).toBe("true");
     await user.click(screen.getByRole("button", { name: /Next/ }));
     expect(screen.getByRole("radio", { name: /Myanmar/ }).getAttribute("aria-checked")).toBe("true");

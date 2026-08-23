@@ -160,8 +160,6 @@ jobs:
       name: ${{ inputs.staging_environment }}
       url: ${{ needs.configuration.outputs.staging_verification_url }}
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.staging_worker }}
@@ -190,6 +188,9 @@ jobs:
           tar -xzf "${ARTIFACT_NAME}.tar.gz" -C dist-package
       - name: Upload and deploy the staging Worker Version
         shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || {
@@ -226,8 +227,6 @@ jobs:
     outputs:
       production_url: ${{ steps.release_result.outputs.production_url }}
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.production_worker }}
@@ -257,6 +256,9 @@ jobs:
       - name: Capture the previous production version
         id: previous
         shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || {
@@ -272,6 +274,9 @@ jobs:
           echo "version_id=$previous" >> "$GITHUB_OUTPUT"
       - name: Upload and deploy the production Worker Version
         shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
@@ -299,6 +304,8 @@ jobs:
         if: ${{ always() && steps.production_smoke.outcome == 'failure' && steps.previous.outputs.version_id != '' }}
         shell: bash
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS_VERSION: ${{ steps.previous.outputs.version_id }}
         run: |
           set -euo pipefail
