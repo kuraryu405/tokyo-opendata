@@ -61,6 +61,7 @@ test("server-renders the StayBridge landing page with its route locale on html",
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
   assert.match(html, /<html[^>]+lang="ja"/i);
   assert.match(html, /StayBridge/);
+  assert.match(html, /見つけよう。東京での第一歩を。/);
   assert.match(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
