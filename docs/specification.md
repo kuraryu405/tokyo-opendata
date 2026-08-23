@@ -2,7 +2,7 @@
 
 ## Screens and navigation
 
-`/` Landing（言語・開始・Crisis View導線）→ Situation Check → Immediate Status → Roadmap → Local Action → Support Detail / Human Support → Consultation Summary。本人向けナビゲーションは Home / My Steps / Local Support / Help に限定する。`/crisis` は支援準備向けで、個人画面と分離する。
+本人向けアプリの `/` は Landing（言語・開始・Crisis View導線）→ Situation Check → Immediate Status → Roadmap → Local Action → Support Detail / Human Support → Consultation Summary を提供する。本人向けナビゲーションは Home / My Steps / Local Support / Help に限定する。自治体向けアプリの `/` は支援準備向けで、本人向け画面と分離する。
 
 ## Situation states
 

@@ -22,12 +22,17 @@ Node.js 22.13 以上が必要です。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev
+pnpm dev                  # 利用者アプリ: http://localhost:3000
+pnpm dev:municipality     # 自治体アプリ: http://localhost:3001
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
+
+`main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`でcommit SHAを確認してから、同じビルド成果物をproductionへ自動昇格します。設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
 
 ## Contributors ✨
 
@@ -38,7 +43,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 翻訳モック
 
-日本語・English・မြန်မာဘာသာの表示は、MVPでは静的な翻訳モックです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。本番翻訳API接続と専門家レビューは [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。各言語の専門家レビューと公開判断は [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
 ## データ
 
@@ -59,4 +64,4 @@ StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就
 - [プロダクト概要](docs/product-overview.md) / [要件](docs/requirements.md) / [実装仕様](docs/specification.md)
 - [アーキテクチャ](docs/architecture.md) / [ルール](docs/rule-engine.md) / [Open Data戦略](docs/open-data-strategy.md)
 - [安全とプライバシー](docs/safety-and-privacy.md) / [2分デモ](docs/demo-script.md)
-- [CI・外部E2E連携](docs/ci-and-e2e.md)
+- [CI・CD・外部E2E連携](docs/ci-and-e2e.md)

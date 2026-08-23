@@ -1,0 +1,125 @@
+name: Release Workers
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  detect:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      revision: ${{ steps.revision.outputs.sha }}
+      user: ${{ steps.scopes.outputs.user }}
+      municipality: ${{ steps.scopes.outputs.municipality }}
+      user_staging_worker: ${{ steps.config.outputs.user_staging_worker }}
+      user_production_worker: ${{ steps.config.outputs.user_production_worker }}
+      municipality_staging_worker: ${{ steps.config.outputs.municipality_staging_worker }}
+      municipality_production_worker: ${{ steps.config.outputs.municipality_production_worker }}
+      user_staging_verification_url: ${{ steps.config.outputs.user_staging_verification_url }}
+      user_production_verification_url: ${{ steps.config.outputs.user_production_verification_url }}
+      municipality_staging_verification_url: ${{ steps.config.outputs.municipality_staging_verification_url }}
+      municipality_production_verification_url: ${{ steps.config.outputs.municipality_production_verification_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-range-${{ github.event.workflow_run.head_sha }}
+          path: release-metadata
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - id: revision
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+      - id: scopes
+        name: Detect affected applications
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=$(node -p "JSON.parse(require('fs').readFileSync('release-metadata/release-range.json', 'utf8')).base")
+          head=$(node -p "JSON.parse(require('fs').readFileSync('release-metadata/release-range.json', 'utf8')).head")
+          [ "$head" = "$RELEASE_SHA" ] || {
+            echo "CI release range does not match the successful workflow SHA." >&2
+            exit 1
+          }
+          if [[ "$base" =~ ^0+$ ]]; then base=""; fi
+          node scripts/cd/detect-scopes.mjs "$base" "$RELEASE_SHA"
+      - id: config
+        name: Resolve release names and verification URLs
+        env:
+          USER_STAGING_WORKER: ${{ vars.USER_STAGING_WORKER }}
+          USER_PRODUCTION_WORKER: ${{ vars.USER_PRODUCTION_WORKER }}
+          MUNICIPALITY_STAGING_WORKER: ${{ vars.MUNICIPALITY_STAGING_WORKER }}
+          MUNICIPALITY_PRODUCTION_WORKER: ${{ vars.MUNICIPALITY_PRODUCTION_WORKER }}
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+        run: node scripts/cd/resolve-release-config.mjs
+
+  deploy-user:
+    needs: detect
+    if: ${{ needs.detect.outputs.user == 'true' }}
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      service: user
+      app_directory: apps/user
+      revision: ${{ needs.detect.outputs.revision }}
+      staging_worker: ${{ needs.detect.outputs.user_staging_worker }}
+      production_worker: ${{ needs.detect.outputs.user_production_worker }}
+      staging_environment: staging
+      production_environment: production
+      staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  deploy-municipality:
+    needs: detect
+    if: ${{ needs.detect.outputs.municipality == 'true' }}
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      service: municipality
+      app_directory: apps/municipality
+      revision: ${{ needs.detect.outputs.revision }}
+      staging_worker: ${{ needs.detect.outputs.municipality_staging_worker }}
+      production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
+      staging_environment: staging
+      production_environment: production
+      staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  external-e2e:
+    needs: [detect, deploy-user, deploy-municipality]
+    if: >-
+      always() &&
+      needs.detect.result == 'success' &&
+      (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
+      (needs.deploy-user.result == 'success' || needs.deploy-user.result == 'skipped') &&
+      (needs.deploy-municipality.result == 'success' || needs.deploy-municipality.result == 'skipped')
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@d1428640c266f8c6f3e21faee800b6763269fb12 # main@d142864
+    with:
+      target_commit: ${{ needs.detect.outputs.revision }}
+      user_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      municipality_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      evidence_mode: false
