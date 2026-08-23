@@ -38,17 +38,17 @@
       "ratelimits": [
         {
           "name": "SUPPORT_CHAT_RATE_LIMITER",
-          "namespace_id": "202608230020",
+          "namespace_id": "202608230021",
           "simple": { "limit": 20, "period": 60 }
         },
         {
           "name": "AI_USER_RATE_LIMITER",
-          "namespace_id": "20260823005601",
+          "namespace_id": "20260823005611",
           "simple": { "limit": 10, "period": 60 }
         },
         {
           "name": "AI_GLOBAL_RATE_LIMITER",
-          "namespace_id": "20260823005602",
+          "namespace_id": "20260823005612",
           "simple": { "limit": 30, "period": 60 }
         }
       ],
@@ -66,17 +66,17 @@
       "ratelimits": [
         {
           "name": "SUPPORT_CHAT_RATE_LIMITER",
-          "namespace_id": "202608230020",
+          "namespace_id": "202608230022",
           "simple": { "limit": 20, "period": 60 }
         },
         {
           "name": "AI_USER_RATE_LIMITER",
-          "namespace_id": "20260823005601",
+          "namespace_id": "20260823005621",
           "simple": { "limit": 10, "period": 60 }
         },
         {
           "name": "AI_GLOBAL_RATE_LIMITER",
-          "namespace_id": "20260823005602",
+          "namespace_id": "20260823005622",
           "simple": { "limit": 30, "period": 60 }
         }
       ],

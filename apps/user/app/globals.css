@@ -148,3 +148,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .review-chip,
 .location-pill,
 .resource-main dt { color: var(--accessible-text); }
+
+.action-disclaimer {
+  margin: 14px 0 0;
+  border-radius: 5px;
+  background: #f5f1e5;
+  padding: 10px 12px;
+  color: #755c28 !important;
+  font-size: 12px !important;
+  line-height: 1.65 !important;
+}

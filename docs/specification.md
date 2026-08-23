@@ -10,7 +10,7 @@
 
 ## Roadmap / Local Action
 
-Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグループ化し、優先度順に表示する。各主要アクションは「なぜこの案内？」と User Input → Rule/限定分類 → Action → Source を開示する。Workers AIは自由記述だけを受け取り、JSON Schemaで許可済みAction IDを0〜3件返す。サーバーとクライアントで再検証し、Rule Engineの結果へ重複排除して追加する。来日目的を編集した場合は以前の追加IDを破棄する。AI APIは本文サイズと呼出回数を制限し、AI障害・タイムアウト・不正出力・制限超過時はRule Engineだけを表示する。学校カードには就学可否を断定しない注意、医療カードにはデータに存在する項目だけを表示する。
+Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグループ化し、優先度順に表示する。カード内容は選定ルールから分離した型付き静的カタログから解決し、各主要アクションは注意事項と「なぜこの案内？」、User Input → Rule/限定分類 → Action → Source を開示する。Workers AIは自由記述だけを受け取り、JSON Schemaで許可済みAction IDを0〜3件返す。サーバーとクライアントで再検証し、静的カタログのレビュー・期限・Source検証を通過したカードだけをRule Engineの結果へ重複排除して追加する。来日目的を編集した場合は以前の追加IDを破棄する。AI APIは本文サイズと呼出回数を制限し、AI障害・タイムアウト・不正出力・制限超過時はRule Engineだけを表示する。学校カードには就学可否を断定しない注意、医療カードにはデータに存在する項目だけを表示する。未レビュー、期限切れ、出典不明のカードは表示せず、表示可能カードがない場合は公式相談先へfallbackする。
 
 ## AI support preparation
 

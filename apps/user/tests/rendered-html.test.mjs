@@ -197,16 +197,20 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   assert.equal(localConfig.env.staging.ai, undefined);
   assert.equal(localConfig.env.production.ai, undefined);
   assert.deepEqual(remoteConfig.ai, { binding: "AI", remote: true });
-  assert.deepEqual(localConfig.ratelimits.map(({ name }) => name), [
+  const expectedRateLimitBindings = [
     "SUPPORT_CHAT_RATE_LIMITER",
     "AI_USER_RATE_LIMITER",
     "AI_GLOBAL_RATE_LIMITER",
-  ]);
-  assert.deepEqual(remoteConfig.ratelimits.map(({ name }) => name), [
-    "SUPPORT_CHAT_RATE_LIMITER",
-    "AI_USER_RATE_LIMITER",
-    "AI_GLOBAL_RATE_LIMITER",
-  ]);
+  ];
+  assert.deepEqual(localConfig.ratelimits.map(({ name }) => name), expectedRateLimitBindings);
+  assert.deepEqual(remoteConfig.ratelimits.map(({ name }) => name), expectedRateLimitBindings);
+  assert.deepEqual(localConfig.env.staging.ratelimits.map(({ name }) => name), expectedRateLimitBindings);
+  assert.deepEqual(localConfig.env.production.ratelimits.map(({ name }) => name), expectedRateLimitBindings);
+  for (const name of expectedRateLimitBindings) {
+    const staging = localConfig.env.staging.ratelimits.find((binding) => binding.name === name);
+    const production = localConfig.env.production.ratelimits.find((binding) => binding.name === name);
+    assert.notEqual(staging.namespace_id, production.namespace_id, name);
+  }
   assert.equal(remoteConfig.d1_databases[0].binding, "STAYBRIDGE_DB");
   assert.equal(remoteConfig.d1_databases[0].remote, false);
 });
