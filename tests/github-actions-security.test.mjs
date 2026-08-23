@@ -129,6 +129,7 @@ test("the Issue 60 and 62 integration workflow is isolated to its staging branch
   assert.match(contents, /staybridge-staging/);
   assert.doesNotMatch(contents, /\bproduction\b/i);
   assert.doesNotMatch(contents, /\bd1 create\b/i);
+  assert.match(contents, /wrangler versions secret put OPEN_DATA_SYNC_SECRET/);
   assert.match(contents, /0001_backend_foundation\.sql/);
   assert.match(contents, /0002_consented_persistence\.sql/);
   assert.match(contents, /0003_open_data_cache\.sql/);

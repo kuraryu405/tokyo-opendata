@@ -85,7 +85,7 @@ jobs:
 
           sync_secret="$(openssl rand -base64 48 | tr -d '\n')"
           echo "::add-mask::$sync_secret"
-          printf '%s' "$sync_secret" | $wrangler secret put OPEN_DATA_SYNC_SECRET \
+          printf '%s' "$sync_secret" | $wrangler versions secret put OPEN_DATA_SYNC_SECRET \
             --config apps/municipality/dist/server/wrangler.json \
             --name "$municipality_worker" >/dev/null
           unset sync_secret
