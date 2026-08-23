@@ -4,8 +4,14 @@ import { resolve } from "node:path";
 
 const namespaces = {
   user: {
-    staging: { SUPPORT_CHAT_RATE_LIMITER: "202608230021" },
-    production: { SUPPORT_CHAT_RATE_LIMITER: "202608230022" },
+    staging: {
+      PERSISTENCE_RATE_LIMITER: "202608230159",
+      SUPPORT_CHAT_RATE_LIMITER: "202608230021",
+    },
+    production: {
+      PERSISTENCE_RATE_LIMITER: "202608230259",
+      SUPPORT_CHAT_RATE_LIMITER: "202608230022",
+    },
   },
   municipality: {
     staging: {},

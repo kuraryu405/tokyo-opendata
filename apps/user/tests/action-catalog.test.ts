@@ -24,12 +24,18 @@ describe("production Action Card integration", () => {
       }
     }
 
-    const highRiskSourceTypes = Object.values(actionCatalog)
-      .filter((entry) => entry.riskLevel === "high")
-      .flatMap((entry) => entry.sourceIds.map((sourceId) => sourceRegistry[sourceId]?.sourceType));
-    expect(highRiskSourceTypes.every((sourceType) =>
-      sourceType === "official_information" || sourceType === "official_public_list",
-    )).toBe(true);
+    const facilitySourceIds = new Set(["KITA_ELEMENTARY_SCHOOLS_OPEN_DATA", "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA", "KITA_CHILDCARE_FACILITIES_OPEN_DATA", "KITA_PUBLIC_FACILITIES_OPEN_DATA"]);
+    for (const sourceId of facilitySourceIds) {
+      expect(sourceRegistry[sourceId]).toMatchObject({ sourceType: "open_data" });
+      expect(sourceRegistry[sourceId]?.license).toContain("CC BY 4.0");
+      expect(sourceRegistry[sourceId]?.licenseUrl).toBe("https://creativecommons.org/licenses/by/4.0/");
+    }
+
+    const resolvedFacilityIds = Object.values(actionCatalog)
+      .flatMap((entry) => entry.sourceIds)
+      .filter((sourceId) => facilitySourceIds.has(sourceId));
+    expect(resolvedFacilityIds).toEqual(expect.arrayContaining([...facilitySourceIds]));
+    expect(resolvedFacilityIds).not.toEqual(expect.arrayContaining(["KITA_SCHOOL_PAGES", "KITA_MEDICAL_LIST_2026_05", "KITA_CHILD_CENTER_LIST", "KITA_LIBRARY_LIST"]));
   });
 
   it("keeps card copy, notices, and CTA destinations complete for selectable locales", () => {

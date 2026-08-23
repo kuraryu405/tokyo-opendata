@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { adaptResourceRecord, adaptTokyoForeignPopulation } from "../src/adapters/open-data";
-import { filterLocalResources, getPopulationCacheRecord, localResources, municipalityProfiles, sourceRegistry } from "../src";
+import { filterLocalResources, getPopulationCacheRecord, kitaMyanmarProfile, localResources, municipalityProfiles, sourceRegistry } from "../src";
 import populationCacheJson from "../src/normalized/kita-myanmar-population.json";
 import type { PopulationCache } from "../src/adapters/types";
 
 describe("open-data adapters", () => {
   it("normalizes only fields that exist in a public source row", () => {
-    expect(adaptResourceRecord({ "施設名称": "Example Centre", "所在地": "Kita 1-2-3", "電話番号": "03-0000-0000" }, {
+    expect(adaptResourceRecord({ "施設名": "Example Centre", "所在地_連結表記": "Kita 1-2-3", "電話番号": "03-0000-0000", "緯度": "35.7", "経度": "139.7" }, {
       id: "example", category: "child_support", municipality: "Kita", sourceId: "TEST", dataUpdatedAt: "2026-01-01",
-    })).toMatchObject({ name: "Example Centre", address: "Kita 1-2-3", phone: "03-0000-0000" });
+    })).toMatchObject({ name: "Example Centre", address: "Kita 1-2-3", phone: "03-0000-0000", latitude: 35.7, longitude: 139.7 });
+  });
+
+  it("does not invent blank optional values", () => {
+    expect(adaptResourceRecord({ "名称": "Example Centre", "所在地": " ", "緯度": "not-a-number" }, {
+      id: "example", category: "child_support", municipality: "Kita", sourceId: "TEST",
+    })).toEqual({ id: "example", name: "Example Centre", category: "child_support", municipality: "Kita", sourceId: "TEST" });
   });
 
   it("does not turn a missing name into a fabricated resource", () => {
@@ -41,15 +47,30 @@ describe("open-data adapters", () => {
     expect(() => getPopulationCacheRecord({ sourceId: "TEST", fetchedAt: "2026-01-01", dataUpdatedAt: "2026-01-01", records: [], coverageNotes: [] }, "13117", "Myanmar")).toThrow("missing 13117/Myanmar");
   });
 
-  it("tracks the current Kita City medical PDF for every cached medical facility", () => {
-    const medical = localResources.filter((resource) => resource.category === "medical");
-    expect(medical.map((resource) => resource.name)).toEqual(["おうじキッズクリニック", "小湊小児科医院", "しかだこどもクリニック"]);
-    expect(medical.every((resource) => resource.sourceId === "KITA_MEDICAL_LIST_2026_05" && resource.dataUpdatedAt === "2026-05-28")).toBe(true);
-    expect(sourceRegistry.KITA_MEDICAL_LIST_2026_05).toMatchObject({
-      title: "Pamphlet: Kita City hospitals, clinics and dental clinics list",
-      url: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/008/500/r8_hospital_clinic_list.pdf",
-      dataUpdatedAt: "2026-05-28",
-      fetchedAt: "2026-08-14",
-    });
+  it("keeps every bundled facility attributable to a CC BY 4.0 Kita Open Data source", () => {
+    const expectedSourceIds = new Set([
+      "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA",
+      "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA",
+      "KITA_CHILDCARE_FACILITIES_OPEN_DATA",
+      "KITA_PUBLIC_FACILITIES_OPEN_DATA",
+    ]);
+
+    expect(localResources).toHaveLength(12);
+    for (const resource of localResources) {
+      const source = sourceRegistry[resource.sourceId];
+      expect(expectedSourceIds.has(resource.sourceId)).toBe(true);
+      expect(source).toMatchObject({ sourceType: "open_data", license: expect.stringContaining("CC BY 4.0") });
+      expect(source?.url).toBe("https://www.city.kita.lg.jp/city-information/disclosure/1014461.html");
+      expect(source?.downloadUrl).toMatch(/^https:\/\//);
+      expect(source?.licenseUrl).toBe("https://creativecommons.org/licenses/by/4.0/");
+      expect(resource.name.trim()).not.toBe("");
+      expect(resource.address?.trim()).not.toBe("");
+      expect(resource.latitude).toEqual(expect.any(Number));
+      expect(resource.longitude).toEqual(expect.any(Number));
+    }
+  });
+
+  it("derives municipal resource counts from the generated facility cache", () => {
+    expect(kitaMyanmarProfile.resourceCounts).toEqual({ school: 4, medical: 3, child_support: 3, public_facility: 2 });
   });
 });

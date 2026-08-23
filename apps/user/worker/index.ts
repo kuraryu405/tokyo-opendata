@@ -5,14 +5,17 @@ import {
   createHealthResponse,
   createMethodNotAllowedResponse,
   createReadinessResponse,
-  type BackendEnv,
+  handleConsentedPersistenceRequest,
+  type PersistenceEnv,
+  type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
 
-interface Env extends BackendEnv {
+interface Env extends PersistenceEnv {
   AI?: SupportChatAi;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
   ASSETS: Fetcher;
+  PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -59,6 +62,9 @@ const worker = {
     if (url.pathname === "/readyz") {
       return createMethodNotAllowedResponse();
     }
+
+    const persistenceResponse = await handleConsentedPersistenceRequest(request, env);
+    if (persistenceResponse) return persistenceResponse;
 
     if (url.pathname === "/_vinext/image") {
       if (!env) {

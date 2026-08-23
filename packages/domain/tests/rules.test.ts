@@ -1,92 +1,182 @@
 import { describe, expect, it } from "vitest";
 import { demoSituation } from "../src/demo";
-import { generateActions } from "../src/rules";
+import { actionRules, generateActions, ruleIds, type RuleContext } from "../src/rules";
 import type { Situation } from "../src/types";
 
+const fixedContext: RuleContext = { asOfDate: "2026-08-23", stayAnswer: "known" };
 const situation = (overrides: Partial<Situation> = {}): Situation => ({
   ...demoSituation,
   familyMembers: { children: [...demoSituation.familyMembers.children] },
   needs: [...demoSituation.needs],
   ...overrides,
 });
-const ids = (input: Situation) => generateActions(input).map((action) => action.id);
+const quietSituation = (overrides: Partial<Situation> = {}): Situation => situation({
+  nationality: "UNKNOWN",
+  currentMunicipality: "",
+  visitPurpose: "other",
+  originalDepartureWindow: "unknown",
+  returnStatus: "possible",
+  stayDeadlineKnown: false,
+  knownStayDeadline: undefined,
+  accommodation: "prefer_not_to_say",
+  japaneseLevel: "advanced",
+  familyMembers: { children: [] },
+  needs: [],
+  ...overrides,
+});
+const actions = (input: Situation, context: RuleContext = fixedContext) => generateActions(input, context);
+const ids = (input: Situation, context: RuleContext = fixedContext) => actions(input, context).map((action) => action.id);
+
+describe("production action rule table", () => {
+  it("has unique stable Rule IDs with complete management metadata", () => {
+    expect(actionRules.map((candidate) => candidate.id)).toEqual(ruleIds);
+    expect(new Set(ruleIds).size).toBe(ruleIds.length);
+    expect(actionRules.every((candidate) => candidate.conditions && candidate.exclusions && candidate.reasonCode && candidate.sourcePolicy === "catalog_sources_required")).toBe(true);
+  });
+
+  it("does not use display labels or nationality in predicates", () => {
+    const left = actions(situation({ nationality: "MMR" }));
+    const right = actions(situation({ nationality: "UNKNOWN" }));
+    expect(left).toEqual(right);
+    expect(left.flatMap((action) => action.answerCodes).some((code) => code.startsWith("nationality="))).toBe(false);
+  });
+
+  it("matches every production Rule ID in the branch fixture set", () => {
+    const branchResults = [
+      actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline: "2026-08-22" })),
+      actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline: "2026-08-23" })),
+      actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline: "2026-08-24" })),
+      actions(demoSituation, { ...fixedContext, stayAnswer: "unknown" }),
+      actions(situation({ originalDepartureWindow: "within_3_months" })),
+      actions(quietSituation({ returnStatus: "difficult", visitPurpose: "resident" })),
+      actions(quietSituation({ returnStatus: "unknown" })),
+      actions(quietSituation(), { ...fixedContext, stayAnswer: "documents" }),
+      actions(quietSituation({
+        returnStatus: "difficult",
+        accommodation: "unstable",
+        familyMembers: { children: [{ ageGroup: "6-11" }] },
+        needs: ["accommodation", "living_cost", "employment", "education", "childcare", "medical", "language"],
+      })),
+    ];
+    const matched = new Set(branchResults.flatMap((result) => result.flatMap((action) => action.matchedRuleIds)));
+    expect([...matched].sort()).toEqual([...ruleIds].sort());
+  });
+});
 
 describe("generateActions", () => {
-  it("does not add crisis-specific urgent actions when return is possible", () => {
-    expect(ids(situation({ returnStatus: "possible", needs: [] }))).not.toEqual(expect.arrayContaining(["CHECK_STAY_STATUS", "PLAN_TEMPORARY_LIVING"]));
+  it("returns an explicit empty fallback when no rule matches", () => {
+    expect(actions(quietSituation())).toEqual([]);
   });
-  it("adds stay-status checking for a stranded tourist", () => expect(ids(situation())).toContain("CHECK_STAY_STATUS"));
-  it("adds education for a stranded visitor with a child aged 6–11", () => expect(ids(situation())).toContain("CHECK_CHILD_EDUCATION"));
-  it("does not add school resources without a child", () => {
-    const actions = generateActions(situation({ familyMembers: { children: [] } }));
-    expect(actions.some((action) => action.localResourceCategories?.includes("school"))).toBe(false);
+
+  it("uses safe consultation fallbacks for unknown return and stay answers", () => {
+    const returnUnknown = actions(quietSituation({ returnStatus: "unknown" }));
+    const stayUnknown = actions(quietSituation(), { ...fixedContext, stayAnswer: "unknown" });
+    expect(returnUnknown.find((action) => action.id === "CONTACT_OFFICIAL_SUPPORT")?.ruleId).toBe("R-CONSULT-RETURN-UNKNOWN");
+    expect(stayUnknown.find((action) => action.id === "CONTACT_OFFICIAL_SUPPORT")?.ruleId).toBe("R-CONSULT-STAY-UNKNOWN");
   });
-  it("plans temporary living for a stranded hotel guest", () => expect(ids(situation())).toContain("PLAN_TEMPORARY_LIVING"));
-  it("plans temporary living when accommodation is unstable", () => {
-    expect(ids(situation({ accommodation: "unstable" }))).toContain("PLAN_TEMPORARY_LIVING");
+
+  it("routes document uncertainty to official consultation", () => {
+    expect(actions(quietSituation(), { ...fixedContext, stayAnswer: "documents" })[0]?.ruleId).toBe("R-CONSULT-STAY-DOCUMENTS");
   });
-  it("checks eligibility instead of presenting a direct job search", () => {
-    const result = ids(situation({ needs: ["employment"] }));
-    expect(result).toContain("CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH");
-    expect(result.some((id) => /JOB_SEARCH/.test(id) && id !== "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH")).toBe(false);
+
+  it("raises short-visit stay priority when departure is near", () => {
+    const near = actions(situation({ originalDepartureWindow: "within_7_days" })).find((action) => action.id === "CHECK_STAY_STATUS");
+    const later = actions(situation({ originalDepartureWindow: "within_3_months" })).find((action) => action.id === "CHECK_STAY_STATUS");
+    expect(near?.priority).toBe(100);
+    expect(near?.ruleId).toBe("R-STAY-RETURN-DIFFICULT-SHORT-NEAR");
+    expect(later?.priority).toBe(90);
+    expect(later?.ruleId).toBe("R-STAY-RETURN-DIFFICULT-SHORT-LATER");
   });
-  it("connects a medical need to medical local resources", () => {
-    expect(generateActions(situation({ needs: ["medical"] })).find((action) => action.id === "CHECK_MEDICAL_OPTIONS")?.localResourceCategories).toContain("medical");
+
+  it.each(["resident", "work", "study", "other", "unknown"] as const)("uses the safe non-short branch for a difficult-return %s answer", (visitPurpose) => {
+    expect(ids(quietSituation({ returnStatus: "difficult", visitPurpose }))).toEqual(["CHECK_STAY_STATUS", "CONTACT_OFFICIAL_SUPPORT"]);
   });
-  it("adds a consultation action for a living-cost concern", () => {
-    const actions = generateActions(situation({ needs: ["living_cost"] }));
-    const action = actions.find((item) => item.id === "CHECK_LIVING_COST_SUPPORT");
-    expect(action?.category).toBe("living_cost");
-    expect(action?.humanReviewRequired).toBe(true);
-    expect(actions.map((item) => item.id)).toContain("CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH");
+
+  it("deduplicates an Action ID and resolves priority, reason, timing, and Rule ID from one winner", () => {
+    const result = actions(situation({ needs: ["stay"] }));
+    const stayCards = result.filter((action) => action.id === "CHECK_STAY_STATUS");
+    expect(stayCards).toHaveLength(1);
+    expect(stayCards[0]).toMatchObject({ priority: 100, ruleId: "R-STAY-RETURN-DIFFICULT-SHORT-NEAR", reasonCode: "RETURN_DIFFICULT_SHORT_TERM", timing: "today" });
+    expect(stayCards[0]?.matchedRuleIds).toEqual(["R-STAY-RETURN-DIFFICULT-SHORT-NEAR", "R-STAY-NEED"]);
   });
-  it("adds child local support for a preschool child when childcare is needed", () => {
-    const actions = generateActions(situation({
-      familyMembers: { children: [{ ageGroup: "3-5" }] },
-      needs: ["childcare"],
+
+  it("uses Rule ID as a deterministic tie-breaker", () => {
+    const result = actions(quietSituation({ returnStatus: "unknown", needs: ["consultation"] }));
+    const consultation = result.find((action) => action.id === "CONTACT_OFFICIAL_SUPPORT");
+    expect(consultation?.priority).toBe(80);
+    expect(consultation?.ruleId).toBe("R-CONSULT-NEED");
+    expect(consultation?.matchedRuleIds).toEqual(["R-CONSULT-NEED", "R-CONSULT-RETURN-UNKNOWN"]);
+  });
+
+  it.each([
+    ["2026-08-22", "R-STAY-DEADLINE-PAST", ["CHECK_STAY_STATUS", "CONTACT_OFFICIAL_SUPPORT"]],
+    ["2026-08-23", "R-STAY-DEADLINE-TODAY", ["CHECK_STAY_STATUS", "CONTACT_OFFICIAL_SUPPORT"]],
+    ["2026-08-24", "R-STAY-DEADLINE-FUTURE", ["CHECK_BEFORE_STAY_DEADLINE"]],
+  ] as const)("distinguishes a %s deadline", (knownStayDeadline, expectedRule, expectedIds) => {
+    const result = actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline }));
+    expect(result.map((action) => action.id)).toEqual(expectedIds);
+    expect(result[0]?.ruleId).toBe(expectedRule);
+  });
+
+  it("ignores an entered deadline when the current stay answer is unknown", () => {
+    const result = actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline: "2026-08-22" }), { ...fixedContext, stayAnswer: "unknown" });
+    expect(result.map((action) => action.id)).toEqual(["CONTACT_OFFICIAL_SUPPORT"]);
+    expect(result[0]?.ruleId).toBe("R-CONSULT-STAY-UNKNOWN");
+  });
+
+  it("rejects a missing or invalid injected as-of date", () => {
+    expect(() => generateActions(quietSituation(), { asOfDate: "2026-02-30", stayAnswer: "known" })).toThrow(/asOfDate/);
+  });
+
+  it("treats an invalid optional deadline as no matching deadline", () => {
+    expect(actions(quietSituation({ stayDeadlineKnown: true, knownStayDeadline: "2026-02-30" }))).toEqual([]);
+  });
+
+  it("covers accommodation, medical, employment, living cost, and language needs without deciding eligibility", () => {
+    const result = actions(quietSituation({ needs: ["accommodation", "medical", "employment", "living_cost", "language"] }));
+    expect(result.map((action) => action.id)).toEqual([
+      "PLAN_TEMPORARY_LIVING",
+      "CHECK_LIVING_COST_SUPPORT",
+      "CHECK_MEDICAL_OPTIONS",
+      "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH",
+      "FIND_LANGUAGE_SUPPORT",
+    ]);
+    expect(result.find((action) => action.id === "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH")?.humanReviewRequired).toBe(true);
+  });
+
+  it("adds education and child support only at their age and need boundaries", () => {
+    const schoolAge = ids(quietSituation({ familyMembers: { children: [{ ageGroup: "6-11" }] }, needs: ["education", "childcare"] }));
+    const adult = ids(quietSituation({ familyMembers: { children: [{ ageGroup: "18+" }] }, needs: ["education", "childcare"] }));
+    expect(schoolAge).toEqual(["CHECK_CHILD_EDUCATION", "CHECK_CHILD_LOCAL_SUPPORT"]);
+    expect(adult).toEqual([]);
+  });
+
+  it("preserves the exact selected child age codes in a deterministic trace", () => {
+    const result = actions(quietSituation({
+      familyMembers: { children: [{ ageGroup: "15-17" }, { ageGroup: "6-11" }, { ageGroup: "15-17" }] },
+      needs: ["education", "childcare"],
     }));
-    expect(actions.find((action) => action.id === "CHECK_CHILD_LOCAL_SUPPORT")?.localResourceCategories).toContain("child_support");
+    expect(result.find((action) => action.id === "CHECK_CHILD_EDUCATION")?.answerCodes).toEqual([
+      "needs=education",
+      "childAge=15-17",
+      "childAge=6-11",
+    ]);
+    expect(result.find((action) => action.id === "CHECK_CHILD_LOCAL_SUPPORT")?.answerCodes).toEqual([
+      "needs=childcare",
+      "childAge=15-17",
+      "childAge=6-11",
+    ]);
   });
-  it.each(["resident", "work", "study"] as const)("offers official next steps for a stranded %s", (visitPurpose) => {
-    const result = ids(situation({ visitPurpose, needs: [] }));
-    expect(result).toEqual(expect.arrayContaining(["CHECK_STAY_STATUS", "CONTACT_OFFICIAL_SUPPORT"]));
+
+  it("works without municipality and preserves the input", () => {
+    const input = quietSituation({ currentMunicipality: "", needs: ["medical"] });
+    const snapshot = structuredClone(input);
+    expect(ids(input)).toEqual(["CHECK_MEDICAL_OPTIONS"]);
+    expect(input).toEqual(snapshot);
   });
-  it("handles an unknown return status by offering consultation", () => expect(ids(situation({ returnStatus: "unknown", needs: [] }))).toContain("CONTACT_OFFICIAL_SUPPORT"));
-  it("raises stay priority when the departure window is near", () => {
-    const now = generateActions(situation({ originalDepartureWindow: "within_7_days" })).find((action) => action.id === "CHECK_STAY_STATUS")!.priority;
-    const later = generateActions(situation({ originalDepartureWindow: "within_3_months" })).find((action) => action.id === "CHECK_STAY_STATUS")!.priority;
-    expect(now).toBeGreaterThan(later);
-  });
-  it("routes a past stay deadline to immediate official actions", () => {
-    const actions = generateActions(situation({
-      returnStatus: "possible",
-      japaneseLevel: "advanced",
-      needs: [],
-      stayDeadlineKnown: true,
-      knownStayDeadline: "2026-08-13",
-    }), { asOfDate: "2026-08-14" });
-    expect(actions.map((action) => action.id)).toEqual(expect.arrayContaining(["CHECK_STAY_STATUS", "CONTACT_OFFICIAL_SUPPORT"]));
-    expect(actions.find((action) => action.id === "CONTACT_OFFICIAL_SUPPORT")?.timing).toBe("today");
-    expect(actions.map((action) => action.id)).not.toContain("CHECK_BEFORE_STAY_DEADLINE");
-  });
-  it("keeps a deadline on the as-of date in the before-deadline flow", () => {
-    const actions = generateActions(situation({
-      returnStatus: "possible",
-      japaneseLevel: "advanced",
-      needs: [],
-      stayDeadlineKnown: true,
-      knownStayDeadline: "2026-08-14",
-    }), { asOfDate: "2026-08-14" });
-    expect(actions.map((action) => action.id)).toContain("CHECK_BEFORE_STAY_DEADLINE");
-    expect(actions.map((action) => action.id)).not.toContain("CHECK_STAY_STATUS");
-  });
-  it("works without a location so the UI can fall back to citywide resources", () => {
-    expect(() => generateActions(situation({ currentMunicipality: "" }))).not.toThrow();
-    expect(ids(situation({ currentMunicipality: "" }))).toContain("CHECK_MEDICAL_OPTIONS");
-  });
-  it("is deterministic and does not mutate its input", () => {
+
+  it("is deterministic across repeated evaluations", () => {
     const input = situation();
-    expect(generateActions(input)).toEqual(generateActions(input));
-    expect(input).toEqual(demoSituation);
+    expect(actions(input)).toEqual(actions(input));
   });
 });

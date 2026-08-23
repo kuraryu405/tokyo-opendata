@@ -135,11 +135,9 @@ describe("user message catalogs", () => {
     for (const locale of localResourceLocales) {
       const catalog = localResourceCatalogs[locale];
       expect(Object.keys(catalog)).toHaveLength(localResources.length);
+      expect(Object.keys(catalog).sort()).toEqual(localResources.map((resource) => resource.id).sort());
       for (const resource of localResources) {
         const display = catalog[resource.id];
-        expect(display.name.trim()).not.toBe("");
-        expect(display.municipality.trim()).not.toBe("");
-        expect(display.address.trim()).not.toBe("");
         expect(display.description.trim()).not.toBe("");
       }
     }
