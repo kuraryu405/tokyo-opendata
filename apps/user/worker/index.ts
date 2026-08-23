@@ -74,17 +74,6 @@ const worker = {
       if (persistenceResponse) return persistenceResponse;
     }
 
-    if (request.method === "GET" && url.pathname === "/readyz") {
-      return createReadinessResponse(env);
-    }
-
-    if (url.pathname === "/readyz") {
-      return createMethodNotAllowedResponse();
-    }
-
-    const persistenceResponse = await handleConsentedPersistenceRequest(request, env);
-    if (persistenceResponse) return persistenceResponse;
-
     if (url.pathname === "/_vinext/image") {
       if (!env) return createReadinessResponse(undefined);
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

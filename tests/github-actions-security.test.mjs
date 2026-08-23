@@ -18,6 +18,7 @@ const expectedPermissions = {
   "contributors.yml": { contents: "read" },
   "deploy-worker.yml": { contents: "read" },
   "release.yml": { actions: "read", contents: "read" },
+  "staging-issues-60-62-e2e.yml": { contents: "read" },
 };
 
 function readTopLevelPermissions(contents) {
@@ -115,4 +116,22 @@ test("Cloudflare credentials are scoped to deployment steps", async () => {
     4,
     "Cloudflare credentials should be present only on staging deploy, production previous-version, production deploy, and rollback steps",
   );
+});
+
+test("the Issue 60 and 62 integration workflow is dispatch-only and staging-only", async () => {
+  const contents = await readFile(
+    new URL("staging-issues-60-62-e2e.yml", workflowsDirectory),
+    "utf8",
+  );
+
+  assert.match(contents, /workflow_dispatch:/);
+  assert.doesNotMatch(contents, /^\s*(push|pull_request|workflow_run):/m);
+  assert.match(contents, /staybridge-staging/);
+  assert.doesNotMatch(contents, /\bproduction\b/i);
+  assert.doesNotMatch(contents, /\bd1 create\b/i);
+  assert.match(contents, /0001_backend_foundation\.sql/);
+  assert.match(contents, /0002_consented_persistence\.sql/);
+  assert.match(contents, /0003_open_data_cache\.sql/);
+  assert.match(contents, /trap cleanup EXIT/);
+  assert.match(contents, /sit_issue60_e2e_/);
 });

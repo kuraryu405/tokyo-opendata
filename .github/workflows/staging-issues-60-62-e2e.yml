@@ -1,0 +1,130 @@
+name: Staging Issues 60 and 62 integration E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-issues-60-62-e2e
+  cancel-in-progress: false
+
+jobs:
+  staging-e2e:
+    if: github.repository == 'kuraryu405/tokyo-opendata'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Migrate, deploy, and verify staging only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || {
+            echo "Cloudflare deployment secrets are not configured." >&2
+            exit 1
+          }
+          [[ "$WORKERS_SUBDOMAIN" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || {
+            echo "CLOUDFLARE_WORKERS_SUBDOMAIN is invalid." >&2
+            exit 1
+          }
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || {
+            echo "GitHub run ID is invalid." >&2
+            exit 1
+          }
+
+          wrangler=./node_modules/.bin/wrangler
+          mapfile -t staging_ids < <($wrangler d1 list --json | jq -r '.[] | select(.name == "staybridge-staging") | .uuid')
+          [ "${#staging_ids[@]}" -eq 1 ] || {
+            echo "Expected exactly one existing staybridge-staging D1 database." >&2
+            exit 1
+          }
+          staging_id="${staging_ids[0]}"
+          [[ "$staging_id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || {
+            echo "Staging D1 database ID is invalid." >&2
+            exit 1
+          }
+          echo "::add-mask::$staging_id"
+
+          for migration in \
+            database/migrations/0001_backend_foundation.sql \
+            database/migrations/0002_consented_persistence.sql \
+            database/migrations/0003_open_data_cache.sql; do
+            [ -f "$migration" ] || { echo "Required migration is missing: $migration" >&2; exit 1; }
+          done
+          node scripts/d1/prepare-remote-config.mjs staging "$staging_id" >/dev/null
+          d1_config=.wrangler/d1/staging.json
+          $wrangler d1 migrations apply STAYBRIDGE_DB --remote --config "$d1_config" >/dev/null
+          $wrangler d1 execute STAYBRIDGE_DB --remote --config "$d1_config" --file database/seed.sql --yes >/dev/null
+
+          pnpm build
+          node scripts/cd/configure-d1.mjs apps/user/dist/server/wrangler.json staging "$staging_id" >/dev/null
+          node scripts/cd/configure-d1.mjs apps/municipality/dist/server/wrangler.json staging "$staging_id" >/dev/null
+
+          revision="$(git rev-parse HEAD)"
+          user_worker=staybridge-user-staging
+          municipality_worker=staybridge-municipality-staging
+          user_url="https://${user_worker}.${WORKERS_SUBDOMAIN}.workers.dev"
+          municipality_url="https://${municipality_worker}.${WORKERS_SUBDOMAIN}.workers.dev"
+
+          sync_secret="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$sync_secret"
+          printf '%s' "$sync_secret" | $wrangler secret put OPEN_DATA_SYNC_SECRET \
+            --config apps/municipality/dist/server/wrangler.json \
+            --name "$municipality_worker" >/dev/null
+          unset sync_secret
+
+          for service in user municipality; do
+            worker_name="${service}_worker"
+            worker_name="${!worker_name}"
+            $wrangler deploy --config "apps/$service/dist/server/wrangler.json" \
+              --name "$worker_name" --var "APP_REVISION:$revision" >/dev/null
+            $wrangler triggers deploy --config "apps/$service/dist/server/wrangler.json" \
+              --name "$worker_name" >/dev/null
+          done
+          node scripts/cd/smoke-health.mjs "$user_url" user "$revision"
+          node scripts/cd/smoke-health.mjs "$municipality_url" municipality "$revision"
+
+          synthetic_prefix="sit_issue60_e2e_${RUN_ID}_"
+          cleanup() {
+            $wrangler d1 execute STAYBRIDGE_DB --remote --config "$d1_config" \
+              --command "DELETE FROM situation_submissions WHERE id LIKE '${synthetic_prefix}%';" >/dev/null || true
+          }
+          trap cleanup EXIT
+          cleanup
+          for row in 1 2 3 4 5; do
+            printf -v deletion_hash '%064x' "$row"
+            printf -v idempotency_hash '%064x' "$((RUN_ID * 10 + row))"
+            printf -v payload_hash '%064x' "$((RUN_ID * 10 + 100 + row))"
+            $wrangler d1 execute STAYBRIDGE_DB --remote --config "$d1_config" --command "
+              INSERT INTO situation_submissions (
+                id, consent_version, consented_at, municipality_code, visit_purpose,
+                departure_window, return_status, family_age_groups_json, accommodation,
+                needs_json, japanese_level, deletion_token_hash, idempotency_key_hash,
+                payload_hash, created_at
+              ) VALUES (
+                '${synthetic_prefix}${row}', 'situation-v1', datetime('now'), '13117', 'other',
+                'within_30_days', 'unknown', '[]', 'hotel', '[\"medical\"]', 'basic',
+                '${deletion_hash}', '${idempotency_hash}', '${payload_hash}', datetime('now')
+              );
+            " >/dev/null
+          done
+          aggregate="$(curl --fail --silent --show-error --location --max-redirs 0 \
+            "${municipality_url}/api/crisis/needs?municipality=13117&period=30d&view=needs")"
+          jq -e '.ok == true and .data.availability == "available" and .data.respondentCount >= 5 and any(.data.categories[]; .key == "medical" and .respondentCount >= 5)' \
+            <<<"$aggregate" >/dev/null
+          echo "Staging-only migration, deployment, smoke, and Issue 60 aggregate E2E passed."

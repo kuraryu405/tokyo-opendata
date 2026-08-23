@@ -8,7 +8,7 @@ async function loadBuiltWorker(key) {
   return (await import(workerUrl.href)).default;
 }
 
-async function render(pathname = "/", origin = "http://localhost") {
+async function render(pathname = "/", origin = "http://localhost", database, withEnvironment = true) {
   const requestOrigin = new URL(origin);
   const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 

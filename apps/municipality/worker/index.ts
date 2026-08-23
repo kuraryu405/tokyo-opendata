@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import {
   createHealthResponse,
+  handleCrisisNeedsRequest,
   handleOpenDataResourcesRequest,
   handleOpenDataSyncRequest,
   createMethodNotAllowedResponse,
@@ -56,6 +57,10 @@ const worker = {
 
     if (url.pathname === "/api/open-data/resources") {
       return handleOpenDataResourcesRequest(request, env);
+    }
+
+    if (url.pathname === "/api/crisis/needs") {
+      return handleCrisisNeedsRequest(request, env?.STAYBRIDGE_DB);
     }
 
     if (url.pathname === "/internal/open-data/sync") {
