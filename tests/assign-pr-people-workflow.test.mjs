@@ -30,6 +30,7 @@ function extractGithubScript(source) {
 
 function createGithubMock({
   authorAssignable = true,
+  authorEligibilityError,
   assignedAuthors = [{ login: "author" }],
   assignmentError,
   contributors,
@@ -56,6 +57,10 @@ function createGithubMock({
           "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
         );
         calls.checkUserCanBeAssigned.push(parameters);
+
+        if (authorEligibilityError) {
+          throw authorEligibilityError;
+        }
 
         if (!authorAssignable) {
           throw Object.assign(new Error("Not Found"), { status: 404 });
@@ -108,6 +113,7 @@ async function runWorkflowScript({
   action = "ready_for_review",
   assignees = [],
   authorAssignable,
+  authorEligibilityError,
   assignedAuthors,
   assignmentError,
   contributors,
@@ -117,6 +123,7 @@ async function runWorkflowScript({
 }) {
   const { calls, github } = createGithubMock({
     authorAssignable,
+    authorEligibilityError,
     assignedAuthors,
     assignmentError,
     contributors,
@@ -203,6 +210,28 @@ test("unassignable fork author is warned about without blocking review requests"
       (message) =>
         message.includes("GitHub reports that this user is not assignable") &&
         message.includes("Continuing with reviewer processing"),
+    ),
+  );
+});
+
+test("eligibility check failures still attempt assignment and validate the response", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    authorEligibilityError: Object.assign(
+      new Error("Internal Server Error"),
+      { status: 500 },
+    ),
+    contributors: [{ login: "reviewer", type: "User" }],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("Internal Server Error") &&
+        message.includes("Attempting the assignment anyway") &&
+        message.includes("validating the response"),
     ),
   );
 });
