@@ -29,6 +29,10 @@ function extractGithubScript(source) {
 }
 
 function createGithubMock({
+  authorAssignable = true,
+  authorEligibilityError,
+  assignedAuthors = [{ login: "author" }],
+  assignmentError,
   contributors,
   requestedTeams = [],
   requestedUsers = [],
@@ -36,6 +40,7 @@ function createGithubMock({
 }) {
   const calls = {
     addAssignees: [],
+    checkUserCanBeAssigned: [],
     listContributors: 0,
     requestReviewers: [],
   };
@@ -46,6 +51,23 @@ function createGithubMock({
   return {
     calls,
     github: {
+      request: async (route, parameters) => {
+        assert.equal(
+          route,
+          "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
+        );
+        calls.checkUserCanBeAssigned.push(parameters);
+
+        if (authorEligibilityError) {
+          throw authorEligibilityError;
+        }
+
+        if (!authorAssignable) {
+          throw Object.assign(new Error("Not Found"), { status: 404 });
+        }
+
+        return { status: 204 };
+      },
       paginate: async (method) => {
         if (method === listContributors) {
           calls.listContributors += 1;
@@ -62,6 +84,12 @@ function createGithubMock({
         issues: {
           addAssignees: async (parameters) => {
             calls.addAssignees.push(parameters);
+
+            if (assignmentError) {
+              throw assignmentError;
+            }
+
+            return { data: { assignees: assignedAuthors } };
           },
         },
         pulls: {
@@ -84,12 +112,20 @@ function createGithubMock({
 async function runWorkflowScript({
   action = "ready_for_review",
   assignees = [],
+  authorAssignable,
+  authorEligibilityError,
+  assignedAuthors,
+  assignmentError,
   contributors,
   requestedTeams,
   requestedUsers,
   reviews,
 }) {
   const { calls, github } = createGithubMock({
+    authorAssignable,
+    authorEligibilityError,
+    assignedAuthors,
+    assignmentError,
     contributors,
     requestedTeams,
     requestedUsers,
@@ -109,7 +145,11 @@ async function runWorkflowScript({
     },
     repo: { owner: "example", repo: "staybridge" },
   };
-  const core = { info: (message) => logs.push(message) };
+  const warnings = [];
+  const core = {
+    info: (message) => logs.push(message),
+    warning: (message) => warnings.push(message),
+  };
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const execute = new AsyncFunction(
     "github",
@@ -120,7 +160,7 @@ async function runWorkflowScript({
 
   await execute(github, context, core);
 
-  return { calls, logs };
+  return { calls, logs, warnings };
 }
 
 test("draft PRs wait until ready_for_review before assignment runs", () => {
@@ -148,10 +188,89 @@ test("ready fork PR assigns the author and requests only a new reviewer", async 
     reviews: [{ user: { login: "already-reviewed" } }],
   });
 
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
   assert.equal(calls.addAssignees.length, 1);
   assert.deepEqual(calls.addAssignees[0].assignees, ["author"]);
   assert.equal(calls.requestReviewers.length, 1);
   assert.deepEqual(calls.requestReviewers[0].reviewers, ["new-reviewer"]);
+});
+
+test("unassignable fork author is warned about without blocking review requests", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    authorAssignable: false,
+    contributors: [{ login: "reviewer", type: "User" }],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 0);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.deepEqual(calls.requestReviewers[0].reviewers, ["reviewer"]);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("GitHub reports that this user is not assignable") &&
+        message.includes("Continuing with reviewer processing"),
+    ),
+  );
+});
+
+test("eligibility check failures still attempt assignment and validate the response", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    authorEligibilityError: Object.assign(
+      new Error("Internal Server Error"),
+      { status: 500 },
+    ),
+    contributors: [{ login: "reviewer", type: "User" }],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("Internal Server Error") &&
+        message.includes("Attempting the assignment anyway") &&
+        message.includes("validating the response"),
+    ),
+  );
+});
+
+test("assignment API failures are warned about without blocking review requests", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    assignmentError: Object.assign(new Error("Validation Failed"), {
+      status: 422,
+    }),
+    contributors: [{ login: "reviewer", type: "User" }],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("Validation Failed") &&
+        message.includes("Continuing with reviewer processing"),
+    ),
+  );
+});
+
+test("a successful API response that omits the author is not treated as assigned", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    assignedAuthors: [],
+    contributors: [{ login: "reviewer", type: "User" }],
+  });
+
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("still does not list the author as an assignee") &&
+        message.includes("Continuing with reviewer processing"),
+    ),
+  );
 });
 
 test("ready PR still assigns the author when no new reviewer is available", async () => {
@@ -201,6 +320,7 @@ test("reruns do not reassign the author or notify previous reviewers", async () 
     reviews: [{ user: { login: "already-reviewed" } }],
   });
 
+  assert.equal(calls.checkUserCanBeAssigned.length, 0);
   assert.equal(calls.addAssignees.length, 0);
   assert.equal(calls.requestReviewers.length, 0);
   assert.ok(logs.some((message) => message.includes("already assigned")));

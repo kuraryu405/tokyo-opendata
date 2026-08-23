@@ -24,7 +24,7 @@ jobs:
       # Do not check out or execute code from the pull request. This workflow
       # runs with write permissions so that fork pull requests are supported.
       - name: Assign the author and request reviews
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const pullRequest = context.payload.pull_request;
@@ -90,12 +90,61 @@ jobs:
             );
 
             if (!authorIsAssigned) {
-              await github.rest.issues.addAssignees({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pullRequest.number,
-                assignees: [author],
-              });
+              let authorCanBeAssigned = true;
+
+              try {
+                await github.request(
+                  "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}",
+                  {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pullRequest.number,
+                    assignee: author,
+                  },
+                );
+              } catch (error) {
+                if (error.status === 404) {
+                  authorCanBeAssigned = false;
+                  core.warning(
+                    `PR author ${author} was not assigned to #${pullRequest.number}: ` +
+                      "GitHub reports that this user is not assignable. " +
+                      "Continuing with reviewer processing.",
+                  );
+                } else {
+                  core.warning(
+                      `Could not verify whether PR author ${author} can be assigned to #${pullRequest.number}: ` +
+                      `${error.message}. Attempting the assignment anyway and validating the response.`,
+                  );
+                }
+              }
+
+              if (authorCanBeAssigned) {
+                try {
+                  const { data: updatedPullRequest } =
+                    await github.rest.issues.addAssignees({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: pullRequest.number,
+                      assignees: [author],
+                    });
+
+                  const authorWasAssigned = updatedPullRequest.assignees.some(
+                    ({ login }) => login === author,
+                  );
+
+                  if (!authorWasAssigned) {
+                    core.warning(
+                      `GitHub accepted the assignment request for ${author}, but #${pullRequest.number} ` +
+                        "still does not list the author as an assignee. Continuing with reviewer processing.",
+                    );
+                  }
+                } catch (error) {
+                  core.warning(
+                    `Failed to assign PR author ${author} to #${pullRequest.number}: ${error.message}. ` +
+                      "Continuing with reviewer processing.",
+                  );
+                }
+              }
             } else {
               core.info(`PR author ${author} is already assigned.`);
             }
