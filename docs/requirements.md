@@ -13,7 +13,7 @@
 - Rule Engine が説明可能な Action Card を生成する。地域、国籍・地域、来日目的、同伴家族の「その他」は自由記述でき、Workers AIは来日目的の記述から安全確認済みカードを最大3件追加提案する。カードは timing、priority、why、source、lastVerified、CTA、humanReviewRequired を持つ。
 - Local Action は学校、医療、子育て、公共施設を、位置情報なしでも自治体単位で表示する。
 - Consultation Summary は入力済み情報のみをコピー・印刷向けに整理する。
-- `/crisis` 等で Preparedness View を提供し、人口、資源、Data Gap、表示名「対応検討項目」を示す。
+- 自治体向けアプリの `/` で Preparedness View を提供し、人口、資源、Data Gap、表示名「対応検討項目」を示す。
 
 ## Non-functional / Data requirements
 
