@@ -1,6 +1,6 @@
 # Rule Engine
 
-ルールは決定論的で、同じ Situation と評価日（`asOfDate`）なら同じ Action を返す。LLMは判断に介入しない。
+ルールは決定論的で、同じ Situation と評価日（`asOfDate`）なら同じ Action を返す。LLMは判断に介入しない。ルールはカード本文・出典・CTAを保持せず、`packages/domain/src/action-catalog.ts` のうちレビュー済みで期限内のカードだけを参照する。
 
 |Rule ID|入力・条件|Action / 理由|Risk / Source requirement|
 |---|---|---|---|
@@ -14,4 +14,4 @@
 |R-CHILD-01|子どもがいる|NEXT 30 DAYS: 子育て・公共資源を表示|対象条件は施設へ確認|
 |R-WORK-01|employment/living cost needs|NEXT 30 DAYS: 就労前に現在の滞在状況で就労可能か確認|求人直接誘導は禁止。公式確認が必要|
 
-各Actionには `reasonCode`、`reasonText`、`sourceIds`、`humanReviewRequired` を保存し、理由をUIで表示する。
+各Actionには `reasonCode` と動的priorityを付加する。title、description、source IDs、注意事項、human review、CTA destination、review metadataは静的カタログを正とし、理由をUIで表示する。カタログ運用は [Action Card Catalog](action-card-catalog.md) を参照する。

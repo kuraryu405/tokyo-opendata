@@ -10,7 +10,7 @@
 
 - 日本語、English、မြန်မာဘာသာを選択可能にし、少なくとも英語の主導線を完成させる。
 - 1問ずつの Situation Check（地域、国籍、来日目的、帰国予定・状況、滞在期限、家族、子の年齢、宿泊、困りごと、日本語）を提供する。
-- Rule Engine が説明可能な Action Card を生成する。カードは timing、priority、why、source、lastVerified、CTA、humanReviewRequired を持つ。
+- Rule Engine が説明可能な Action Card を生成する。カードは型付き静的カタログを正本とし、timing、priority、why、source、lastVerified、注意事項、CTA destination、risk、humanReviewRequired、review metadataを持つ。
 - Local Action は学校、医療、子育て、公共施設を、位置情報なしでも自治体単位で表示する。
 - Consultation Summary は入力済み情報のみをコピー・印刷向けに整理する。
 - 自治体向けアプリの `/` で Preparedness View を提供し、人口、資源、Data Gap、表示名「対応検討項目」を示す。
@@ -19,6 +19,7 @@
 
 - モバイルファースト、キーボード操作、ラベル、コントラスト、エラー・空・ローディング状態を実装する。
 - Source Registry と正規化データを介し、出典・更新情報を追跡可能にする。
+- 未レビュー、レビュー期限切れ、Source Registryで解決できないAction Cardを利用者へ表示しない。
 - Open Dataは利用者の Local Action と行政の支援準備の双方に直接利用する。
 
 ## Safety / AI / Privacy
