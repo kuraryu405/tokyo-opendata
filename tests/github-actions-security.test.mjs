@@ -137,10 +137,10 @@ test("the Issue 60 and 62 integration workflow is isolated to its staging branch
   assert.match(contents, /Synthetic staging rows were removed and verified/);
   assert.match(contents, /sit_issue60_e2e_/);
   assert.match(contents, /--branch test\/issues-60-62-staging/);
-  assert.match(contents, /b0bcbc603b2cb5ff19c7b89af8485b469c7714a6/);
+  assert.match(contents, /7cf624c0d90dfad4278d8d9311bcfc5297a7a31c/);
   assert.match(contents, /BASE_URL="\$user_url" MUNICIPALITY_URL="\$municipality_url"/);
   assert.match(contents, /playwright test e2e\/staging-issues-60-62\.spec\.ts --project=functional/);
-  const externalSetup = contents.indexOf("e2e_commit=b0bcbc603b2cb5ff19c7b89af8485b469c7714a6");
+  const externalSetup = contents.indexOf("e2e_commit=7cf624c0d90dfad4278d8d9311bcfc5297a7a31c");
   const fixtureInsert = contents.indexOf("INSERT INTO situation_submissions");
   const playwrightRun = contents.indexOf("playwright test e2e/staging-issues-60-62.spec.ts --project=functional");
   assert.ok(externalSetup >= 0 && externalSetup < fixtureInsert, "external E2E setup must finish before the fixture insert");
