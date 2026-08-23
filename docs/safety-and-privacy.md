@@ -6,7 +6,7 @@ StayBridge Tokyo は在留延長、在留資格変更、難民・補完的保護
 
 ## AI limitations and traceability
 
-主要導線はRule Engineで動作し、Actionは入力、ルール、出典を追跡できる。MVPの翻訳は静的モックでありAI/APIは未接続。将来AIを使う場合も翻訳・やさしい日本語・定型説明の補助に限定し、AI障害時は現在のテンプレートでRoadmap、理由、Local Action、Handoffを表示する。
+主要導線はRule Engineで動作し、Actionは入力、ルール、出典を追跡できる。Action Cardの本文・注意事項・CTAはレビュー期限を持つ静的カタログで管理し、実行時に生成しない。未レビュー、期限切れ、出典不明のカードは表示せず、公式相談先へfallbackする。MVPの翻訳は静的モックでありAI/APIは未接続。将来AIを使う場合も翻訳・やさしい日本語・定型説明の補助に限定し、AI障害時は現在のテンプレートでRoadmap、理由、Local Action、Handoffを表示する。
 
 ## Minimal data
 

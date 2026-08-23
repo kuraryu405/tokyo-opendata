@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { demoSituation } from "@staybridge/domain/demo";
+import {
+  getActionCatalogEntry,
+  type ActionDestination,
+  type ActionId,
+} from "@staybridge/domain/action-catalog";
 import { generateActions } from "@staybridge/domain/rules";
 import type { Action, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
@@ -14,10 +19,11 @@ import {
 import {
   getUserMessages,
   getLocalResourceDisplay,
+  getActionNotice,
   selectableUserLocales,
   type PublicUserMessages,
 } from "@staybridge/i18n/client";
-import type { ActionId, NeedKey, ReasonCode, TimingKey } from "@staybridge/i18n";
+import type { NeedKey, ReasonCode, TimingKey } from "@staybridge/i18n";
 import {
   buildStayBridgePath,
   equivalentStayBridgePath,
@@ -47,16 +53,10 @@ type UserCopy = PublicUserMessages["ui"];
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
 const routeUi = {
-  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています" },
-  en: { restart: "Start over", preparing: "Preparing your next steps" },
-  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်" },
-} satisfies Record<Locale, { restart: string; preparing: string }>;
-
-const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
-  CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
-  CHECK_MEDICAL_OPTIONS: { screen: "local", filter: "medical" },
-  CHECK_CHILD_LOCAL_SUPPORT: { screen: "local", filter: "child_support" },
-};
+  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています", catalogUnavailable: "現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。", contactOfficial: "公式相談先を見る" },
+  en: { restart: "Start over", preparing: "Preparing your next steps", catalogUnavailable: "No reviewed action card is currently available. Please confirm your situation with an official support service.", contactOfficial: "View official support" },
+  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်" },
+} satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string }>;
 
 function currentTokyoDate(): string {
   const parts = new Intl.DateTimeFormat("en", {
@@ -165,7 +165,12 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     }
   }, [answeredSteps, familyAnswers, situation, stayAnswer, storageReady]);
 
-  const actions = useMemo(() => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate }) : [], [assessmentComplete, assessmentDate, situation]);
+  const actions = useMemo(() => {
+    if (!assessmentComplete) return [];
+    return generateActions(situation, { asOfDate: assessmentDate }).filter((action) =>
+      action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
+    );
+  }, [assessmentComplete, assessmentDate, situation]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -244,9 +249,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
   };
 
-  const openAction = (actionId: string) => {
-    const destination = actionDestinations[actionId] ?? { screen: "help" as const };
-    go(destination.screen, destination.filter ? { filter: destination.filter } : {});
+  const openAction = (destination: ActionDestination) => {
+    go(destination.screen, destination.screen === "local" ? { filter: destination.filter } : {});
   };
 
   const summaryDate = useMemo(
@@ -401,17 +405,19 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
-function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (actionId: string) => void }) {
+function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (destination: ActionDestination) => void }) {
   const messages = getUserMessages(locale);
-  const ui = messages.actions[action.id as ActionId];
-  if (!ui) throw new Error(`Missing action translation: ${action.id}`);
+  const catalogEntry = getActionCatalogEntry(action.id);
+  if (!catalogEntry) return null;
+  const ui = messages.actions[catalogEntry.id as ActionId];
   const sources = action.sourceIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []);
-  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
+  if (sources.length !== action.sourceIds.length) return null;
+  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
 }
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {

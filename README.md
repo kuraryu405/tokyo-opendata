@@ -45,6 +45,10 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。各言語の専門家レビューと公開判断は [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
 
+## Action Cardカタログ
+
+「あなたの次のステップ」は、型付きの静的Action Cardカタログから表示します。カード本文を実行時に生成せず、安定したID、注意事項、Source Registryの出典、CTA遷移、レビュー期限を管理します。未レビュー・期限切れ・出典不明のカードは表示せず、公式相談先へfallbackします。カード一覧と更新手順は [docs/action-card-catalog.md](docs/action-card-catalog.md) を参照してください。
+
 ## データ
 
 実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。

@@ -81,6 +81,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -286,9 +287,33 @@ describe("StayBridge client flow", () => {
     expect(workAction).not.toBeNull();
     expect(within(workAction!).getAllByRole("link")).toHaveLength(2);
     expect(within(workAction!).getAllByText(/確認日:/)).toHaveLength(2);
+    expect(within(workAction!).getByText(/StayBridgeは就労可否を判断しません/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     await waitFor(() => expect(screen.getAllByText(getUserMessages("ja").ui.sectionOfficialSupport)).toHaveLength(2));
+  });
+
+  it("falls back to official support when no reviewed card resolves", async () => {
+    navigation.reset("/ja/roadmap");
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      situation: {
+        ...demoSituation,
+        returnStatus: "possible",
+        stayDeadlineKnown: false,
+        knownStayDeadline: undefined,
+        japaneseLevel: "advanced",
+        familyMembers: { children: [] },
+        needs: [],
+      },
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    render(<StayBridgeApp />);
+
+    expect(await screen.findByText(/現在表示できる確認済みカードがありません/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "日本に滞在できる期間を確認する" })).toBeNull();
+    expect(screen.getByRole("button", { name: /公式相談先を見る/ })).toBeTruthy();
   });
 
   it("routes consultation actions to people and local actions to their exact category", async () => {
