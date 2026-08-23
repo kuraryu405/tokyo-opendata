@@ -45,6 +45,7 @@ function createPullRequest({
 
 function createGithubMock({
   authorAssignable = true,
+  authorEligibilityError,
   assignedAuthors = [{ login: "author" }],
   assignmentError,
   collaborators = [],
@@ -87,6 +88,13 @@ function createGithubMock({
         calls.sequence.push("checkUserCanBeAssigned");
 
         const pullRequestFixture = fixtureFor(parameters.issue_number);
+        const currentAuthorEligibilityError =
+          pullRequestFixture.authorEligibilityError ?? authorEligibilityError;
+
+        if (currentAuthorEligibilityError) {
+          throw currentAuthorEligibilityError;
+        }
+
         const canBeAssigned =
           pullRequestFixture.authorAssignable ?? authorAssignable;
 
@@ -187,6 +195,7 @@ async function runWorkflowScript({
   action = "ready_for_review",
   assignees = [],
   authorAssignable,
+  authorEligibilityError,
   assignedAuthors,
   assignmentError,
   collaborators = [],
@@ -202,6 +211,7 @@ async function runWorkflowScript({
 }) {
   const { calls, github } = createGithubMock({
     authorAssignable,
+    authorEligibilityError,
     assignedAuthors,
     assignmentError,
     collaborators,
@@ -309,6 +319,30 @@ test("unassignable fork author is warned about without blocking review requests"
       (message) =>
         message.includes("GitHub reports that this user is not assignable") &&
         message.includes("Continuing with reviewer processing"),
+    ),
+  );
+});
+
+test("eligibility check failures still attempt assignment and validate the response", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    authorEligibilityError: Object.assign(
+      new Error("Internal Server Error"),
+      { status: 500 },
+    ),
+    collaborators: [
+      { login: "reviewer", type: "User", permissions: { push: true } },
+    ],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("Internal Server Error") &&
+        message.includes("Attempting the assignment anyway") &&
+        message.includes("validating the response"),
     ),
   );
 });
