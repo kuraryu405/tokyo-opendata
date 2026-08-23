@@ -390,7 +390,8 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: /相談先へ進む/ })).toBeTruthy();
     const schoolCard = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
     expect(within(schoolCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
-    expect(within(schoolCard!).getByText("確認日: 2026-08-14")).toBeTruthy();
+    expect(within(schoolCard!).getByText("確認日: 2026-08-23")).toBeTruthy();
+    expect(within(schoolCard!).getByRole("link", { name: /LICENSE: Creative Commons Attribution 4.0 International/ }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
 
     await user.click(screen.getByRole("button", { name: /相談先へ進む/ }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();

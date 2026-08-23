@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe("localized Local Action routes", () => {
-  it("renders catalog display values for /en/local", async () => {
+  it("renders source-backed facility facts with an English safety description for /en/local", async () => {
     window.history.replaceState(null, "", "/en/local");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       situation: { ...createInitialSituation(), currentMunicipality: "Kita" },
@@ -29,14 +29,14 @@ describe("localized Local Action routes", () => {
     }));
     render(<StayBridgeApp />);
 
-    const card = screen.getByRole("heading", { name: "Toyokawa Elementary School" }).closest("article");
+    const card = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
     expect(card).not.toBeNull();
-    expect(within(card!).getByText("Kita City")).toBeTruthy();
-    expect(within(card!).getByText("3-10-23 Toshima, Kita City, Tokyo")).toBeTruthy();
-    expect(screen.queryByText("豊川小学校")).toBeNull();
+    expect(within(card!).getByText("Kita")).toBeTruthy();
+    expect(within(card!).getByText("東京都北区豊島3丁目10番23号")).toBeTruthy();
+    expect(within(card!).getByText("A school. Confirm current access and details directly.")).toBeTruthy();
   });
 
-  it("renders catalog display values for /my/local", async () => {
+  it("renders source-backed facility facts with a Burmese safety description for /my/local", async () => {
     window.history.replaceState(null, "", "/my/local");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       situation: { ...createInitialSituation(), currentMunicipality: "Kita" },
@@ -46,10 +46,10 @@ describe("localized Local Action routes", () => {
     }));
     render(<StayBridgeApp />);
 
-    const card = (await screen.findByRole("heading", { name: "တိုယိုကာဝါ မူလတန်းကျောင်း" })).closest("article");
+    const card = (await screen.findByRole("heading", { name: "豊川小学校" })).closest("article");
     expect(card).not.toBeNull();
-    expect(within(card!).getByText("ကီတာမြို့နယ်")).toBeTruthy();
-    expect(within(card!).getByText("တိုကျို၊ ကီတာမြို့နယ်၊ တိုယိုရှီမာ ၃-၁၀-၂၃")).toBeTruthy();
-    expect(screen.queryByText("豊川小学校")).toBeNull();
+    expect(within(card!).getByText("Kita")).toBeTruthy();
+    expect(within(card!).getByText("東京都北区豊島3丁目10番23号")).toBeTruthy();
+    expect(within(card!).getByText("ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။")).toBeTruthy();
   });
 });
