@@ -13,3 +13,5 @@
 |Demo fixture|架空Persona AとSituation回答|画面・ルール・デモの安定動作|両方|実在人物・個別ケースを表さない|
 
 形式は Raw Open Data → Adapter → Normalizer → Common Schema とする。Sourceにはタイトル、提供者、URL、種別、カテゴリ、更新日、取得日、確認日、注記を持たせる。数値・施設情報・対応範囲の根拠は必ず該当metadataへ遡れるようにする。
+
+Action CardはSource Registryのstable IDだけを保持する。カタログ完全性テストで全source ID、HTTPS URL、提供者、確認日を検証し、実行時に解決できないカードは表示しない。カード別の利用目的と再レビュー期限は [Action Card Catalog](action-card-catalog.md) を参照する。

@@ -154,6 +154,10 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   assert.equal(localConfig.env.production.ai, undefined);
   assert.deepEqual(remoteConfig.ai, { binding: "AI", remote: true });
   assert.equal(localConfig.ratelimits[0].name, "SUPPORT_CHAT_RATE_LIMITER");
+  assert.notEqual(
+    localConfig.env.staging.ratelimits[0].namespace_id,
+    localConfig.env.production.ratelimits[0].namespace_id,
+  );
   assert.equal(remoteConfig.d1_databases[0].binding, "STAYBRIDGE_DB");
   assert.equal(remoteConfig.d1_databases[0].remote, false);
 });

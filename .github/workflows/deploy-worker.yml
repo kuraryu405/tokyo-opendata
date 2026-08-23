@@ -256,6 +256,11 @@ jobs:
           node scripts/cd/configure-ai-binding.mjs
           "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           "$SERVICE"
+      - name: Configure the staging rate limit namespaces
+        run: >-
+          node scripts/cd/configure-rate-limits.mjs
+          "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
+          "$SERVICE" staging
       - name: Upload and deploy the staging Worker Version
         shell: bash
         env:
@@ -335,6 +340,11 @@ jobs:
           node scripts/cd/configure-ai-binding.mjs
           "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           "$SERVICE"
+      - name: Configure the production rate limit namespaces
+        run: >-
+          node scripts/cd/configure-rate-limits.mjs
+          "$PWD/release-artifact/dist-package/dist/server/wrangler.json"
+          "$SERVICE" production
       - name: Capture the previous production version
         id: previous
         shell: bash

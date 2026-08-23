@@ -248,6 +248,9 @@ importers:
       '@staybridge/data':
         specifier: workspace:*
         version: link:../data
+      '@staybridge/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       oxlint:
         specifier: ^1.78.0
