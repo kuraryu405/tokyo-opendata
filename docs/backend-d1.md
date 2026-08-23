@@ -68,6 +68,14 @@ production は `production` と production ID で一時設定を作りますが�
 - `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除。
 - `GET /api/conversations`を含む一覧・取得APIは提供しない。
 
+### 自治体 Crisis View の匿名集計API
+
+自治体Workerだけが `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` を提供する。利用可能な値は固定で、`municipality=13117`、`period=7d|30d|90d`、`view=needs|return_status|departure_window|accommodation` の各1個だけである。未知・重複・欠落・自由形式のquery parameterとGET以外は拒否する。利用者Worker、個票取得API、会話の一覧・集計APIは追加しない。
+
+対象は同意済み`situation_submissions`だけである。`needs`は`json_each(needs_json)`と`COUNT(DISTINCT situation_submissions.id)`で集計し、他viewはコード内固定のenum columnを使う。request文字列はSQLへ補間しない。全体またはカテゴリが5件未満なら正確な数を返さず、`availability`を`no_data` / `below_threshold` / `available`で返す。`available`の場合だけ回答者数と、個人時刻を避けた最終集計日のJST日付を返す。D1障害は内部情報なしの503 `SERVICE_UNAVAILABLE`である。
+
+期間は`Asia/Tokyo`の暦日で、当日を含む直近7/30/90日の00:00 JSTから現在までとする。D1にはUTC ISO 8601 textで保存されるため、query bindはそのJST境界と同じUTC時刻を使う。最終集計日が直近7東京暦日にない場合は`freshness=stale`、それ以外は`fresh`である。レスポンスは常にthreshold、coverage note、非推定のlimitationsを含める。匿名集計は任意回答の観測範囲に限られ、人口・不足・優先度・サービス提供能力を示さない。
+
 Situation POSTは`application/json`、48,000 byte以下を必須とし、同一origin、1分20回のCloudflare Rate Limit、payloadとtokenを含むhashでのidempotencyを検証します。同じidempotency keyを別payloadへ再利用すると409です。会話のserver-internal境界は20件以下・1件2,000文字以下、role交互、source ID 12件以下に制限します。Rate Limitのkeyには接続IPを利用しますがD1へ保存せず、Cookieや恒久ユーザーIDを発行しません。
 
 `situation_submissions`、`conversations`、`conversation_messages`は分離し、未マスキング本文やraw requestは保存しません。削除コード・idempotency keyはSHA-256 hashだけをD1へ保存します。`expires_at`と期限削除jobは持たず、検査通過後の同意済みデータは無期限保持です。保存・削除APIは回答本文やD1例外をログ出力せず、失敗時は一般化したエラーだけを返します。
