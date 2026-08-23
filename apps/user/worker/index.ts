@@ -1,11 +1,18 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { createHealthResponse } from "@staybridge/worker-runtime";
+import {
+  createHealthResponse,
+  createMethodNotAllowedResponse,
+  createReadinessResponse,
+  handleConsentedPersistenceRequest,
+  type PersistenceEnv,
+  type PersistenceRateLimiter,
+} from "@staybridge/worker-runtime";
 
-interface Env {
-  APP_REVISION?: string;
+interface Env extends PersistenceEnv {
   ASSETS: Fetcher;
+  PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -35,11 +42,19 @@ const worker = {
     }
 
     if (url.pathname === "/healthz") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers: { Allow: "GET" },
-      });
+      return createMethodNotAllowedResponse();
     }
+
+    if (request.method === "GET" && url.pathname === "/readyz") {
+      return createReadinessResponse(env);
+    }
+
+    if (url.pathname === "/readyz") {
+      return createMethodNotAllowedResponse();
+    }
+
+    const persistenceResponse = await handleConsentedPersistenceRequest(request, env);
+    if (persistenceResponse) return persistenceResponse;
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

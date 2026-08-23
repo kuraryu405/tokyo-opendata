@@ -15,9 +15,11 @@ export type Locale = SelectableUserLocale;
 export type StayAnswer = "known" | "unknown" | "documents";
 export type FamilyAnswer = "none" | "children" | "spouse" | "other";
 export type FamilyAnswers = FamilyAnswer[];
+export type SituationProvenance = "user" | "demo";
 
 export type StoredSession = {
-  version: 2;
+  version: 3;
+  provenance: SituationProvenance;
   situation: Situation;
   stayAnswer: StayAnswer;
   familyAnswers: FamilyAnswers;
@@ -88,12 +90,31 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value)) return null;
 
+    if (value.version === 3 && isSituation(value.situation)) {
+      if (value.provenance !== "user" && value.provenance !== "demo") return null;
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
+      if (!isFamilyAnswers(value.familyAnswers)) return null;
+      if (!isAnsweredSteps(value.answeredSteps)) return null;
+      return {
+        version: 3,
+        provenance: value.provenance,
+        situation: value.situation,
+        stayAnswer: value.stayAnswer as StayAnswer,
+        familyAnswers: value.familyAnswers,
+        answeredSteps: value.answeredSteps,
+      };
+    }
+
+    // Older sessions have no trustworthy answer provenance. Treat them as
+    // demo-derived so they remain usable locally but require a full re-answer
+    // before the public persistence action can be enabled.
     if (value.version === 2 && isSituation(value.situation)) {
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
       if (!isFamilyAnswers(value.familyAnswers)) return null;
       if (!isAnsweredSteps(value.answeredSteps)) return null;
       return {
-        version: 2,
+        version: 3,
+        provenance: "demo",
         situation: value.situation,
         stayAnswer: value.stayAnswer as StayAnswer,
         familyAnswers: value.familyAnswers,
@@ -106,7 +127,8 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
       if (!familyAnswers.has(value.familyAnswer as FamilyAnswer)) return null;
       if (!isAnsweredSteps(value.answeredSteps)) return null;
       return {
-        version: 2,
+        version: 3,
+        provenance: "demo",
         situation: value.situation,
         stayAnswer: value.stayAnswer as StayAnswer,
         familyAnswers: [value.familyAnswer as FamilyAnswer],
@@ -118,7 +140,8 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
     // distinguishable from defaults count as answered.
     if (isSituation(value)) {
       return {
-        version: 2,
+        version: 3,
+        provenance: "demo",
         situation: value,
         stayAnswer: value.stayDeadlineKnown ? "known" : "unknown",
         familyAnswers: value.familyMembers.children.length ? ["children"] : [],
@@ -132,7 +155,7 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
 }
 
 export function serializeStoredSession(session: Omit<StoredSession, "version">): string {
-  return JSON.stringify({ version: 2, ...session } satisfies StoredSession);
+  return JSON.stringify({ version: 3, ...session } satisfies StoredSession);
 }
 
 export function isAssessmentComplete(answeredSteps: number[]): boolean {

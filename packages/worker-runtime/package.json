@@ -12,6 +12,7 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@types/node": "22.19.19",
     "oxlint": "^1.79.0",
     "tsx": "^4.23.12",

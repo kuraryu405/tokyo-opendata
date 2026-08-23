@@ -4,6 +4,13 @@ import { bnMessages, neMessages } from "./locales/south-asia";
 import { thMessages, viMessages } from "./locales/southeast-asia-a";
 import { filMessages, idMessages } from "./locales/southeast-asia-b";
 import { assertValidLocalResourceCatalogs, localResourceCatalogs } from "./local-resource-catalog";
+import {
+  actionIds,
+  type ActionId,
+} from "@staybridge/domain/action-catalog";
+
+export { actionIds } from "@staybridge/domain/action-catalog";
+export type { ActionId } from "@staybridge/domain/action-catalog";
 
 export const supportedUserLocales = ["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"] as const;
 
@@ -38,21 +45,6 @@ export type LocaleMetadata = {
   internalReview: LocaleReview;
   expertReview: LocaleReview;
 };
-
-export const actionIds = [
-  "CHECK_STAY_STATUS",
-  "CONTACT_OFFICIAL_SUPPORT",
-  "CHECK_CHILD_EDUCATION",
-  "PLAN_TEMPORARY_LIVING",
-  "CHECK_MEDICAL_OPTIONS",
-  "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH",
-  "FIND_LANGUAGE_SUPPORT",
-  "CHECK_BEFORE_STAY_DEADLINE",
-  "CHECK_CHILD_LOCAL_SUPPORT",
-  "CHECK_LIVING_COST_SUPPORT",
-] as const;
-
-export type ActionId = (typeof actionIds)[number];
 
 export const reasonCodes = [
   "RETURN_DIFFICULT_SHORT_TERM",

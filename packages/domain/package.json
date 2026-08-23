@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
+    "./action-catalog": "./src/action-catalog.ts",
+    "./selection-coverage": "./src/selection-coverage.ts",
     "./demo": "./src/demo.ts",
     "./rules": "./src/rules.ts",
     "./types": "./src/types.ts"

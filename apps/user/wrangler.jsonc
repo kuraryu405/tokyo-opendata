@@ -1,0 +1,63 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "staybridge-user-local",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "STAYBRIDGE_DB",
+      "database_name": "staybridge-local",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "../../database/migrations",
+      "remote": false
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "PERSISTENCE_RATE_LIMITER",
+      "namespace_id": "202608230059",
+      "simple": { "limit": 20, "period": 60 }
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "staybridge-user-staging",
+      "ratelimits": [
+        {
+          "name": "PERSISTENCE_RATE_LIMITER",
+          "namespace_id": "202608230159",
+          "simple": { "limit": 20, "period": 60 }
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "STAYBRIDGE_DB",
+          "database_name": "staybridge-staging",
+          "database_id": "00000000-0000-4000-8000-000000000002",
+          "migrations_dir": "../../database/migrations"
+        }
+      ]
+    },
+    "production": {
+      "name": "staybridge-user-production",
+      "ratelimits": [
+        {
+          "name": "PERSISTENCE_RATE_LIMITER",
+          "namespace_id": "202608230259",
+          "simple": { "limit": 20, "period": 60 }
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "STAYBRIDGE_DB",
+          "database_name": "staybridge-production",
+          "database_id": "00000000-0000-4000-8000-000000000003",
+          "migrations_dir": "../../database/migrations"
+        }
+      ]
+    }
+  }
+}
