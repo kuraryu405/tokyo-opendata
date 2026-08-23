@@ -23,6 +23,22 @@ export async function assertHealth(response, expectedService, expectedRevision) 
   }
 }
 
+export async function assertReadiness(response) {
+  if (!response.ok) {
+    throw new Error(`readiness endpoint returned HTTP ${response.status}`);
+  }
+
+  const cacheControl = response.headers.get("cache-control") ?? "";
+  if (!cacheControl.toLowerCase().includes("no-store")) {
+    throw new Error("readiness endpoint must return Cache-Control: no-store");
+  }
+
+  const payload = await response.json();
+  if (payload.ok !== true || payload.data?.status !== "ready") {
+    throw new Error("unexpected readiness payload");
+  }
+}
+
 export async function smokeHealth(
   baseUrl,
   expectedService,
@@ -30,6 +46,7 @@ export async function smokeHealth(
   { attempts = 10, delayMs = 6000, fetchImpl = fetch } = {},
 ) {
   const healthUrl = new URL("/healthz", `${baseUrl.replace(/\/+$/, "")}/`);
+  const readinessUrl = new URL("/readyz", `${baseUrl.replace(/\/+$/, "")}/`);
   let lastError;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -39,8 +56,13 @@ export async function smokeHealth(
         redirect: "error",
       });
       await assertHealth(response, expectedService, expectedRevision);
+      const readinessResponse = await fetchImpl(readinessUrl, {
+        headers: { Accept: "application/json" },
+        redirect: "error",
+      });
+      await assertReadiness(readinessResponse);
       process.stdout.write(
-        `Healthy ${expectedService} revision ${expectedRevision} at ${healthUrl}\n`,
+        `Healthy and ready ${expectedService} revision ${expectedRevision} at ${healthUrl.origin}\n`,
       );
       return;
     } catch (error) {
