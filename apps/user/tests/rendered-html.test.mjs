@@ -64,6 +64,12 @@ test("renders localized facility display values for locale Local Action routes",
   assert.doesNotMatch(burmese, /豊川小学校/);
 });
 
+test("redirects the legacy crisis path to the municipality app", async () => {
+  const response = await render("/crisis");
+  assert.ok([307, 308].includes(response.status));
+  assert.equal(response.headers.get("location"), "http://localhost:3001/");
+});
+
 test("removes disposable starter assets and keeps site metadata", async () => {
   const [layout, packageJson] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),

@@ -98,3 +98,21 @@ test("the write-capable pull_request_target workflow never checks out PR code", 
   assert.doesNotMatch(contents, /\bactions\/checkout@/);
   assert.doesNotMatch(contents, /\bgithub\.event\.pull_request\.head\b/);
 });
+
+test("Cloudflare credentials are scoped to deployment steps", async () => {
+  const contents = await readFile(new URL("deploy-worker.yml", workflowsDirectory), "utf8");
+  const jobLevelSecretEnv = contents.match(/\n    env:\n((?:      [^\n]+\n)+)/g) ?? [];
+
+  assert.deepEqual(
+    jobLevelSecretEnv.filter((block) => block.includes("CLOUDFLARE_API_TOKEN")),
+    [],
+    "Cloudflare credentials must not be available to an entire job",
+  );
+
+  const scopedSecretBlocks = contents.match(/\n        env:\n((?:          [^\n]+\n)+)/g) ?? [];
+  assert.equal(
+    scopedSecretBlocks.filter((block) => block.includes("CLOUDFLARE_API_TOKEN")).length,
+    4,
+    "Cloudflare credentials should be present only on staging deploy, production previous-version, production deploy, and rollback steps",
+  );
+});
