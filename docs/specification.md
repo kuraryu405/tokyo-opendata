@@ -12,6 +12,8 @@
 
 Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグループ化し、優先度順に表示する。各主要アクションは「なぜこの案内？」と User Input → Rule → Action → Source を開示する。学校カードには就学可否を断定しない注意、医療カードにはデータに存在する項目だけを表示する。
 
+Open DataのWorker契約は`GET /api/open-data/resources?municipality=Kita&category=emergency_shelter`とする。成功envelopeの`data`は`sourceId`、`datasetVersion`、`dataUpdatedAt`、`fetchedAt`、`license`、`licenseUrl`、`catalogUrl`、`attribution`、`origin`、正規化済み`resources`を持つ。`origin`は`d1`または`bundled`で、どちらも同じresource schemaを返す。このAPI契約はE2Eから固定URL・metadata・件数・施設fieldを検証できる。
+
 ## Crisis View
 
 MVPでは対応済みの固定対象（北区・ミャンマー）について、Potential Impact、Existing Resources、Data Gap、対応検討項目を表示する。未対応の国籍・自治体を選択できるようには見せない。「不足」と断定せず、能力は要確認とする。人口統計のcoverage noteを常時示す。

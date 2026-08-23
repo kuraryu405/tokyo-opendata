@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+async function loadBuiltWorker(key) {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
+  return (await import(workerUrl.href)).default;
+}
+
 async function render(pathname = "/", origin = "http://localhost") {
   const requestOrigin = new URL(origin);
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
-  const { default: worker } = await import(workerUrl.href);
+  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -26,6 +30,18 @@ async function render(pathname = "/", origin = "http://localhost") {
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
+
+test("built municipality Worker owns the protected sync route and scheduled handler", async () => {
+  const worker = await loadBuiltWorker("open-data-worker-contract");
+  assert.equal(typeof worker.scheduled, "function");
+  const response = await worker.fetch(
+    new Request("http://localhost/internal/open-data/sync", { method: "GET" }),
+    {},
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("allow"), "POST");
+});
 
 test("server-renders the Japanese Preparedness View at the municipality root", async () => {
   const response = await render();

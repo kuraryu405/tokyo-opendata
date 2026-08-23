@@ -1,6 +1,6 @@
 import kitaMyanmarPopulationJson from "./normalized/kita-myanmar-population.json";
 import type { PopulationCache } from "./adapters/types";
-import { TOKYO_FOREIGN_POPULATION_SOURCE } from "./source-descriptors";
+import { KITA_EARTHQUAKE_SHELTER_SOURCE, TOKYO_FOREIGN_POPULATION_SOURCE } from "./source-descriptors";
 
 /**
  * A deliberately small registry of sources used by the MVP.  `fetchedAt` is
@@ -20,12 +20,26 @@ export type DataSource = {
   fetchedAt: string;
   notes: string;
   license?: string;
+  licenseUrl?: string;
+  catalogUrl?: string;
+  landingPageUrl?: string;
+  landingPageUpdatedAt?: string;
+  termsUrl?: string;
+  attribution?: string;
+  updateFrequency?: string;
 };
 
 const fetchedAt = "2026-08-14";
 const kitaMyanmarPopulationCache = kitaMyanmarPopulationJson as PopulationCache;
 
 export const sourceRegistry: Record<string, DataSource> = {
+  [KITA_EARTHQUAKE_SHELTER_SOURCE.id]: {
+    ...KITA_EARTHQUAKE_SHELTER_SOURCE,
+    sourceType: "open_data",
+    category: "emergency shelters",
+    fetchedAt: "2026-08-23",
+    notes: KITA_EARTHQUAKE_SHELTER_SOURCE.coverageNote,
+  },
   [TOKYO_FOREIGN_POPULATION_SOURCE.id]: {
     id: TOKYO_FOREIGN_POPULATION_SOURCE.id,
     title: "Foreign population, January 2026: municipality and nationality/region",

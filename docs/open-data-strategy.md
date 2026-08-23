@@ -12,6 +12,12 @@
 
 短期滞在者のリアルタイム地域分布、帰国困難者数、窓口の言語・対応能力、リアルタイム相談量・施設余力は、一般に十分なOpen Dataとして利用できない。特に住民人口は短期旅行者を完全に表さない。この不確実性をUIと資料で明示する。
 
+## 検証済みキャッシュ
+
+外部レスポンスはuntrusted dataとして扱い、Connectorのallowlistと上限、Adapterのschema検証、NormalizerのCommon Schema変換をすべて通過した場合だけD1へstageする。dataset versionはraw bytesのSHA-256で識別し、resource保存完了後のtransactional batchでactive pointerを切り替える。取得、検証、stage、active切替のどこかで失敗しても既存active datasetを維持する。
+
+利用者・自治体Workerは同じread-only公開API契約を持ち、D1にactive datasetがない場合やD1 readが失敗した場合はrepository同梱の検証済みnormalized JSONを返す。外部CSVをrequest pathから直接参照しない。
+
 ## Future feedback loop
 
 将来は、同意・匿名化・集計・最小化を前提に利用傾向を把握し、支援導線と必要なデータ整備を検討する。MVPは利用者の個別行動や位置を収集・追跡しない。

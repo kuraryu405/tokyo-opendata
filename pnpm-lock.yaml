@@ -271,6 +271,10 @@ importers:
         version: 8.0.13(@types/node@22.19.19)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.47.1)(tsx@4.23.12)
 
   packages/worker-runtime:
+    dependencies:
+      '@staybridge/data':
+        specifier: workspace:*
+        version: link:../data
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20260702.1

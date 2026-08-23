@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import {
   createHealthResponse,
+  handleOpenDataResourcesRequest,
   createMethodNotAllowedResponse,
   createReadinessResponse,
   type BackendEnv,
@@ -48,6 +49,10 @@ const worker = {
 
     if (url.pathname === "/readyz") {
       return createMethodNotAllowedResponse();
+    }
+
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
     }
 
     if (url.pathname === "/_vinext/image") {

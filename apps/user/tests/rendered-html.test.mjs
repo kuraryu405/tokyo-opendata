@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
+async function loadBuiltWorker(key) {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
+  return (await import(workerUrl.href)).default;
+}
+
 async function render(pathname = "/", origin = "http://localhost") {
   const requestOrigin = new URL(origin);
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
-  const { default: worker } = await import(workerUrl.href);
+  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -27,6 +31,20 @@ async function render(pathname = "/", origin = "http://localhost") {
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
+
+test("built user Worker does not expose sync or scheduled execution", async () => {
+  const worker = await loadBuiltWorker("open-data-worker-contract");
+  assert.equal(worker.scheduled, undefined);
+  const response = await worker.fetch(
+    new Request("http://localhost/internal/open-data/sync", { method: "POST" }),
+    {
+      ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+      IMAGES: { input() { throw new Error("Image binding should not be used"); } },
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 404);
+});
 
 test("redirects the root URL to the slashless Japanese landing route in one step", async () => {
   const response = await render("/");

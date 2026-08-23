@@ -3,6 +3,9 @@ export * from "./adapters/types";
 export * from "./adapters/open-data";
 export * from "./adapters/population-cache";
 export * from "./normalized/kita-resources";
+export * from "./source-descriptors";
+export * from "./kita-shelter-connector";
+export { default as bundledKitaShelters } from "./normalized/kita-earthquake-shelters.json";
 
 import { localResources } from "./normalized/kita-resources";
 import type { LocalResource, LocalResourceCategory } from "./adapters/types";

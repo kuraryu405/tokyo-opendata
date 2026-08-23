@@ -93,6 +93,8 @@ secrets; the workflow does not print them. Database creation and migration are
 separate operator procedures documented in
 [Workers・D1バックエンド基盤](backend-d1.md).
 
+自治体Workerの`OPEN_DATA_SYNC_SECRET`はCloudflare Worker secretとしてstaging/productionへ別途登録する。これはrepository secretからbuildへ渡さず、公開GET、`/healthz`、`/readyz`には不要である。Open Data migration後のstaging確認は、認証付き`dry_run=true`、実同期、両Workerの`GET /api/open-data/resources?municipality=Kita&category=emergency_shelter`の順で行う。
+
 The reusable workflow receives the app directory, Worker names, GitHub
 Environment names, verification URLs, and revision as non-secret inputs. The
 build uses production URLs for canonical metadata and cross-application links

@@ -3,12 +3,16 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import {
   createHealthResponse,
+  handleOpenDataResourcesRequest,
+  handleOpenDataSyncRequest,
   createMethodNotAllowedResponse,
   createReadinessResponse,
+  syncKitaShelterOpenData,
   type BackendEnv,
 } from "@staybridge/worker-runtime";
 
 interface Env extends BackendEnv {
+  OPEN_DATA_SYNC_SECRET?: string;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -50,6 +54,14 @@ const worker = {
       return createMethodNotAllowedResponse();
     }
 
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
+    }
+
+    if (url.pathname === "/internal/open-data/sync") {
+      return handleOpenDataSyncRequest(request, env);
+    }
+
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
@@ -62,6 +74,9 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
+  },
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    ctx.waitUntil(syncKitaShelterOpenData(env));
   },
 };
 

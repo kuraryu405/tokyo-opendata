@@ -1,5 +1,5 @@
 /** Normalized, UI-facing models. They do not expose a publisher's raw schema. */
-export type LocalResourceCategory = "school" | "medical" | "child_support" | "public_facility" | "housing" | "language" | "foreign_support";
+export type LocalResourceCategory = "school" | "medical" | "child_support" | "public_facility" | "housing" | "language" | "foreign_support" | "emergency_shelter";
 
 export type LocalResource = {
   id: string;

@@ -7,10 +7,12 @@
     "./adapters/open-data": "./src/adapters/open-data.ts",
     "./adapters/population-cache": "./src/adapters/population-cache.ts",
     "./adapters/types": "./src/adapters/types.ts",
-    "./normalized/kita-myanmar-population.json": "./src/normalized/kita-myanmar-population.json"
+    "./normalized/kita-myanmar-population.json": "./src/normalized/kita-myanmar-population.json",
+    "./normalized/kita-earthquake-shelters.json": "./src/normalized/kita-earthquake-shelters.json"
   },
   "scripts": {
     "data:fetch": "tsx scripts/fetch-open-data.ts",
+    "data:shelters:refresh": "tsx scripts/refresh-kita-shelters.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"

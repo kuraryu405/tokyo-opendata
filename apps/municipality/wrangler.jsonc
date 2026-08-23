@@ -6,6 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  },
+  "secrets": {
+    "required": ["OPEN_DATA_SYNC_SECRET"]
+  },
   "d1_databases": [
     {
       "binding": "STAYBRIDGE_DB",
@@ -18,6 +24,12 @@
   "env": {
     "staging": {
       "name": "staybridge-municipality-staging",
+      "triggers": {
+        "crons": ["0 3 * * *"]
+      },
+      "secrets": {
+        "required": ["OPEN_DATA_SYNC_SECRET"]
+      },
       "d1_databases": [
         {
           "binding": "STAYBRIDGE_DB",
@@ -29,6 +41,12 @@
     },
     "production": {
       "name": "staybridge-municipality-production",
+      "triggers": {
+        "crons": ["0 3 * * *"]
+      },
+      "secrets": {
+        "required": ["OPEN_DATA_SYNC_SECRET"]
+      },
       "d1_databases": [
         {
           "binding": "STAYBRIDGE_DB",

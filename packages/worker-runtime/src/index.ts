@@ -11,7 +11,7 @@ export interface BackendEnv extends RevisionEnv {
 }
 
 export interface ApiError {
-  code: "INVALID_REQUEST" | "METHOD_NOT_ALLOWED" | "SERVICE_UNAVAILABLE";
+  code: "INVALID_REQUEST" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "SERVICE_UNAVAILABLE";
   message: string;
 }
 
@@ -36,7 +36,7 @@ export function createApiSuccessResponse<T>(
 
 export function createApiErrorResponse(
   error: ApiError,
-  status: 400 | 405 | 503,
+  status: 400 | 401 | 405 | 503,
   init: ResponseInit = {},
 ): Response {
   return Response.json(
@@ -103,3 +103,5 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
   }
   return { ...init, headers };
 }
+
+export * from "./open-data";

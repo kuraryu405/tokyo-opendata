@@ -48,16 +48,46 @@ test("both app Workers share the environment-separated D1 contract", async () =>
   }
 });
 
-test("foundation migration and seed remain feature-neutral and idempotent", async () => {
+test("only the municipality Worker owns the once-daily Open Data schedule", async () => {
+  const municipality = JSON.parse(await readFile("apps/municipality/wrangler.jsonc", "utf8"));
+  const user = JSON.parse(await readFile("apps/user/wrangler.jsonc", "utf8"));
+
+  assert.deepEqual(municipality.triggers.crons, ["0 3 * * *"]);
+  assert.deepEqual(municipality.env.staging.triggers.crons, ["0 3 * * *"]);
+  assert.deepEqual(municipality.env.production.triggers.crons, ["0 3 * * *"]);
+  assert.deepEqual(municipality.secrets.required, ["OPEN_DATA_SYNC_SECRET"]);
+  assert.deepEqual(municipality.env.staging.secrets.required, ["OPEN_DATA_SYNC_SECRET"]);
+  assert.deepEqual(municipality.env.production.secrets.required, ["OPEN_DATA_SYNC_SECRET"]);
+  assert.equal(user.triggers, undefined);
+  assert.equal(user.env.staging.triggers, undefined);
+  assert.equal(user.env.production.triggers, undefined);
+  assert.equal(user.secrets, undefined);
+  assert.doesNotMatch(JSON.stringify(municipality), /replace-with|expected-secret|secret-value/);
+});
+
+test("foundation and Open Data migrations keep the assigned 0001/0003 numbering", async () => {
   const migration = await readFile(
     "database/migrations/0001_backend_foundation.sql",
+    "utf8",
+  );
+  const openDataMigration = await readFile(
+    "database/migrations/0003_open_data_cache.sql",
     "utf8",
   );
   const seed = await readFile("database/seed.sql", "utf8");
 
   assert.match(migration, /CREATE TABLE backend_metadata/);
   assert.match(seed, /ON CONFLICT\(key\) DO UPDATE/);
-  assert.doesNotMatch(`${migration}\n${seed}`, /situation|chat|crisis|open.data/i);
+  assert.match(openDataMigration, /CREATE TABLE open_data_sources/);
+  assert.match(openDataMigration, /CREATE TABLE open_data_dataset_versions/);
+  assert.match(openDataMigration, /CREATE TABLE open_data_resources/);
+  assert.match(openDataMigration, /CREATE TABLE open_data_active_datasets/);
+  assert.match(openDataMigration, /CREATE TABLE open_data_import_runs/);
+  assert.match(openDataMigration, /row_count >= 50 AND row_count <= 200/);
+  assert.match(openDataMigration, /latitude >= 35\.70 AND latitude <= 35\.85/);
+  assert.match(openDataMigration, /longitude >= 139\.65 AND longitude <= 139\.85/);
+  assert.doesNotMatch(openDataMigration, /raw_csv|raw_body|response_body/i);
+  await assert.rejects(readFile("database/migrations/0002_open_data_cache.sql", "utf8"));
 });
 
 test("applies migrations and an idempotent seed to an empty local D1", async () => {
@@ -94,16 +124,45 @@ test("applies migrations and an idempotent seed to an empty local D1", async () 
       ]);
     }
 
+    await assert.rejects(execFileAsync("pnpm", [
+      ...wranglerArgs,
+      "execute",
+      ...commonArgs,
+      "--command",
+      "INSERT INTO open_data_dataset_versions (source_id, version_hash, data_updated_at, fetched_at, row_count, status) VALUES ('KITA_EARTHQUAKE_SHELTERS', 'sha256:partial', '2025-09-01', '2026-08-23T00:00:00.000Z', 49, 'staged')",
+    ]));
+
+    const resources = Array.from({ length: 50 }, (_, index) => ({
+      id: `fixture-shelter-${index}`,
+      category: "emergency_shelter",
+      municipality: "Kita",
+      name: `Fixture shelter ${index}`,
+      address: `北区王子${index}-1-1`,
+      latitude: 35.72 + index * 0.001,
+      longitude: 139.68 + index * 0.002,
+    }));
+    const fixtureResources = JSON.stringify(resources).replaceAll("'", "''");
+    await execFileAsync("pnpm", [
+      ...wranglerArgs,
+      "execute",
+      ...commonArgs,
+      "--command",
+      `INSERT INTO open_data_dataset_versions (source_id, version_hash, data_updated_at, fetched_at, row_count, status) VALUES ('KITA_EARTHQUAKE_SHELTERS', 'sha256:fixture', '2025-09-01', '2026-08-23T00:00:00.000Z', ${resources.length}, 'staged'); INSERT INTO open_data_resources (dataset_version_id, resource_id, ordinal, category, municipality, name, address, latitude, longitude, description) SELECT version.id, json_extract(item.value, '$.id'), CAST(item.key AS INTEGER), json_extract(item.value, '$.category'), json_extract(item.value, '$.municipality'), json_extract(item.value, '$.name'), json_extract(item.value, '$.address'), json_extract(item.value, '$.latitude'), json_extract(item.value, '$.longitude'), json_extract(item.value, '$.description') FROM json_each('${fixtureResources}') AS item JOIN open_data_dataset_versions AS version ON version.source_id = 'KITA_EARTHQUAKE_SHELTERS' AND version.version_hash = 'sha256:fixture'; UPDATE open_data_dataset_versions SET status = 'active' WHERE version_hash = 'sha256:fixture'; INSERT INTO open_data_active_datasets (source_id, dataset_version_id, activated_at) SELECT source_id, id, '2026-08-23T00:00:00.000Z' FROM open_data_dataset_versions WHERE version_hash = 'sha256:fixture';`,
+    ]);
+
     const { stdout } = await execFileAsync("pnpm", [
       ...wranglerArgs,
       "execute",
       ...commonArgs,
       "--command",
-      "SELECT COUNT(*) AS count FROM backend_metadata WHERE key = 'seed_version' AND value = '1'",
+      "SELECT (SELECT COUNT(*) FROM backend_metadata WHERE key = 'seed_version' AND value = '2') AS metadata_count, (SELECT COUNT(*) FROM open_data_sources WHERE source_id = 'KITA_EARTHQUAKE_SHELTERS' AND attribution <> '' AND license_url <> '' AND catalog_url <> '' AND update_frequency <> '' AND landing_page_url <> '' AND landing_page_updated_at = '2026-06-17') AS source_count, (SELECT COUNT(*) FROM open_data_resources WHERE category = 'emergency_shelter' AND municipality = 'Kita') AS resource_count, (SELECT COUNT(*) FROM open_data_active_datasets WHERE source_id = 'KITA_EARTHQUAKE_SHELTERS') AS active_count",
       "--json",
     ]);
     const results = JSON.parse(stdout);
-    assert.equal(results[0]?.results?.[0]?.count, 1);
+    assert.equal(results[0]?.results?.[0]?.metadata_count, 1);
+    assert.equal(results[0]?.results?.[0]?.source_count, 1);
+    assert.equal(results[0]?.results?.[0]?.resource_count, resources.length);
+    assert.equal(results[0]?.results?.[0]?.active_count, 1);
   } finally {
     await rm(persistTo, { recursive: true, force: true });
   }

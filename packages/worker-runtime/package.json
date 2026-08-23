@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts"
   },
+  "dependencies": {
+    "@staybridge/data": "workspace:*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
     "@types/node": "22.19.19",

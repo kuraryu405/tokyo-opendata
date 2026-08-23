@@ -25,7 +25,7 @@ pnpm db:local:verify
 pnpm dev
 ```
 
-`db:local:status` が `No migrations to apply`、`db:local:verify` が `seed_version = 1` を返せば初期化済みです。完全に空の DB で検証するときは、別の一時ディレクトリを `--persist-to` に指定して `db:local:migrate` と同じ Wrangler コマンドを実行してください。`.wrangler/` は Git 管理外です。
+`db:local:status` が `No migrations to apply`、`db:local:verify` が `seed_version = 2` を返せば初期化済みです。完全に空の DB で検証するときは、別の一時ディレクトリを `--persist-to` に指定して `db:local:migrate` と同じ Wrangler コマンドを実行してください。`.wrangler/` は Git 管理外です。Open Data migrationは依存PRとの番号衝突を避けて`0003_open_data_cache.sql`に固定しており、このbranch単独では`0001`の次に`0003`が適用されます。
 
 ## remote 環境の作成と migration
 
@@ -60,3 +60,85 @@ production は `production` と production ID で一時設定を作りますが�
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。
 
 staging/production の smoke test は liveness と readiness の両方を確認します。readiness が 503 の場合は、対象環境の Worker Binding が `STAYBRIDGE_DB` か、DB ID が対象環境のものか、D1 が利用可能かを Cloudflare 側で確認します。レスポンスに内部詳細を追加して調査しないでください。
+
+## Open Data同期と公開API
+
+`0003_open_data_cache.sql`はSource Registry、versioned dataset、正規化resource、active pointer、import runを保存する。raw CSVは保存しない。同期は`fetch → 全件validate/normalize → stage → transactional active switch`の順で行い、active切替が完了するまで既存のlast-known-goodを公開し続ける。50行未満の部分応答を拒否し、active datasetが50件を超えて増えた後は、そのactive件数から20%を超える急減も拒否する。同じraw bytesはSHA-256が同じversionとなり、resourceを重複作成しない。ETagがある場合は`If-None-Match`を送り、304を新versionとして保存しない。
+
+両Workerが次のread-only APIを提供する。
+
+```text
+GET /api/open-data/resources?municipality=Kita&category=emergency_shelter
+```
+
+応答には`sourceId`、`datasetVersion`、`dataUpdatedAt`、`fetchedAt`、`license`、`licenseUrl`、`catalogUrl`、`attribution`、`origin`、`resources`が含まれる。D1 active datasetの検証済み行を返す場合は`origin=d1`、activeがないかD1 readに失敗した場合は56件の同梱済み検証データを`origin=bundled`で返す。外部CSV障害時にも公開GETは外部取得を行わない。
+
+手動同期は自治体Workerだけが提供する。`OPEN_DATA_SYNC_SECRET`をrequired secret名として宣言し、長いランダム値を環境ごとに登録する。値はリポジトリ、`wrangler.jsonc`、通常のWorker変数へ平文で置かない。未登録のremote環境ではWranglerのversion uploadが失敗する。
+
+```bash
+# local: apps/municipality/.env を .env.example から作り、実値へ置換
+curl -fsS -X POST \
+  -H "Authorization: Bearer $OPEN_DATA_SYNC_SECRET" \
+  'http://localhost:3001/internal/open-data/sync?dry_run=true'
+
+# Cloudflare secret（staging/productionで別値を推奨）
+pnpm exec wrangler secret put OPEN_DATA_SYNC_SECRET --env staging --config apps/municipality/wrangler.jsonc
+pnpm exec wrangler secret put OPEN_DATA_SYNC_SECRET --env production --config apps/municipality/wrangler.jsonc
+```
+
+`dry_run=true`は固定元CSVを取得・検証し、現在versionとの差を返すが、Source Registry、dataset、resource、import runを一切変更しない。実反映はqueryなしの同じPOSTを使う。Bearer secretはSHA-256 digest同士を一定長で比較し、不一致内容を応答へ出さない。同期失敗はHTTP 503となり、active datasetは維持される。
+
+自治体Workerだけが`0 3 * * *`（毎日03:00 UTC / 12:00 JST）のCron Triggerを持ち、手動同期と同じ関数を1回呼ぶ。利用者WorkerにCronと同期POSTはない。stagingではmigration・secret登録後、まずdry-run、次に実同期、最後に両Workerの公開GETで`origin=d1`とmetadataを確認する。productionへのmigration・初回同期は既存のproduction変更承認手順に従う。
+
+### staging同期・Cron確認
+
+既定Worker名を使う場合はstaging URLを次のように組み立てる。repository variableでWorker名を上書きしている場合は、その実名へ置き換える。
+
+```bash
+USER_STAGING_URL="https://staybridge-user-staging.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev"
+MUNICIPALITY_STAGING_URL="https://staybridge-municipality-staging.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev"
+OPEN_DATA_QUERY='municipality=Kita&category=emergency_shelter'
+
+curl -fsS "${USER_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq '{origin: .data.origin, version: .data.datasetVersion, count: (.data.resources | length)}'
+curl -fsS "${MUNICIPALITY_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq '{origin: .data.origin, version: .data.datasetVersion, count: (.data.resources | length)}'
+
+# 検証のみ。D1のSource Registry、version、resource、import runを変更しない。
+curl -fsS -X POST -H "Authorization: Bearer ${OPEN_DATA_SYNC_SECRET}" \
+  "${MUNICIPALITY_STAGING_URL}/internal/open-data/sync?dry_run=true" |
+  jq -e '.data.dryRun == true and .data.rowCount >= 50'
+
+# 実同期。成功後は両Workerで同じD1 active versionを確認する。
+curl -fsS -X POST -H "Authorization: Bearer ${OPEN_DATA_SYNC_SECRET}" \
+  "${MUNICIPALITY_STAGING_URL}/internal/open-data/sync" |
+  jq -e '.data.dryRun == false and (.data.status == "activated" or .data.status == "not_modified")'
+curl -fsS "${USER_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq -e '.data.origin == "d1" and (.data.resources | length) >= 50'
+curl -fsS "${MUNICIPALITY_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq -e '.data.origin == "d1" and (.data.resources | length) >= 50'
+```
+
+Versions upload方式ではCron Triggerを別途反映する。自治体stagingだけに適用し、利用者Workerへは実行しない。
+
+```bash
+pnpm exec wrangler triggers deploy \
+  --env staging --config apps/municipality/wrangler.jsonc
+```
+
+build済みWorkerのscheduled wiringは、vinextが生成する`dist/server/index.js`を直接importするrendered contractで確認する。このコマンドは先に自治体Workerをbuildし、生成物に`scheduled()`と保護されたsync routeが存在することを実行時assertする。source側の`wrangler.jsonc`を直接`wrangler dev`へ渡すとvinext virtual importを解決できないため、scheduled確認には使わない。
+
+```bash
+OPEN_DATA_SYNC_SECRET=local-contract-only \
+  pnpm --filter @staybridge/municipality test:rendered
+```
+
+scheduled handlerが呼ぶ実同期関数は、上記stagingの認証付き実同期POSTで即時確認する。Cron固有のremote実行確認は、Trigger反映後の`open_data_import_runs`を使う。
+
+remoteではTrigger反映後、次回実行以降の`open_data_import_runs`をstaging D1で確認する。`status`が`succeeded`または`not_modified`で、`started_at`がCron時刻以降ならscheduled同期確認済みとする。失敗時はactive pointerが変わっていないことも公開GETで確認する。
+
+```bash
+pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+  --remote --config .wrangler/d1/staging.json --json \
+  --command "SELECT started_at, finished_at, status, version_hash, row_count, error_code FROM open_data_import_runs ORDER BY started_at DESC LIMIT 5"
+```

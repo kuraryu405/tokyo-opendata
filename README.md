@@ -48,7 +48,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## データ
 
-実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。
+実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは検証・正規化したものだけを利用します。北区の震災対応避難所はD1のactive datasetを参照し、未同期またはD1障害時は同梱した検証済みJSONへフォールバックします。画面や公開APIが外部CSVを直接読み込むことはありません。
 
 人口・施設は、公的な公開データ/公式一覧から確認した北区の一部レコードをデモ安定性のためローカルへキャッシュしています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
@@ -62,6 +62,14 @@ pnpm test
 ```
 
 取得処理は、CSVの必須列・列数・北区行の一意性・自治体名・人口値を検証し、成功時だけキャッシュを置き換えます。`dataUpdatedAt`は統計の基準日、`fetchedAt`は取得日であり、同じ意味ではありません。実行後はJSONの差分と出典metadataを確認してください。学校・医療等の公式ページ／PDFは自動取得の対象外で、正規化レコードを変える前に人が原資料を確認します。
+
+北区「避難所一覧（震災対応）」CSVの同梱フォールバックは次で再生成できます。取得先は固定GETのみで、全行を検証できた場合だけファイルを置き換えます。
+
+```bash
+pnpm data:shelters:refresh
+```
+
+D1同期、認証secret、dry-run、staging、日次Cron、公開APIは [Workers・D1バックエンド基盤](docs/backend-d1.md#open-data同期と公開api) を参照してください。
 
 ## 安全性
 

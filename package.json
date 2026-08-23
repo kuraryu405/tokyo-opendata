@@ -27,7 +27,8 @@
     "lint": "pnpm --filter @staybridge/domain --filter @staybridge/data --filter @staybridge/i18n --filter @staybridge/sites-vite-plugin --filter @staybridge/worker-runtime --filter @staybridge/user --filter @staybridge/municipality -r run lint",
     "lint:fix": "pnpm --filter @staybridge/user --filter @staybridge/municipality -r run lint:fix",
     "test:rendered": "pnpm --filter @staybridge/user run test:rendered && pnpm --filter @staybridge/municipality run test:rendered",
-    "data:fetch": "pnpm --filter @staybridge/data data:fetch"
+    "data:fetch": "pnpm --filter @staybridge/data data:fetch",
+    "data:shelters:refresh": "pnpm --filter @staybridge/data data:shelters:refresh"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
