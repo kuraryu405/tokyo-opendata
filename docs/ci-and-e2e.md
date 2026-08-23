@@ -1,5 +1,9 @@
 # CI, CD, and external E2E
 
+## Verified assistant checks
+
+Worker testではcontent type/origin/stream size/history/rate limit/timeout、AIの不正JSON・未知ID・prompt injection、D1/AI障害、consent falseのD1 writeなし、consent trueのmasked server-internal persistence/deletionを確認する。ブラウザE2EではJA/EN/MyanmarのRoadmapでIME変換中Enterが送信しないこと、fallback後もRule Engine・Local Support・Human Supportが操作可能なこと、source cardのURL/update/fetch/coverage表示と390px overflowなしを確認する。
+
 ## CI and release gates
 
 Every pull request and push to `main` runs the **CI** workflow with a frozen

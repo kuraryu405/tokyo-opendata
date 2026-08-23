@@ -46,6 +46,24 @@ test("built user Worker does not expose sync or scheduled execution", async () =
   assert.equal(response.status, 404);
 });
 
+test("compiled user UI remains reachable when Worker bindings are not injected", async () => {
+  const worker = await loadBuiltWorker("no-env-ui-contract");
+  const response = await worker.fetch(
+    new Request("http://localhost/ja", { headers: { accept: "text/html", host: "localhost", "x-forwarded-proto": "http" } }),
+    undefined,
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /StayBridge Tokyo/);
+
+  const apiResponse = await worker.fetch(
+    new Request("http://localhost/api/verified-assistant", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
+    undefined,
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(apiResponse.status, 503);
+});
+
 async function callBuiltWorker(request) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("api-test", `${process.pid}-${Date.now()}-${request.method}`);
@@ -192,8 +210,11 @@ test("routes the compiled Worker persistence API without exposing a conversation
   assert.equal(wrongTypeResponse.status, 415);
 
   const generatedConfig = JSON.parse(await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"));
-  assert.equal(generatedConfig.ratelimits[0].name, "PERSISTENCE_RATE_LIMITER");
-  assert.deepEqual(generatedConfig.ratelimits[0].simple, { limit: 20, period: 60 });
+  const persistenceLimit = generatedConfig.ratelimits.find((item) => item.name === "PERSISTENCE_RATE_LIMITER");
+  const assistantLimit = generatedConfig.ratelimits.find((item) => item.name === "VERIFIED_ASSISTANT_RATE_LIMITER");
+  assert.deepEqual(persistenceLimit?.simple, { limit: 20, period: 60 });
+  assert.deepEqual(assistantLimit?.simple, { limit: 10, period: 60 });
+  assert.equal(generatedConfig.ai?.binding, "AI");
 });
 
 test("removes disposable starter assets and keeps site metadata", async () => {

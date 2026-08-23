@@ -117,3 +117,4 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
 
 export * from "./open-data";
 export * from "./persistence";
+export * from "./verified-assistant";

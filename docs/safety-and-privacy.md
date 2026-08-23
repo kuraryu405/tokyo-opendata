@@ -1,5 +1,9 @@
 # Safety and Privacy
 
+## Verified assistant
+
+assistant入力は旅券・在留カードらしい識別子を拒否し、検出可能な連絡先・住所をマスクしてからWorkers AIへ渡す。raw入力、外部HTML、任意URL、SQLはAIへ渡さない。会話のD1保存は明示された会話保存同意があり、かつassistantがサーバー生成した場合だけである。保存なしではconversation tableへ書き込まない。保存成功時だけIDと削除コードを返し、保持者は `DELETE /api/conversations/:con_id` で削除できる。複数の保存turnは同じtabの資格情報配列へ全件保持し、削除成功したrecordだけを除去するため、部分失敗で他recordの削除資格情報を失わない。Crisis Viewに会話本文は公開しない。
+
 ## No legal or immigration decision
 
 StayBridge Tokyo は在留延長、在留資格変更、難民・補完的保護、就労資格、就学、給付、母国の安全性を判定・予測しない。表示は CHECK / CONSULT を原則とし、公式情報・行政機関・専門家へのHuman Handoffを置く。

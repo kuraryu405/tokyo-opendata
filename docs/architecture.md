@@ -1,5 +1,9 @@
 # Architecture
 
+## Verified assistant boundary
+
+`apps/user/worker` にだけ固定 `POST /api/verified-assistant` があり、自治体WorkerにはAI binding・assistant route・assistant rate limitを置かない。入力は同一origin JSON、8KiB、質問2,000 byte、交互かつ最大7件の履歴に限定する。#59のPII拒否/マスキングをAI・保存前に実行し、モデル出力はallowlist済みintent/resource/source/action ID JSONだけを受理する。出典付き最終回答はactive D1 normalized dataset（失敗時はverified bundle）とSource Registry metadataから決定的に生成する。
+
 ```mermaid
 flowchart TD
   UB[利用者ブラウザ] --> UA[利用者アプリ]

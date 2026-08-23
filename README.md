@@ -2,6 +2,10 @@
 
 母国の危機により、東京への短期滞在中に予定どおり帰国できなくなった外国人のための、生活再建ナビゲーションMVPです。制度名や検索語を知らなくても、状況に応じた「次の一歩」を時間軸で提示します。
 
+## Verified information assistant
+
+利用者Workerだけが `POST /api/verified-assistant` を提供します。Workers AI は固定モデルで、取得済みの北区・震災対応避難所の正規化recordから選択するためだけに使います。本文、出典、注意点はサーバーが決定的に組み立てます。制度、在留、難民、就労、学校、給付、帰国先の安全は判定せず、Rule Engine、地域情報、公式・人的相談へ戻します。
+
 ## 問題と対象
 
 主な対象は、旅行・知人訪問などで東京に来て、突然の母国情勢の変化で帰国が難しくなった短期滞在者です。住居、学校、医療、行政の接点を持たない人が、翌日からの行動を決められる状態を目指します。デモのPersona Aは架空の人物です。
@@ -71,7 +75,7 @@ pnpm data:shelters:refresh
 
 D1同期、認証secret、dry-run、staging、日次Cron、公開APIは [Workers・D1バックエンド基盤](docs/backend-d1.md#open-data同期と公開api) を参照してください。
 
-Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
+Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、保存した全turnの資格情報を同じタブの`sessionStorage`配列にも保持します。削除成功したrecordだけを配列から外すため、部分失敗で他recordの削除資格情報を失いません。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
 
 ## 安全性
 

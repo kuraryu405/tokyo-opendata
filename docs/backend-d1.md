@@ -59,6 +59,12 @@ production は `production` と production ID で一時設定を作りますが�
 - 入力・method エラー: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。
 
+### Verified assistant API
+
+利用者Workerだけが `POST /api/verified-assistant` を提供する。`application/json`、同一origin、streamを含め8KiB以下、質問2,000 byte以下、最大7件でuser/assistantが交互の履歴を必須とし、専用Cloudflare Rate Limit binding `VERIFIED_ASSISTANT_RATE_LIMITER`（10回/分）を使う。Workers AI binding `AI` はserver固定 `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を使い、clientはmodelを指定できない。timeout、AI/D1失敗、不正JSON/unknown IDは出典つき決定的fallbackになる。`fetchedAt` はserver時刻から48時間以内（未来は5分まで許容）でなければならず、無効・未来・期限切れならAIを呼ばず、避難所名・住所を返さないstale handoffになる。`dataUpdatedAt` は元データ更新日であり、cache freshnessとは別に表示する。
+
+成功payloadは `{answer, sourceIds, uncertainty, actionIds, sources}`。`sources` は公式URL、data update、fetch、coverageを持つ。モデルは選択schemaだけを返し、resource/source/action ID全てを実取得allowlistへ再検証する。会話同意が付く場合のみserver-internal `persistVerifiedConversation` を呼び、masked messages、固定model/source provenance、idempotency/deletion credentialsを保存する。保存なしはconversation tableへのwriteがゼロである。
+
 ### 同意済みデータ保存API
 
 - `POST /api/situation-submissions`: version付きSituation同意と厳格allowlist回答を保存。

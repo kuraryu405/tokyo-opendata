@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "ai": { "binding": "AI" },
   "d1_databases": [
     {
       "binding": "STAYBRIDGE_DB",
@@ -17,6 +18,11 @@
   ],
   "ratelimits": [
     {
+      "name": "VERIFIED_ASSISTANT_RATE_LIMITER",
+      "namespace_id": "202608230062",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
       "name": "PERSISTENCE_RATE_LIMITER",
       "namespace_id": "202608230059",
       "simple": { "limit": 20, "period": 60 }
@@ -26,6 +32,7 @@
     "staging": {
       "name": "staybridge-user-staging",
       "ratelimits": [
+        { "name": "VERIFIED_ASSISTANT_RATE_LIMITER", "namespace_id": "202608230162", "simple": { "limit": 10, "period": 60 } },
         {
           "name": "PERSISTENCE_RATE_LIMITER",
           "namespace_id": "202608230159",
@@ -44,6 +51,7 @@
     "production": {
       "name": "staybridge-user-production",
       "ratelimits": [
+        { "name": "VERIFIED_ASSISTANT_RATE_LIMITER", "namespace_id": "202608230262", "simple": { "limit": 10, "period": 60 } },
         {
           "name": "PERSISTENCE_RATE_LIMITER",
           "namespace_id": "202608230259",

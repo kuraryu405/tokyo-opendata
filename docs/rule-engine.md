@@ -2,6 +2,10 @@
 
 ルールは決定論的で、同じ Situation と評価日（`asOfDate`）なら同じ Action を返す。LLMは判断に介入しない。
 
+## Assistantとの境界
+
+Verified assistantはRule Engineの結論を変更せず、在留・法的資格、難民、就労、学校、給付、帰国先の安全を決定しない。これらとAI失敗・未知ID・不正JSONは、Rule EngineとLocal/Human Supportを案内する安全なfallbackになる。
+
 |Rule ID|入力・条件|Action / 理由|Risk / Source requirement|
 |---|---|---|---|
 |R-STAY-01|旅行/知人訪問かつ帰国が難しい|TODAY: 滞在期間を公式に確認。短期滞在予定のため|延長・資格変更を断定しない。公式相談先が必要|

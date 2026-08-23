@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function loadBuiltWorker(key) {
@@ -41,6 +42,17 @@ test("built municipality Worker owns the protected sync route and scheduled hand
   );
   assert.equal(response.status, 405);
   assert.equal(response.headers.get("allow"), "POST");
+});
+
+test("municipality Worker has no verified-assistant route, AI binding, or assistant rate limit", async () => {
+  const [source, configText] = await Promise.all([
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
+  ]);
+  const config = JSON.parse(configText);
+  assert.doesNotMatch(source, /verified-assistant|handleVerifiedAssistant|\.AI\b/i);
+  assert.equal(config.ai, undefined);
+  assert.equal(config.ratelimits?.some((item) => item.name === "VERIFIED_ASSISTANT_RATE_LIMITER"), false);
 });
 
 test("server-renders the Japanese Preparedness View at the municipality root", async () => {

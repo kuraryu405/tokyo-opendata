@@ -48,16 +48,23 @@ test("both app Workers share the environment-separated D1 contract", async () =>
   }
 
   const userConfig = JSON.parse(await readFile("apps/user/wrangler.jsonc", "utf8"));
-  const rateLimits = [
-    userConfig.ratelimits[0],
-    userConfig.env.staging.ratelimits[0],
-    userConfig.env.production.ratelimits[0],
-  ];
+  const rateLimits = [userConfig.ratelimits, userConfig.env.staging.ratelimits, userConfig.env.production.ratelimits]
+    .map((items) => items.find((item) => item.name === "PERSISTENCE_RATE_LIMITER"));
+  const assistantRateLimits = [userConfig.ratelimits, userConfig.env.staging.ratelimits, userConfig.env.production.ratelimits]
+    .map((items) => items.find((item) => item.name === "VERIFIED_ASSISTANT_RATE_LIMITER"));
   for (const rateLimit of rateLimits) {
+    assert.ok(rateLimit);
     assert.equal(rateLimit.name, "PERSISTENCE_RATE_LIMITER");
     assert.deepEqual(rateLimit.simple, { limit: 20, period: 60 });
   }
+  for (const rateLimit of assistantRateLimits) {
+    assert.ok(rateLimit);
+    assert.equal(rateLimit.name, "VERIFIED_ASSISTANT_RATE_LIMITER");
+    assert.deepEqual(rateLimit.simple, { limit: 10, period: 60 });
+  }
   assert.equal(new Set(rateLimits.map((item) => item.namespace_id)).size, 3);
+  assert.equal(new Set(assistantRateLimits.map((item) => item.namespace_id)).size, 3);
+  assert.equal(userConfig.ai.binding, "AI");
 });
 
 test("only the municipality Worker owns the once-daily Open Data schedule", async () => {

@@ -1,5 +1,9 @@
 # Data Sources
 
+## Assistant source contract
+
+assistantはKita / `emergency_shelter` 固定allowlistのactive normalized resourcesだけを取得する。応答の各source cardは公式landing page、`dataUpdatedAt`、`fetchedAt`、coverage noteを示す。`fetchedAt` がserver時刻から48時間を超える（または5分超の未来・無効）cacheは利用せず、AIと施設列挙を停止して公式/人へのhandoffだけを返す。`dataUpdatedAt` はcache ageと混同せず開示する。D1障害または不正metadata時は検証済みbundleへ切り替え、出典のない主張を返さない。
+
 実装に同梱した **Source Registry の metadata を正**とする。本書はデータの読み方・登録ルールであり、未確認の数値、更新日、ライセンスを補完しない。
 
 |区分|Dataset / Provider / URL|用途|利用者 / 行政|更新・取得・制約|

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -70,6 +70,14 @@ function restoreCompleteUserSession() {
   }));
 }
 
+function verifiedAssistantResponse(id: string, token: string) {
+  return new Response(JSON.stringify({ ok: true, data: {
+    answer: "北区の公開済み避難所を確認してください。", sourceIds: ["KITA_EARTHQUAKE_SHELTERS"], uncertainty: "開設状況を確認してください。", actionIds: ["CONTACT_OFFICIAL_SUPPORT"],
+    sources: [{ id: "KITA_EARTHQUAKE_SHELTERS", officialUrl: "https://www.city.kita.lg.jp/safety/", dataUpdatedAt: "2025-09-01", fetchedAt: "2026-08-23T00:00:00.000Z", coverageNote: "発災時の開設は確認が必要です。" }],
+    conversation: { id, deletionToken: token },
+  } }), { headers: { "content-type": "application/json" } });
+}
+
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -87,6 +95,106 @@ afterEach(() => {
 });
 
 describe("StayBridge client flow", () => {
+  it("renders the verified assistant in each locale and keeps IME Enter from sending", async () => {
+    for (const locale of selectableUserLocales) {
+      navigation.reset(`/${locale}/roadmap`);
+      restoreCompleteUserSession();
+      const fetchMock = vi.fn<typeof fetch>();
+      vi.stubGlobal("fetch", fetchMock);
+      const view = render(<StayBridgeApp />);
+      expect(await screen.findByRole("heading", { name: /確認済み情報アシスタント|Verified information assistant|အတည်ပြုအချက်အလက်/ })).toBeTruthy();
+      const input = screen.getByRole("textbox");
+      fireEvent.change(input, { target: { value: "避難所を確認したい" } });
+      fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+      expect(fetchMock).not.toHaveBeenCalled();
+      view.unmount();
+      sessionStorage.clear();
+    }
+  });
+
+  it("renders cited assistant fallback without requesting conversation persistence by default", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ ok: true, data: {
+      answer: "北区の公開済み避難所を確認してください。", sourceIds: ["KITA_EARTHQUAKE_SHELTERS"], uncertainty: "開設状況を確認してください。", actionIds: ["CONTACT_OFFICIAL_SUPPORT"],
+      sources: [{ id: "KITA_EARTHQUAKE_SHELTERS", officialUrl: "https://www.city.kita.lg.jp/safety/", dataUpdatedAt: "2025-09-01", fetchedAt: "2026-08-23T00:00:00.000Z", coverageNote: "発災時の開設は確認が必要です。" }],
+    } }), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "避難所を確認したい");
+    await user.click(screen.getByRole("button", { name: "質問する" }));
+    expect(await screen.findByText("北区の公開済み避難所を確認してください。")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "KITA_EARTHQUAKE_SHELTERS" }).getAttribute("href")).toBe("https://www.city.kita.lg.jp/safety/");
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("conversation");
+  });
+
+  it("retains both Q1 and Q2 conversation credentials and deletes every saved record", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    const token1 = "A".repeat(43);
+    const token2 = "B".repeat(43);
+    const id1 = "con_11111111-1111-4111-8111-111111111111";
+    const id2 = "con_22222222-2222-4222-8222-222222222222";
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(verifiedAssistantResponse(id1, token1))
+      .mockResolvedValueOnce(verifiedAssistantResponse(id2, token2))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, data: { deleted: true } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, data: { deleted: true } })));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+    await user.click(await screen.findByRole("button", { name: "会話保存への同意を設定" }));
+    const input = screen.getByRole("textbox");
+    await user.type(input, "Q1");
+    await user.click(screen.getByRole("button", { name: "質問する" }));
+    await user.type(input, "Q2");
+    await user.click(screen.getByRole("button", { name: "質問する" }));
+    expect(await screen.findByText("保存済み会話: 2")).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-conversation-credentials") ?? "null")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "保存済み会話をすべて削除 (2)" }));
+    await waitFor(() => expect(screen.queryByText("保存済み会話: 2")).toBeNull());
+    expect(fetchMock.mock.calls.slice(2).map(([url]) => url)).toEqual([`/api/conversations/${id1}`, `/api/conversations/${id2}`]);
+    expect(sessionStorage.getItem("staybridge.saved-conversation-credentials")).toBeNull();
+  });
+
+  it("retains a failed conversation deletion credential while deleting every other record", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    const token1 = "A".repeat(43);
+    const token2 = "B".repeat(43);
+    const id1 = "con_33333333-3333-4333-8333-333333333333";
+    const id2 = "con_44444444-4444-4444-8444-444444444444";
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(verifiedAssistantResponse(id1, token1))
+      .mockResolvedValueOnce(verifiedAssistantResponse(id2, token2))
+      .mockResolvedValueOnce(new Response("", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false }), { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp />);
+    await user.click(await screen.findByRole("button", { name: "会話保存への同意を設定" }));
+    const input = screen.getByRole("textbox");
+    await user.type(input, "Q1"); await user.click(screen.getByRole("button", { name: "質問する" }));
+    await user.type(input, "Q2"); await user.click(screen.getByRole("button", { name: "質問する" }));
+    await user.click(screen.getByRole("button", { name: "保存済み会話をすべて削除 (2)" }));
+    expect(await screen.findByText("削除できなかった会話が残っています。もう一度削除できます。")).toBeTruthy();
+    expect(screen.getByText("保存済み会話: 1")).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-conversation-credentials") ?? "null")).toEqual([{ id: id2, deletionToken: token2 }]);
+    expect(fetchMock.mock.calls.slice(2).map(([url]) => url)).toEqual([`/api/conversations/${id1}`, `/api/conversations/${id2}`]);
+  });
+
+  it("migrates the legacy single conversation credential to the retained-record array", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    const legacy = { id: "con_55555555-5555-4555-8555-555555555555", deletionToken: "C".repeat(43) };
+    sessionStorage.setItem("staybridge.saved-conversation-credentials", JSON.stringify(legacy));
+    render(<StayBridgeApp />);
+    expect(await screen.findByText("保存済み会話: 1")).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-conversation-credentials") ?? "null")).toEqual([legacy]);
+  });
   it.each(selectableUserLocales)("renders the representative full flow in %s", async (locale) => {
     const messages = getUserMessages(locale);
     const user = userEvent.setup();
