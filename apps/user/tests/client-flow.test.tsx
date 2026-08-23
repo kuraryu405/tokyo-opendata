@@ -105,6 +105,9 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: messages.ui.helpTitle })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: new RegExp(messages.ui.summary) }));
     expect(screen.getByRole("heading", { name: messages.ui.summaryTitle })).toBeTruthy();
+    expect(screen.queryByText(messages.ui.summaryIntro)).toBeNull();
+    expect(screen.queryByText(messages.ui.notDecision)).toBeNull();
+    expect(screen.queryByText(messages.ui.helpIntro)).toBeNull();
   });
 
   it("links from the user landing page to the municipality preparedness view", async () => {
