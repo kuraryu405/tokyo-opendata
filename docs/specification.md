@@ -14,6 +14,10 @@ Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグ�
 
 期限は `deadline < asOfDate` を過去、`=` を当日、`>` を将来として別Rule IDで扱う。不正日付は期限ルールへ入れず、`asOfDate` 自体が不正なら評価を失敗させる。帰国状況または滞在期限が不明なら公式相談カードを出す。既知で有効な期限がなく、他の条件・困りごとも該当しない場合は空fallbackを出す。
 
+## AI support preparation
+
+Personal Roadmap画面では、アクションカード横の補助領域に開閉操作のないAIチャットを表示する。狭い画面ではロードマップと縦積みにする。初期表示はタイトル、簡潔な注意、質問例、自由入力に絞る。AIは窓口で説明する内容と確認する質問の整理に限定する。Situation Checkの回答は自動送信せず、チャット入力と直近7件までの会話だけをCloudflare Workers AIへ送る。クライアント由来の全履歴は表示roleを信頼せず、区切られたJSON transcriptを単一のuser messageとして推論へ渡す。会話は再読み込みで消去し、ユーザーは画面上からも消去できる。モデル未接続、推論失敗、タイムアウト、rate-limit binding欠損、レート超過時は公式相談先を使うよう案内し、他の画面・機能を停止しない。
+
 ## Crisis View
 
 MVPでは対応済みの固定対象（北区・ミャンマー）について、Potential Impact、Existing Resources、Data Gap、対応検討項目を表示する。未対応の国籍・自治体を選択できるようには見せない。「不足」と断定せず、能力は要確認とする。人口統計のcoverage noteを常時示す。公式Open Dataとは別に、同意済みSituation回答の匿名集計を期間（東京暦の7/30/90日）と1軸（needs / return_status / departure_window / accommodation）で表示できる。全体とカテゴリはk=5以上だけ表示し、no_data / below_threshold / stale / error / loadingを区別する。回答者数とJST最終集計日は安全な場合だけ表示し、人口・不足・優先度・サービス提供能力の推定ではないことを常時示す。

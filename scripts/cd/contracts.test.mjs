@@ -190,6 +190,14 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.match(deploy, /wrangler@4\.92\.0 versions upload/);
   assert.match(deploy, /wrangler@4\.92\.0 versions deploy/);
   assert.match(deploy, /node scripts\/cd\/configure-d1\.mjs/);
+  assert.equal(
+    deploy.match(/node scripts\/cd\/configure-ai-binding\.mjs/g)?.length,
+    2,
+  );
+  assert.equal(
+    deploy.match(/node scripts\/cd\/configure-rate-limits\.mjs/g)?.length,
+    2,
+  );
   assert.match(deploy, /wrangler@4\.92\.0 rollback/);
   assert.match(deploy, /steps\.production_smoke\.outcome == 'failure'/);
   assert.match(deploy, /steps\.previous\.outputs\.version_id/);

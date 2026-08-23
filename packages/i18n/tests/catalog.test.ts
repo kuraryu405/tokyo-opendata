@@ -49,6 +49,14 @@ describe("user message catalogs", () => {
     }
   });
 
+  it("offers every need, including daily life, in question 09 for all locales", () => {
+    for (const locale of supportedUserLocales) {
+      const optionValues = getUserMessages(locale).questions[8][2].map(([value]) => value);
+      expect(optionValues.toSorted()).toEqual([...needKeys].toSorted());
+      expect(new Set(optionValues).size).toBe(needKeys.length);
+    }
+  });
+
   it("rejects an inexact locale set and incomplete catalogs at runtime", () => {
     expect(() => assertValidUserMessages({})).toThrow(/exactly match the supported locale set/);
     expect(() => assertValidUserMessages({ ...userMessages, extra: userMessages.en })).toThrow(/exactly match the supported locale set/);

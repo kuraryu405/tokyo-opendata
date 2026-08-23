@@ -6,6 +6,18 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "ratelimits": [
+    {
+      "name": "PERSISTENCE_RATE_LIMITER",
+      "namespace_id": "202608230059",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "SUPPORT_CHAT_RATE_LIMITER",
+      "namespace_id": "202608230020",
+      "simple": { "limit": 20, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "STAYBRIDGE_DB",
@@ -15,13 +27,6 @@
       "remote": false
     }
   ],
-  "ratelimits": [
-    {
-      "name": "PERSISTENCE_RATE_LIMITER",
-      "namespace_id": "202608230059",
-      "simple": { "limit": 20, "period": 60 }
-    }
-  ],
   "env": {
     "staging": {
       "name": "staybridge-user-staging",
@@ -29,6 +34,11 @@
         {
           "name": "PERSISTENCE_RATE_LIMITER",
           "namespace_id": "202608230159",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_RATE_LIMITER",
+          "namespace_id": "202608230021",
           "simple": { "limit": 20, "period": 60 }
         }
       ],
@@ -47,6 +57,11 @@
         {
           "name": "PERSISTENCE_RATE_LIMITER",
           "namespace_id": "202608230259",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_RATE_LIMITER",
+          "namespace_id": "202608230022",
           "simple": { "limit": 20, "period": 60 }
         }
       ],

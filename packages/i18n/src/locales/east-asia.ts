@@ -41,7 +41,7 @@ export const zhCNMessages = {
     ["你知道自己可以在日本停留多久吗？", "即使不知道在留资格名称也可以继续。", [["known", "知道"], ["unknown", "不知道"], ["documents", "想查看证件"]]],
     ["有家人和你一起在日本吗？", "如果有儿童同行，也请选择其年龄。", [["none", "没有"], ["children", "有儿童同行"], ["spouse", "配偶同行"], ["other", "有其他家人同行"]]],
     ["你现在住在哪里？", "我们不会询问准确地点。", [["hotel", "酒店或住宿设施"], ["family_or_friend", "家人或朋友家"], ["rental", "租赁住宅"], ["temporary_facility", "临时设施"], ["unstable", "担心之后没有住处"], ["prefer_not_to_say", "不愿回答"]]],
-    ["你目前担心哪些事情？", "可选择所有符合的项目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪里求助"], ["accommodation", "之后的住处"], ["living_cost", "生活费"], ["employment", "工作"], ["education", "儿童的学校和教育"], ["childcare", "儿童的日常生活"], ["medical", "医疗"], ["language", "日语"]]],
+    ["你目前担心哪些事情？", "可选择所有符合的项目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪里求助"], ["accommodation", "之后的住处"], ["living_cost", "生活费"], ["employment", "工作"], ["education", "儿童的学校和教育"], ["childcare", "儿童的日常生活"], ["medical", "医疗"], ["daily_life", "日常生活"], ["language", "日语"]]],
     ["你会说多少日语？", "用于安排咨询时可能需要的语言支持。", [["none", "几乎不会"], ["beginner", "会一点"], ["daily", "能进行日常会话"], ["advanced", "可以顺畅交流"]]],
   ],
   actions: {
@@ -117,7 +117,7 @@ export const zhTWMessages = {
     ["你知道自己可以在日本停留多久嗎？", "即使不知道在留資格名稱也可以繼續。", [["known", "知道"], ["unknown", "不知道"], ["documents", "想查看證件"]]],
     ["有家人和你一起在日本嗎？", "如果有兒童同行，也請選擇其年齡。", [["none", "沒有"], ["children", "有兒童同行"], ["spouse", "配偶同行"], ["other", "有其他家人同行"]]],
     ["你現在住在哪裡？", "我們不會詢問精確地點。", [["hotel", "飯店或住宿設施"], ["family_or_friend", "家人或朋友家"], ["rental", "租賃住宅"], ["temporary_facility", "臨時設施"], ["unstable", "擔心之後沒有住處"], ["prefer_not_to_say", "不願回答"]]],
-    ["你目前擔心哪些事情？", "可選擇所有符合的項目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪裡求助"], ["accommodation", "之後的住處"], ["living_cost", "生活費"], ["employment", "工作"], ["education", "兒童的學校與教育"], ["childcare", "兒童的日常生活"], ["medical", "醫療"], ["language", "日語"]]],
+    ["你目前擔心哪些事情？", "可選擇所有符合的項目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪裡求助"], ["accommodation", "之後的住處"], ["living_cost", "生活費"], ["employment", "工作"], ["education", "兒童的學校與教育"], ["childcare", "兒童的日常生活"], ["medical", "醫療"], ["daily_life", "日常生活"], ["language", "日語"]]],
     ["你會說多少日語？", "用於安排諮詢時可能需要的語言支援。", [["none", "幾乎不會"], ["beginner", "會一點"], ["daily", "能進行日常會話"], ["advanced", "可以順暢交流"]]],
   ],
   actions: {
@@ -193,7 +193,7 @@ export const koMessages = {
     ["일본에 언제까지 머물 수 있는지 알고 있습니까?", "체류자격 명칭을 몰라도 계속할 수 있습니다.", [["known", "알고 있음"], ["unknown", "모름"], ["documents", "서류를 확인하고 싶음"]]],
     ["일본에 함께 있는 가족이 있습니까?", "아동이 함께 있다면 나이도 선택하세요.", [["none", "없음"], ["children", "아동이 함께 있음"], ["spouse", "배우자가 함께 있음"], ["other", "다른 가족이 함께 있음"]]],
     ["지금 어디에 머물고 있습니까?", "정확한 위치는 묻지 않습니다.", [["hotel", "호텔 또는 숙박시설"], ["family_or_friend", "가족 또는 지인의 집"], ["rental", "임대주택"], ["temporary_facility", "임시시설"], ["unstable", "앞으로 머물 곳이 불안정함"], ["prefer_not_to_say", "답변하지 않음"]]],
-    ["현재 무엇이 걱정됩니까?", "해당하는 항목을 모두 선택하세요.", [["stay", "일본에 얼마나 머물 수 있는지"], ["consultation", "도움을 어디에 요청할지"], ["accommodation", "앞으로 머물 곳"], ["living_cost", "생활비"], ["employment", "일"], ["education", "아동의 학교와 교육"], ["childcare", "아동의 일상생활"], ["medical", "의료"], ["language", "일본어"]]],
+    ["현재 무엇이 걱정됩니까?", "해당하는 항목을 모두 선택하세요.", [["stay", "일본에 얼마나 머물 수 있는지"], ["consultation", "도움을 어디에 요청할지"], ["accommodation", "앞으로 머물 곳"], ["living_cost", "생활비"], ["employment", "일"], ["education", "아동의 학교와 교육"], ["childcare", "아동의 일상생활"], ["medical", "의료"], ["daily_life", "일상생활"], ["language", "일본어"]]],
     ["일본어를 어느 정도 할 수 있습니까?", "상담 시 필요한 언어 지원을 정리하는 데 사용합니다.", [["none", "거의 못함"], ["beginner", "조금 할 수 있음"], ["daily", "일상 대화 가능"], ["advanced", "편안하게 대화 가능"]]],
   ],
   actions: {

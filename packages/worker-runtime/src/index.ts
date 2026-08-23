@@ -18,9 +18,9 @@ export interface ApiError {
     | "INVALID_REQUEST"
     | "METHOD_NOT_ALLOWED"
     | "NOT_FOUND"
-  | "PAYLOAD_TOO_LARGE"
-  | "RATE_LIMITED"
-  | "SERVICE_UNAVAILABLE"
+    | "PAYLOAD_TOO_LARGE"
+    | "RATE_LIMITED"
+    | "SERVICE_UNAVAILABLE"
     | "UNSUPPORTED_MEDIA_TYPE";
   message: string;
 }

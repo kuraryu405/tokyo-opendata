@@ -123,7 +123,7 @@ type ParseResult<T> =
 
 export async function handleConsentedPersistenceRequest(
   request: Request,
-  env: PersistenceEnv,
+  env: PersistenceEnv | undefined,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const deletionRoute = parseDeletionRoute(url.pathname);
@@ -134,6 +134,7 @@ export async function handleConsentedPersistenceRequest(
       : deletionRoute?.kind;
 
   if (!routeKind) return null;
+  if (!env) return persistenceUnavailableResponse();
 
   if (!isSameOrigin(request)) {
     return createApiErrorResponse(

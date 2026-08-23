@@ -210,6 +210,10 @@ importers:
         version: 4.124.0(@cloudflare/workers-types@5.20260823.1)
 
   packages/data:
+    dependencies:
+      '@staybridge/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: 22.19.19

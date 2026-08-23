@@ -12,8 +12,12 @@ import { generateActions } from "@staybridge/domain/rules";
 import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
 import type { Action, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
+  consultationSourcesByNeed,
+  humanHandoffSourceIds,
+  isSourceEligibleForVisitPurpose,
   localResources,
   sourceRegistry,
+  type DataSource,
   type LocalResource,
   type LocalResourceId,
 } from "@staybridge/data";
@@ -24,7 +28,13 @@ import {
   selectableUserLocales,
   type PublicUserMessages,
 } from "@staybridge/i18n/client";
-import type { NeedKey, ReasonCode, TimingKey } from "@staybridge/i18n";
+import {
+  getLocalizedSupportText,
+  supportUiCopy,
+  type NeedKey,
+  type ReasonCode,
+  type TimingKey,
+} from "@staybridge/i18n";
 import {
   buildStayBridgePath,
   equivalentStayBridgePath,
@@ -45,6 +55,7 @@ import {
   type Locale,
   type StayAnswer,
 } from "./staybridge-session";
+import { SupportChat } from "./SupportChat";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -429,9 +440,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
           {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} isDemo={isDemoSituation} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} roadmap={() => go("roadmap")} edit={editSituation} />}
-          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
-          {screen === "help" && <HumanSupport t={t} summary={() => go("summary")} />}
+          {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
           {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
         </>}
       </main>
@@ -446,7 +457,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 function Header({ locale, screen, go, switchLocale, disabled }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; disabled: boolean }) {
   const t = getUserMessages(locale).ui;
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel} disabled={disabled}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></button>
+    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel} disabled={disabled}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
     <nav aria-label={t.primaryNavLabel}>
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
@@ -542,7 +553,7 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1><p>{hint}</p>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
+        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
       </div>
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => { setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age }] } }); markAnswered(); }}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
@@ -562,9 +573,9 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><SituationPersistenceConsent locale={locale} state={persistence} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} /><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
 function SituationPersistenceConsent({ locale, state, isDemo, persist, decline, deleteRecord }: { locale: Locale; state: SituationPersistenceState; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void }) {
@@ -597,13 +608,15 @@ function SavedCredentials({ copy, state, deleteRecord }: { copy: PersistenceCopy
   return <div id="saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{state.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{state.credentials.deletionToken}</code></dd></div></dl><p>{copy.savedSessionWarning}</p><p>{copy.deleteBeforeReset}</p><div className="consent-actions"><button className="secondary-button" onClick={() => void copyCredentials()}>{copy.copyCredentials}</button><button className="secondary-button" disabled={state.status === "deleting"} onClick={() => deleteRecord(state.credentials)}>{state.status === "deleting" ? copy.deleting : copy.deleteNow}</button></div>{credentialCopyState !== "idle" && <output className={`consent-status ${credentialCopyState === "error" ? "error" : ""}`} aria-live="polite">{credentialCopyState === "copied" ? copy.credentialsCopied : copy.credentialsCopyFailed}</output>}{state.status === "delete-error" && <output className="consent-status error" aria-live="polite">{copy.deleteFailed}</output>}</div>;
 }
 
-function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (destination: ActionDestination) => void }) {
+function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; visitPurpose: Situation["visitPurpose"]; openAction: (destination: ActionDestination) => void }) {
   const messages = getUserMessages(locale);
   const catalogEntry = getActionCatalogEntry(action.id);
   if (!catalogEntry) return null;
   const ui = messages.actions[catalogEntry.id as ActionId];
-  const sources = action.sourceIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []);
-  if (sources.length !== action.sourceIds.length) return null;
+  const sourceCandidates = action.sourceIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []);
+  if (sourceCandidates.length !== action.sourceIds.length) return null;
+  const sources = sourceCandidates.filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
+  if (sources.length === 0) return null;
   return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p><p className="rule-trace"><code>{action.ruleId}</code><span aria-hidden>·</span>{action.answerCodes.map((code) => <code key={code}>{code}</code>)}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>{t.verified}: {source.fetchedAt}</small></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
 }
 
@@ -620,10 +633,24 @@ function ResourceCard({ resource, locale, t }: { resource: LocalResource & { id:
   return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{icon}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof UserCopy] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2><p>{display.description}</p><dl><div><dt>{t.addressLabel}</dt><dd>{resource.address ?? t.unavailable}</dd></div>{resource.phone && <div><dt>{t.phoneLabel}</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.title || t.publicDataLabel}</a><small>{source?.publisher ?? t.publicDataLabel}</small>{source?.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
 }
 
-function HumanSupport({ t, summary }: { t: UserCopy; summary: () => void }) {
-  const supportIds = ["FRESC", "ISA", "TOKYO_CONSULTATION"];
-  const supportSources = supportIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []).filter((source, index, all) => all.findIndex((candidate) => candidate.url === source.url) === index);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="support-list">{supportSources.map((source, index) => <article className="support-card" key={source.id}><span className="support-index">0{index + 1}</span><div><small>{t.sectionOfficialSupport}</small><h2>{source.title}</h2><p>{source.notes || t.supportFallback}</p><a href={source.url} target="_blank" rel="noreferrer">{t.details} ↗</a></div></article>)}</div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+function HumanSupport({ locale, t, needs, visitPurpose, summary }: { locale: Locale; t: UserCopy; needs: NeedCategory[]; visitPurpose: Situation["visitPurpose"]; summary: () => void }) {
+  const ui = supportUiCopy[locale];
+  const infoSourceIds = [...new Set(needs.flatMap((need) => consultationSourcesByNeed[need]))];
+  const infoSources = infoSourceIds
+    .map((id) => sourceRegistry[id])
+    .filter((source): source is DataSource => Boolean(source))
+    .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
+  const handoffSources = humanHandoffSourceIds
+    .map((id) => sourceRegistry[id])
+    .filter((source): source is DataSource => Boolean(source))
+    .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+}
+
+function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {
+  const answer = getLocalizedSupportText(source.id, "answersInText", locale);
+  const note = getLocalizedSupportText(source.id, "notes", locale);
+  return <article className="support-card"><span className="support-index">{String(index + 1).padStart(2, "0")}</span><div><small>{label}</small><h3>{source.title}</h3>{answer && <p className="support-answer">{answer}</p>}{note && <p className="support-note">{note}</p>}<a href={source.url} target="_blank" rel="noreferrer" aria-label={`${details}: ${source.title}`}>{details} ↗</a></div></article>;
 }
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {

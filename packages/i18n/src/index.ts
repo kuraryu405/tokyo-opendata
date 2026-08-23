@@ -12,6 +12,8 @@ import {
 export { actionIds } from "@staybridge/domain/action-catalog";
 export type { ActionId } from "@staybridge/domain/action-catalog";
 
+export * from "./support-copy";
+
 export const supportedUserLocales = ["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"] as const;
 
 export type UserLocale = (typeof supportedUserLocales)[number];
