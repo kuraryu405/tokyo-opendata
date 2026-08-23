@@ -149,7 +149,9 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
     readFile(new URL("../wrangler.remote-ai.jsonc", import.meta.url), "utf8").then(JSON.parse),
   ]);
 
-  assert.deepEqual(localConfig.ai, { binding: "AI" });
+  assert.equal(localConfig.ai, undefined);
+  assert.equal(localConfig.env.staging.ai, undefined);
+  assert.equal(localConfig.env.production.ai, undefined);
   assert.deepEqual(remoteConfig.ai, { binding: "AI", remote: true });
   assert.equal(localConfig.ratelimits[0].name, "SUPPORT_CHAT_RATE_LIMITER");
   assert.equal(remoteConfig.d1_databases[0].binding, "STAYBRIDGE_DB");

@@ -6,9 +6,6 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
-  "ai": {
-    "binding": "AI"
-  },
   "ratelimits": [
     {
       "name": "SUPPORT_CHAT_RATE_LIMITER",
@@ -28,9 +25,6 @@
   "env": {
     "staging": {
       "name": "staybridge-user-staging",
-      "ai": {
-        "binding": "AI"
-      },
       "ratelimits": [
         {
           "name": "SUPPORT_CHAT_RATE_LIMITER",
@@ -49,9 +43,6 @@
     },
     "production": {
       "name": "staybridge-user-production",
-      "ai": {
-        "binding": "AI"
-      },
       "ratelimits": [
         {
           "name": "SUPPORT_CHAT_RATE_LIMITER",
