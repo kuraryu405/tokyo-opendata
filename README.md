@@ -10,7 +10,7 @@
 
 `Landing → Language → Situation Check → Personal Roadmap → Local Action → Human Support → Consultation Summary`
 
-- 決定論的なRule Engineが、回答から TODAY / THIS WEEK / NEXT 30 DAYS の行動を生成
+- 決定論的なRule Engineが、型付き回答コードと固定評価日から安定したRule IDの行動を生成
 - 公式情報は「何を確認するか」、Open Dataは「地域で何を確認できるか」を支える
 - 行政向け Crisis Support View は Potential Impact、Existing Resources、Data Gap、対応検討項目を表示
 
@@ -44,11 +44,13 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 翻訳モック
 
-日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。各言語の専門家レビューと公開判断は [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。専門家翻訳は現時点では実施できないため [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) をcloseし、`expertReview` は未完了のままです。`ja` / `en` / `my` は内部確認済みの静的プレビュー、残る9言語は非公開draftとして扱います。
 
 ## Action Cardカタログ
 
 「あなたの次のステップ」は、型付きの静的Action Cardカタログから表示します。カード本文を実行時に生成せず、安定したID、注意事項、Source Registryの出典、CTA遷移、レビュー期限を管理します。未レビュー・期限切れ・出典不明のカードは表示せず、公式相談先へfallbackします。カード一覧と更新手順は [docs/action-card-catalog.md](docs/action-card-catalog.md) を参照してください。
+
+カード選定は [固定Rule Engine](docs/rule-engine.md) を正とします。Rule ID、回答コード、除外条件、priority、timing、reason codeを表で管理し、同じAction IDは最高priority、同点はRule ID順で1枚に解決します。評価日は東京日付を `asOfDate` として注入するため、AI/API/D1や実行時時計がなくても同じ入力から同じ順序・理由を再現できます。「なぜこの案内？」には採用Rule IDと回答コードを表示します。
 
 ## データ
 

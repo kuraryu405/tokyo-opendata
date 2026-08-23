@@ -10,7 +10,7 @@
 
 - 日本語、English、မြန်မာဘာသာを選択可能にし、少なくとも英語の主導線を完成させる。
 - 1問ずつの Situation Check（地域、国籍、来日目的、帰国予定・状況、滞在期限、家族、子の年齢、宿泊、困りごと、日本語）を提供する。
-- Rule Engine が説明可能な Action Card を生成する。カードは型付き静的カタログを正本とし、timing、priority、why、source、lastVerified、注意事項、CTA destination、risk、humanReviewRequired、review metadataを持つ。
+- Rule Engine が型付き回答コードだけから説明可能な Action Card を生成する。ルールは安定したRule ID、条件・除外、Action ID、timing、priority、reason code、出典・安全要件を持ち、カードは型付き静的カタログを正本とする。
 - Local Action は学校、医療、子育て、公共施設を、位置情報なしでも自治体単位で表示する。
 - Consultation Summary は入力済み情報のみをコピー・印刷向けに整理する。
 - 自治体向けアプリの `/` で Preparedness View を提供し、人口、資源、Data Gap、表示名「対応検討項目」を示す。
@@ -20,12 +20,15 @@
 - モバイルファースト、キーボード操作、ラベル、コントラスト、エラー・空・ローディング状態を実装する。
 - Source Registry と正規化データを介し、出典・更新情報を追跡可能にする。
 - 未レビュー、レビュー期限切れ、Source Registryで解決できないAction Cardを利用者へ表示しない。
+- 同じAction IDは1枚へ重複排除し、priority、timing、reason、Rule IDを単一の勝者から決定する。同点はRule ID昇順、最終一覧はpriority降順・Action ID昇順とする。
+- 評価日はサーバーのリクエスト境界で東京日付を `asOfDate` として必須注入し、利用者端末の時計に依存せず、過去・当日・将来の期限を別ルールで扱う。
 - Open Dataは利用者の Local Action と行政の支援準備の双方に直接利用する。
 
 ## Safety / AI / Privacy
 
 - AIは補助的な翻訳・平易化のみ。主要フローはAIなしで動く。
 - 在留、難民、就労、就学、給付、危険度を自動判定しない。個別判断は公式窓口へ。
+- 国籍・地域はカード選定に使用しない。分からない回答は相談fallback、答えたくない回答は明記した空fallbackとし、推測で補完しない。
 - ログイン不要、最小データ、正確な住所や識別子は収集しない。
 
 ## Acceptance criteria

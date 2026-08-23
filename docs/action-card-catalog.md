@@ -25,7 +25,7 @@
 - source IDは1件以上必要とし、重複を禁止する。利用者アプリのintegration testで全IDがSource Registryへ解決できることを確認する。
 - 実行時にもsource IDが解決できないカードを除外する。表示可能カードがない場合は、推測せず公式相談先へのfallbackを表示する。
 - title / description / CTAは全locale catalogに必要とする。公開中の `ja` / `en` / `my` にはカード固有の注意事項を必須とする。
-- localeの公開判断と専門家レビューはIssue #7で管理する。内部レビュー済みでも、専門家レビュー未完了を公開済みとは扱わない。
+- 専門家翻訳は現時点で実施できないためIssue #7はclose済み。`expertReview` は未完了のまま保持し、専門レビュー済みとは扱わない。
 
 ## Review operation
 
