@@ -18,7 +18,7 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。画面機能は静的データ中心で、ログイン・AI APIを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があります。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。主要導線は静的データとRule Engineで動き、ログイン・AI APIを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があります。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -71,9 +71,11 @@ pnpm data:shelters:refresh
 
 D1同期、認証secret、dry-run、staging、日次Cron、公開APIは [Workers・D1バックエンド基盤](docs/backend-d1.md#open-data同期と公開api) を参照してください。
 
+Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
+
 ## 安全性
 
-StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性を判定しません。必要な場面では公式窓口・行政機関・専門家へ接続します。氏名、旅券番号、正確な住所、政治・宗教・迫害に関する情報は要求しません。
+StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性を判定しません。必要な場面では公式窓口・行政機関・専門家へ接続します。氏名、メール、電話、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は要求しません。サーバーのマスキングは完全ではないため、入力画面の注意を残します。
 
 ## 制約
 

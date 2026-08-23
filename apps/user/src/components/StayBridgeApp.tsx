@@ -39,10 +39,26 @@ import {
   type StayAnswer,
 } from "./staybridge-session";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
+import {
+  PENDING_SITUATION_SUBMISSION_KEY,
+  SAVED_SITUATION_CREDENTIALS_KEY,
+  createSituationSubmissionSecrets,
+  deleteSituationSubmission,
+  parseSavedSituationCredentials,
+  parseSituationSubmissionSecrets,
+  saveSituationSubmission,
+  type SavedRecordCredentials,
+  type SituationSubmissionSecrets,
+} from "../consented-persistence";
+import { getPersistenceCopy, type PersistenceCopy } from "../persistence-copy";
 
 type Screen = StayBridgeScreen;
 type CopyState = "idle" | "copied" | "error";
 type UserCopy = PublicUserMessages["ui"];
+type SituationPersistenceState =
+  | { status: "idle" | "declined" | "saving" | "error" | "deleted" }
+  | { status: "saved" | "deleting" | "delete-error"; credentials: SavedRecordCredentials };
+type ConversationConsentState = "idle" | "accepted" | "declined";
 
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
@@ -89,10 +105,17 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [isPreparingResults, setIsPreparingResults] = useState(false);
+  const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
+  const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
+  const [isDemoSituation, setIsDemoSituation] = useState(false);
+  const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const [assessmentDate] = useState(currentTokyoDate);
   const skipNextSessionWrite = useRef(false);
   const completionTimer = useRef<number | undefined>(undefined);
+  const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
   const t = getUserMessages(locale).ui;
+  const hasSavedSituationCredentials = "credentials" in situationPersistence;
+  const hasProtectedSituationSubmission = hasSavedSituationCredentials || hasPendingSituationSubmission;
 
   useEffect(() => {
     try {
@@ -102,6 +125,23 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
         setStayAnswer(storedSession.stayAnswer);
         setFamilyAnswers(storedSession.familyAnswers);
         setAnsweredSteps(storedSession.answeredSteps);
+        setIsDemoSituation(storedSession.provenance === "demo");
+      }
+      const savedCredentials = parseSavedSituationCredentials(
+        sessionStorage.getItem(SAVED_SITUATION_CREDENTIALS_KEY),
+      );
+      if (savedCredentials) {
+        setSituationPersistence({ status: "saved", credentials: savedCredentials });
+        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+      } else {
+        const pendingSecrets = parseSituationSubmissionSecrets(
+          sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
+        );
+        if (pendingSecrets) {
+          situationSubmissionSecrets.current = pendingSecrets;
+          setHasPendingSituationSubmission(true);
+          setSituationPersistence({ status: "error" });
+        }
       }
     } catch {
       setStorageError(true);
@@ -138,7 +178,13 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const assessmentComplete = isAssessmentComplete(answeredSteps);
   const firstIncompleteStep = firstUnansweredStep(answeredSteps);
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
-  const routeNeedsAssessmentGuard = storageReady && (
+  const protectedSituationRouteGuard = storageReady
+    && hasProtectedSituationSubmission
+    && (screen === "landing" || screen === "check");
+  const demoSituationRouteGuard = storageReady
+    && isDemoSituation
+    && (screen === "check" || (screen === "roadmap" && !assessmentComplete));
+  const routeNeedsAssessmentGuard = storageReady && !hasProtectedSituationSubmission && !isDemoSituation && (
     (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
     ((screen === "status" || screen === "roadmap") && !assessmentComplete)
   );
@@ -153,17 +199,27 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   }, [firstIncompleteStep, locale, routeNeedsAssessmentGuard, router]);
 
   useEffect(() => {
+    if (!protectedSituationRouteGuard) return;
+    router.replace(buildStayBridgePath({ locale, screen: "status" }));
+  }, [locale, protectedSituationRouteGuard, router]);
+
+  useEffect(() => {
+    if (!demoSituationRouteGuard) return;
+    router.replace(buildStayBridgePath({ locale, screen: "status" }));
+  }, [demoSituationRouteGuard, locale, router]);
+
+  useEffect(() => {
     if (!storageReady) return;
     if (skipNextSessionWrite.current) {
       skipNextSessionWrite.current = false;
       return;
     }
     try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({ situation, stayAnswer, familyAnswers, answeredSteps }));
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({ provenance: isDemoSituation ? "demo" : "user", situation, stayAnswer, familyAnswers, answeredSteps }));
     } catch {
       window.setTimeout(() => setStorageError(true), 0);
     }
-  }, [answeredSteps, familyAnswers, situation, stayAnswer, storageReady]);
+  }, [answeredSteps, familyAnswers, isDemoSituation, situation, stayAnswer, storageReady]);
 
   const actions = useMemo(() => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate }) : [], [assessmentComplete, assessmentDate, situation]);
   const availableResources = useMemo(() => {
@@ -208,14 +264,40 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const loadDemo = () => {
+    if (hasProtectedSituationSubmission) {
+      focusSituationPersistence();
+      return;
+    }
     setSituation(demoSituation);
     setStayAnswer("unknown");
     setFamilyAnswers(["children"]);
-    setAnsweredSteps(Array.from({ length: 10 }, (_, index) => index));
+    const demoAnsweredSteps = Array.from({ length: 10 }, (_, index) => index);
+    setAnsweredSteps(demoAnsweredSteps);
+    setIsDemoSituation(true);
+    try {
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({
+        provenance: "demo",
+        situation: demoSituation,
+        stayAnswer: "unknown",
+        familyAnswers: ["children"],
+        answeredSteps: demoAnsweredSteps,
+      }));
+    } catch {
+      setStorageError(true);
+    }
     go("status");
   };
 
+  const focusSituationPersistence = () => {
+    if (screen !== "status") router.replace(buildStayBridgePath({ locale, screen: "status" }));
+    window.setTimeout(() => document.getElementById(hasSavedSituationCredentials ? "saved-situation-credentials" : "situation-persistence")?.focus(), 0);
+  };
+
   const clearData = () => {
+    if (hasProtectedSituationSubmission) {
+      focusSituationPersistence();
+      return;
+    }
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
@@ -226,10 +308,23 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     setStayAnswer("unknown");
     setFamilyAnswers([]);
     setAnsweredSteps([]);
+    setSituationPersistence({ status: "idle" });
+    setConversationConsent("idle");
+    setIsDemoSituation(false);
+    situationSubmissionSecrets.current = null;
+    try {
+      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+    } catch {
+      setStorageError(true);
+    }
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
 
   const restartAssessment = () => {
+    if (hasProtectedSituationSubmission) {
+      focusSituationPersistence();
+      return;
+    }
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
@@ -241,6 +336,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     setFamilyAnswers([]);
     setAnsweredSteps([]);
     setCopyState("idle");
+    setSituationPersistence({ status: "idle" });
+    setConversationConsent("idle");
+    setIsDemoSituation(false);
+    situationSubmissionSecrets.current = null;
+    try {
+      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+    } catch {
+      setStorageError(true);
+    }
     router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
   };
 
@@ -254,19 +358,84 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     [locale],
   );
 
+  const persistSituation = async () => {
+    const secrets = situationSubmissionSecrets.current ?? createSituationSubmissionSecrets();
+    if (!situationSubmissionSecrets.current) {
+      try {
+        sessionStorage.setItem(PENDING_SITUATION_SUBMISSION_KEY, JSON.stringify(secrets));
+      } catch {
+        setStorageError(true);
+        setSituationPersistence({ status: "error" });
+        return;
+      }
+      situationSubmissionSecrets.current = secrets;
+      setHasPendingSituationSubmission(true);
+    }
+    setSituationPersistence({ status: "saving" });
+    try {
+      const credentials = await saveSituationSubmission(situation, secrets);
+      let replacedPending = false;
+      try {
+        sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, JSON.stringify(credentials));
+        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+        replacedPending = true;
+      } catch {
+        setStorageError(true);
+      }
+      if (replacedPending) {
+        situationSubmissionSecrets.current = null;
+        setHasPendingSituationSubmission(false);
+      }
+      setSituationPersistence({ status: "saved", credentials });
+    } catch {
+      setSituationPersistence({ status: "error" });
+    }
+  };
+
+  const deletePersistedSituation = async (credentials: SavedRecordCredentials) => {
+    setSituationPersistence({ status: "deleting", credentials });
+    try {
+      await deleteSituationSubmission(credentials);
+      try {
+        sessionStorage.removeItem(SAVED_SITUATION_CREDENTIALS_KEY);
+        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+      } catch {
+        setStorageError(true);
+      }
+      situationSubmissionSecrets.current = null;
+      setHasPendingSituationSubmission(false);
+      setSituationPersistence({ status: "deleted" });
+    } catch {
+      setSituationPersistence({ status: "delete-error", credentials });
+    }
+  };
+
+  const editSituation = () => {
+    if (hasProtectedSituationSubmission) {
+      focusSituationPersistence();
+      return;
+    }
+    if (isDemoSituation) {
+      restartAssessment();
+      return;
+    }
+    setSituationPersistence({ status: "idle" });
+    go("check");
+  };
+
   return (
     <div className={`app-shell locale-${locale}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
       <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} disabled={isPreparingResults} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {storageGate || routeNeedsAssessmentGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
+        {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
-          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} isDemo={isDemoSituation} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} roadmap={() => go("roadmap")} edit={editSituation} />}
+          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport t={t} summary={() => go("summary")} />}
           {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
@@ -297,14 +466,14 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, showStart, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+function Landing({ t, showStart, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
   return <>
     <section className="hero">
       <div className="hero-copy">
         <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
         <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
         <p className="lede">{t.intro}</p>
-        <div className="hero-actions">{showStart && <button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button>}<button className="secondary-button" onClick={demo}>{t.demo}</button></div>
+        <div className="hero-actions">{showStart && <button className="primary-button" disabled={disabled} onClick={start}>{t.start}<span aria-hidden>→</span></button>}<button className="secondary-button" disabled={disabled} onClick={demo}>{t.demo}</button></div>
         <div className="trust-row"><span>✓ {t.noLogin}</span><span>✓ {t.noAddress}</span><span>✓ {t.official}</span></div>
       </div>
       <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
@@ -396,14 +565,44 @@ function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
 }
 
-function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; roadmap: () => void; edit: () => void }) {
+function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, persistence, isDemo, persist, declinePersistence, deletePersistence, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; roadmap: () => void; edit: () => void }) {
   const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps);
-  return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
+  return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><SituationPersistenceConsent locale={locale} state={persistence} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} /><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+}
+
+function SituationPersistenceConsent({ locale, state, isDemo, persist, decline, deleteRecord }: { locale: Locale; state: SituationPersistenceState; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void }) {
+  const copy = getPersistenceCopy(locale);
+  const busy = state.status === "saving" || state.status === "deleting";
+  return <section id="situation-persistence" className="consent-card" aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
+}
+
+function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentState) => void }) {
+  const copy = getPersistenceCopy(locale);
+  return <section className="consent-card conversation-consent" aria-labelledby="conversation-consent-title"><h2 id="conversation-consent-title">{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={state === "accepted"} onClick={() => setState("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={state === "declined"} onClick={() => setState("declined")}>{copy.decline}</button></div>{state !== "idle" && <output className="consent-status" aria-live="polite">{state === "accepted" ? copy.conversationAccepted : copy.declined}</output>}</section>;
+}
+
+function ConsentStatus({ copy, status }: { copy: PersistenceCopy; status: SituationPersistenceState["status"] }) {
+  if (status === "idle" || status === "saving") return null;
+  const message = status === "declined" ? copy.declined : status === "deleted" ? copy.deleted : copy.saveFailed;
+  return <output className={`consent-status ${status === "error" ? "error" : ""}`} aria-live="polite">{message}</output>;
+}
+
+function SavedCredentials({ copy, state, deleteRecord }: { copy: PersistenceCopy; state: Extract<SituationPersistenceState, { credentials: SavedRecordCredentials }>; deleteRecord: (credentials: SavedRecordCredentials) => void }) {
+  const [credentialCopyState, setCredentialCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const copyCredentials = async () => {
+    try {
+      await navigator.clipboard.writeText(`${copy.recordId}: ${state.credentials.id}\n${copy.deletionToken}: ${state.credentials.deletionToken}`);
+      setCredentialCopyState("copied");
+    } catch {
+      setCredentialCopyState("error");
+    }
+  };
+  return <div id="saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{state.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{state.credentials.deletionToken}</code></dd></div></dl><p>{copy.savedSessionWarning}</p><p>{copy.deleteBeforeReset}</p><div className="consent-actions"><button className="secondary-button" onClick={() => void copyCredentials()}>{copy.copyCredentials}</button><button className="secondary-button" disabled={state.status === "deleting"} onClick={() => deleteRecord(state.credentials)}>{state.status === "deleting" ? copy.deleting : copy.deleteNow}</button></div>{credentialCopyState !== "idle" && <output className={`consent-status ${credentialCopyState === "error" ? "error" : ""}`} aria-live="polite">{credentialCopyState === "copied" ? copy.credentialsCopied : copy.credentialsCopyFailed}</output>}{state.status === "delete-error" && <output className="consent-status error" aria-live="polite">{copy.deleteFailed}</output>}</div>;
 }
 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; openAction: (actionId: string) => void }) {

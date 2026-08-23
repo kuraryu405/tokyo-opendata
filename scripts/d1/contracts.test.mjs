@@ -46,6 +46,18 @@ test("both app Workers share the environment-separated D1 contract", async () =>
     assert.ok(placeholderIds.has(staging.database_id));
     assert.ok(placeholderIds.has(production.database_id));
   }
+
+  const userConfig = JSON.parse(await readFile("apps/user/wrangler.jsonc", "utf8"));
+  const rateLimits = [
+    userConfig.ratelimits[0],
+    userConfig.env.staging.ratelimits[0],
+    userConfig.env.production.ratelimits[0],
+  ];
+  for (const rateLimit of rateLimits) {
+    assert.equal(rateLimit.name, "PERSISTENCE_RATE_LIMITER");
+    assert.deepEqual(rateLimit.simple, { limit: 20, period: 60 });
+  }
+  assert.equal(new Set(rateLimits.map((item) => item.namespace_id)).size, 3);
 });
 
 test("only the municipality Worker owns the once-daily Open Data schedule", async () => {
@@ -88,6 +100,20 @@ test("foundation and Open Data migrations keep the assigned 0001/0003 numbering"
   assert.match(openDataMigration, /longitude >= 139\.65 AND longitude <= 139\.85/);
   assert.doesNotMatch(openDataMigration, /raw_csv|raw_body|response_body/i);
   await assert.rejects(readFile("database/migrations/0002_open_data_cache.sql", "utf8"));
+});
+
+test("consented persistence uses separated tables, hashed credentials, and no automatic expiry", async () => {
+  const migration = await readFile(
+    "database/migrations/0002_consented_persistence.sql",
+    "utf8",
+  );
+
+  assert.match(migration, /CREATE TABLE situation_submissions/);
+  assert.match(migration, /CREATE TABLE conversations/);
+  assert.match(migration, /CREATE TABLE conversation_messages/);
+  assert.match(migration, /deletion_token_hash/);
+  assert.match(migration, /idempotency_key_hash/);
+  assert.doesNotMatch(migration, /expires_at|raw_content|user_id|cookie/i);
 });
 
 test("applies migrations and an idempotent seed to an empty local D1", async () => {
@@ -163,6 +189,17 @@ test("applies migrations and an idempotent seed to an empty local D1", async () 
     assert.equal(results[0]?.results?.[0]?.source_count, 1);
     assert.equal(results[0]?.results?.[0]?.resource_count, resources.length);
     assert.equal(results[0]?.results?.[0]?.active_count, 1);
+
+    const { stdout: schemaStdout } = await execFileAsync("pnpm", [
+      ...wranglerArgs,
+      "execute",
+      ...commonArgs,
+      "--command",
+      "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('situation_submissions', 'conversations', 'conversation_messages')",
+      "--json",
+    ]);
+    const schemaResults = JSON.parse(schemaStdout);
+    assert.equal(schemaResults[0]?.results?.[0]?.count, 3);
   } finally {
     await rm(persistTo, { recursive: true, force: true });
   }

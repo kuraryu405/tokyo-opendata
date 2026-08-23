@@ -6,11 +6,14 @@ import {
   handleOpenDataResourcesRequest,
   createMethodNotAllowedResponse,
   createReadinessResponse,
-  type BackendEnv,
+  handleConsentedPersistenceRequest,
+  type PersistenceEnv,
+  type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
 
-interface Env extends BackendEnv {
+interface Env extends PersistenceEnv {
   ASSETS: Fetcher;
+  PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -54,6 +57,9 @@ const worker = {
     if (url.pathname === "/api/open-data/resources") {
       return handleOpenDataResourcesRequest(request, env);
     }
+
+    const persistenceResponse = await handleConsentedPersistenceRequest(request, env);
+    if (persistenceResponse) return persistenceResponse;
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

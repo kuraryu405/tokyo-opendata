@@ -26,4 +26,4 @@ flowchart TD
   M --> G[Data Gap + 対応検討項目]
 ```
 
-主要判断は `generateActions(situation, context)` のような純粋関数で行う。利用者アプリと自治体アプリは別々にビルドされ、domain/data/worker-runtimeのworkspace packageを共有する。両Workerは型付き`STAYBRIDGE_DB` Bindingを持ち、検証済みOpen Dataのactive datasetを共有する。Situation CheckやCrisis Viewの個別利用状態は永続化しない。D1の運用契約は [Workers・D1バックエンド基盤](backend-d1.md) を参照する。UIと公開APIは生データや任意URLを直接扱わず、Source Registry と正規化スキーマを参照する。公式情報は確認すべき事項、Open Dataは地域資源・支援準備を担当する。
+主要判断は `generateActions(situation, context)` のような純粋関数で行う。利用者アプリと自治体アプリは別々にビルドされ、domain/data/worker-runtimeのworkspace packageを共有する。両Workerは型付き`STAYBRIDGE_DB` Bindingを持ち、検証済みOpen Dataのactive datasetを共有する。利用者Workerだけがversion付き同意を検証してSituation回答を公開routeから保存する。会話テーブルへの作成は公開せず、#62のserver生成経路がserver-internal関数を呼ぶ場合だけ、NFKC正規化、識別子拒否、連絡先等のマスキング、固定model/trusted source検証を終えてから保存する。自治体WorkerとCrisis Viewには会話本文のrouteを設けない。D1の運用契約は [Workers・D1バックエンド基盤](backend-d1.md) を参照する。UIと公開APIは生データや任意URLを直接扱わず、Source Registry と正規化スキーマを参照する。公式情報は確認すべき事項、Open Dataは地域資源・支援準備を担当する。外部データは取得・正規化して同梱し、画面表示時のネットワーク障害を避ける。

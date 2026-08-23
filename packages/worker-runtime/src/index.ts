@@ -11,7 +11,18 @@ export interface BackendEnv extends RevisionEnv {
 }
 
 export interface ApiError {
-  code: "INVALID_REQUEST" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "SERVICE_UNAVAILABLE";
+  code:
+    | "CONSENT_REQUIRED"
+    | "DUPLICATE_CONFLICT"
+    | "HIGH_RISK_IDENTIFIER"
+    | "INVALID_REQUEST"
+    | "METHOD_NOT_ALLOWED"
+    | "NOT_FOUND"
+    | "PAYLOAD_TOO_LARGE"
+    | "RATE_LIMITED"
+    | "SERVICE_UNAVAILABLE"
+    | "UNAUTHORIZED"
+    | "UNSUPPORTED_MEDIA_TYPE";
   message: string;
 }
 
@@ -36,7 +47,7 @@ export function createApiSuccessResponse<T>(
 
 export function createApiErrorResponse(
   error: ApiError,
-  status: 400 | 401 | 405 | 503,
+  status: 400 | 401 | 404 | 405 | 409 | 413 | 415 | 429 | 503,
   init: ResponseInit = {},
 ): Response {
   return Response.json(
@@ -45,14 +56,14 @@ export function createApiErrorResponse(
   );
 }
 
-export function createMethodNotAllowedResponse(): Response {
+export function createMethodNotAllowedResponse(allowedMethod = "GET"): Response {
   return createApiErrorResponse(
     {
       code: "METHOD_NOT_ALLOWED",
-      message: "Only GET is supported for this endpoint.",
+      message: `Only ${allowedMethod} is supported for this endpoint.`,
     },
     405,
-    { headers: { Allow: "GET" } },
+    { headers: { Allow: allowedMethod } },
   );
 }
 
@@ -105,3 +116,4 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
 }
 
 export * from "./open-data";
+export * from "./persistence";
