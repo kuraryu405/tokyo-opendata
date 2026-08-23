@@ -10,7 +10,7 @@
 | staging | `staybridge-staging` | 明示的な remote 設定だけ |
 | production | `staybridge-production` | 明示的な remote 設定と変更承認が必要 |
 
-`apps/*/wrangler.jsonc` の ID は失敗安全な placeholder です。ローカル Binding には `remote: false` があり、`pnpm dev` や `db:local:*` は Cloudflare 上の D1 を参照しません。CD は GitHub repository variables `STAYBRIDGE_STAGING_D1_DATABASE_ID` と `STAYBRIDGE_PRODUCTION_D1_DATABASE_ID` をデプロイ直前の成果物へ注入し、未設定、placeholder、同一 ID を拒否します。実 ID をリポジトリへ記録する必要はありません。
+`apps/*/wrangler.jsonc` の ID は失敗安全な placeholder です。ローカル Binding には `remote: false` があり、`pnpm dev` や `db:local:*` は Cloudflare 上の D1 を参照しません。CD は GitHub repository variables `STAYBRIDGE_STAGING_D1_DATABASE_ID` と `STAYBRIDGE_PRODUCTION_D1_DATABASE_ID` をデプロイ直前の成果物へ注入し、未設定、placeholder、同一 ID を拒否します。さらに、認証済みの D1 一覧で各 ID がそれぞれ `staybridge-staging` と `staybridge-production` に一意に対応することをビルド前に確認します。実 ID をリポジトリへ記録する必要はありません。
 
 `compatibility_date` は Wrangler 4.92.0 に同梱された workerd が対応する `2026-05-15` です。
 
