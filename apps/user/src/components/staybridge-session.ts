@@ -9,11 +9,12 @@ import type {
   VisitPurpose,
 } from "@staybridge/domain/types";
 import {
-  supportedUserLocales,
-  type UserLocale,
-} from "@staybridge/i18n";
+  selectableUserLocales,
+  type SelectableUserLocale,
+} from "@staybridge/i18n/client";
 
-export type Locale = UserLocale;
+/** Explicit preview allowlist exposed by the public client catalog. */
+export type Locale = SelectableUserLocale;
 export type StayAnswer = "known" | "unknown" | "documents";
 export type FamilyAnswer = "none" | "children" | "spouse" | "other";
 export type FamilyAnswers = FamilyAnswer[];
@@ -134,7 +135,7 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
 }
 
 export function readStoredLocale(raw: string | null): Locale | null {
-  return supportedUserLocales.includes(raw as Locale) ? raw as Locale : null;
+  return selectableUserLocales.includes(raw as Locale) ? raw as Locale : null;
 }
 
 export function serializeStoredSession(session: Omit<StoredSession, "version">): string {
