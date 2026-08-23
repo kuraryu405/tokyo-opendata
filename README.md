@@ -16,7 +16,7 @@
 
 - 決定論的なRule Engineが、回答から TODAY / THIS WEEK / NEXT 30 DAYS の行動を生成
 - 公式情報は「何を確認するか」、Open Dataは「地域で何を確認できるか」を支える
-- 行政向け Crisis Support View は Potential Impact、Existing Resources、Data Gap、対応検討項目を表示
+- 行政向け Crisis Support View は公式Open Dataと、同意済み任意回答のk匿名集計を明確に分けて表示
 
 ## 技術と起動
 
