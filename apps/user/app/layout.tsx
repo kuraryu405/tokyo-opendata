@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import { selectableUserLocales, type SelectableUserLocale } from "@staybridge/i18n";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -54,13 +55,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = resolveRouteLocale(await headers());
   return (
-    <html lang="ja">
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -68,4 +70,11 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+function resolveRouteLocale(requestHeaders: Pick<Headers, "get">): SelectableUserLocale {
+  const locale = requestHeaders.get("x-staybridge-locale");
+  return selectableUserLocales.includes(locale as SelectableUserLocale)
+    ? locale as SelectableUserLocale
+    : "ja";
 }
