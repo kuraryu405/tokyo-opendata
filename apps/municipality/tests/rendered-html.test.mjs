@@ -37,5 +37,8 @@ test("server-renders the Japanese Preparedness View at the municipality root", a
   assert.doesNotMatch(html, /aria-label="対象国籍"/);
   assert.match(html, /短期滞在中の旅行者/);
   assert.match(html, /対応検討項目/);
+  assert.match(html, /施設データの出典とライセンス/);
+  assert.match(html, /Creative Commons Attribution 4.0 International/);
+  assert.match(html, /https:\/\/creativecommons\.org\/licenses\/by\/4\.0\//);
   assert.match(html, /href="http:\/\/localhost:3000"/i);
 });

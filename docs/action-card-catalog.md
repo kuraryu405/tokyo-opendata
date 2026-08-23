@@ -8,13 +8,13 @@
 |---|---|---|---|---|---|---|
 |`CHECK_STAY_STATUS`|現在の滞在と確認すべき手続を公式窓口へつなぐ|TODAY|Human Support|`ISA`|high|2026-11-23|
 |`CONTACT_OFFICIAL_SUPPORT`|個別確認が必要な状況を人へ引き継ぐ|THIS WEEK|Human Support|`FRESC`|high|2026-11-23|
-|`CHECK_CHILD_EDUCATION`|就学可否を断定せず教育の確認先を示す|THIS WEEK|Local / school|`TOKYO_SCHOOL_DATA`|high|2026-11-23|
+|`CHECK_CHILD_EDUCATION`|就学可否を断定せず教育の確認先を示す|THIS WEEK|Local / school|`KITA_ELEMENTARY_SCHOOLS_OPEN_DATA`|high|2026-11-23|
 |`PLAN_TEMPORARY_LIVING`|宿泊終了前に生活・滞在先の相談を促す|THIS WEEK|Human Support|`TOKYO_CONSULTATION`|high|2026-11-23|
-|`CHECK_MEDICAL_OPTIONS`|必要時に確認できる公式医療一覧を示す|NEXT 30 DAYS|Local / medical|`TOKYO_MEDICAL_DATA`|standard|2027-02-23|
+|`CHECK_MEDICAL_OPTIONS`|必要時に確認できる公式医療一覧を示す|NEXT 30 DAYS|Local / medical|`KITA_MEDICAL_INSTITUTIONS_OPEN_DATA`|standard|2027-02-23|
 |`CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH`|求職前に就労可否の公式確認を促す|NEXT 30 DAYS|Human Support|`ISA`, `FRESC`|high|2026-11-23|
 |`FIND_LANGUAGE_SUPPORT`|相談前に言語支援の確認を促す|THIS WEEK|Human Support|`TOKYO_CONSULTATION`|standard|2027-02-23|
 |`CHECK_BEFORE_STAY_DEADLINE`|入力期限より前の書類・公式確認を促す|BEFORE DEADLINE|Human Support|`ISA`|high|2026-11-23|
-|`CHECK_CHILD_LOCAL_SUPPORT`|子どもの日常生活に役立つ公共施設を示す|NEXT 30 DAYS|Local / child support|`KITA_CHILD_CENTER_LIST`, `KITA_LIBRARY_LIST`|standard|2027-02-23|
+|`CHECK_CHILD_LOCAL_SUPPORT`|子どもの日常生活に役立つ公共施設を示す|NEXT 30 DAYS|Local / child support|`KITA_CHILDCARE_FACILITIES_OPEN_DATA`, `KITA_PUBLIC_FACILITIES_OPEN_DATA`|standard|2027-02-23|
 |`CHECK_LIVING_COST_SUPPORT`|当面の生活費に関する公式相談へつなぐ|THIS WEEK|Human Support|`FRESC`, `TOKYO_CONSULTATION`|high|2026-11-23|
 
 ## Publication gates
