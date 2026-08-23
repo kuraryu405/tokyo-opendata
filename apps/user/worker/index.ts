@@ -34,13 +34,13 @@ interface ExecutionContext {
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
 const worker = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/support-chat") {
       return handleSupportChatRequest(request, {
-        ai: env.AI,
-        rateLimiter: env.SUPPORT_CHAT_RATE_LIMITER,
+        ai: env?.AI,
+        rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
       });
     }
 
@@ -61,6 +61,9 @@ const worker = {
     }
 
     if (url.pathname === "/_vinext/image") {
+      if (!env) {
+        return new Response("Image bindings are unavailable.", { status: 503 });
+      }
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
         fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
@@ -71,7 +74,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    return handler.fetch(request, env as Env, ctx);
   },
 };
 
