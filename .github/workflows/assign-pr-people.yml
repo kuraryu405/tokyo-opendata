@@ -24,7 +24,7 @@ jobs:
       # Do not check out or execute code from the pull request. This workflow
       # runs with write permissions so that fork pull requests are supported.
       - name: Assign the author and request reviews
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const pullRequest = context.payload.pull_request;
@@ -36,7 +36,7 @@ jobs:
             );
 
             if (!authorIsAssigned) {
-              let authorCanBeAssigned = false;
+              let authorCanBeAssigned = true;
 
               try {
                 await github.request(
@@ -48,17 +48,20 @@ jobs:
                     assignee: author,
                   },
                 );
-                authorCanBeAssigned = true;
               } catch (error) {
-                const reason =
-                  error.status === 404
-                    ? "GitHub reports that this user is not assignable"
-                    : `assignment eligibility could not be verified: ${error.message}`;
-
-                core.warning(
-                  `PR author ${author} was not assigned to #${pullRequest.number}: ${reason}. ` +
-                    "Continuing with reviewer processing.",
-                );
+                if (error.status === 404) {
+                  authorCanBeAssigned = false;
+                  core.warning(
+                    `PR author ${author} was not assigned to #${pullRequest.number}: ` +
+                      "GitHub reports that this user is not assignable. " +
+                      "Continuing with reviewer processing.",
+                  );
+                } else {
+                  core.warning(
+                      `Could not verify whether PR author ${author} can be assigned to #${pullRequest.number}: ` +
+                      `${error.message}. Attempting the assignment anyway and validating the response.`,
+                  );
+                }
               }
 
               if (authorCanBeAssigned) {
@@ -147,6 +150,21 @@ jobs:
               ...reviews.map(({ user }) => user?.login).filter(Boolean),
             ]);
 
+            const trustedReviewerLogins = new Set(
+              collaborators
+                .filter(
+                  ({ type, login, permissions }) =>
+                    type === "User" &&
+                    permissions?.push === true &&
+                    login !== author,
+                )
+                .map(({ login }) => login),
+            );
+
+            const priorTrustedReviewerCount = [...previouslyNotified].filter(
+              (login) => trustedReviewerLogins.has(login),
+            ).length;
+
             const reviewerCandidates = collaborators
               .filter(
                 ({ type, login, permissions }) =>
@@ -165,7 +183,7 @@ jobs:
               return;
             }
 
-            let requestedReviewCount = 0;
+            let requestedReviewCount = priorTrustedReviewerCount;
 
             for (const reviewer of reviewerCandidates) {
               if (requestedReviewCount >= maximumReviewers) {

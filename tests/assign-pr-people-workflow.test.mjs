@@ -30,6 +30,7 @@ function extractGithubScript(source) {
 
 function createGithubMock({
   authorAssignable = true,
+  authorEligibilityError,
   assignedAuthors = [{ login: "author" }],
   assignmentError,
   collaborators = [],
@@ -61,6 +62,10 @@ function createGithubMock({
         );
         calls.checkUserCanBeAssigned.push(parameters);
         calls.sequence.push("checkUserCanBeAssigned");
+
+        if (authorEligibilityError) {
+          throw authorEligibilityError;
+        }
 
         if (!authorAssignable) {
           throw Object.assign(new Error("Not Found"), { status: 404 });
@@ -131,6 +136,7 @@ async function runWorkflowScript({
   action = "ready_for_review",
   assignees = [],
   authorAssignable,
+  authorEligibilityError,
   assignedAuthors,
   assignmentError,
   collaborators = [],
@@ -143,6 +149,7 @@ async function runWorkflowScript({
 }) {
   const { calls, github } = createGithubMock({
     authorAssignable,
+    authorEligibilityError,
     assignedAuthors,
     assignmentError,
     collaborators,
@@ -244,6 +251,28 @@ test("unassignable fork author is warned about without blocking review requests"
       (message) =>
         message.includes("GitHub reports that this user is not assignable") &&
         message.includes("Continuing with reviewer processing"),
+    ),
+  );
+});
+
+test("eligibility check failures still attempt assignment and validate the response", async () => {
+  const { calls, warnings } = await runWorkflowScript({
+    authorEligibilityError: Object.assign(
+      new Error("Internal Server Error"),
+      { status: 500 },
+    ),
+    collaborators: [{ login: "reviewer", type: "User", permissions: { push: true } }],
+  });
+
+  assert.equal(calls.checkUserCanBeAssigned.length, 1);
+  assert.equal(calls.addAssignees.length, 1);
+  assert.equal(calls.requestReviewers.length, 1);
+  assert.ok(
+    warnings.some(
+      (message) =>
+        message.includes("Internal Server Error") &&
+        message.includes("Attempting the assignment anyway") &&
+        message.includes("validating the response"),
     ),
   );
 });
@@ -398,19 +427,23 @@ test("the first reviewer discovery API failure happens after author processing",
   );
 });
 
-test("review requests are capped at three reviewable collaborators", async () => {
+test("prior trusted review participants count toward the three-person limit", async () => {
   const { calls } = await runWorkflowScript({
     collaborators: [
+      "already-requested",
+      "already-reviewed",
       "reviewer-d",
       "reviewer-b",
       "reviewer-c",
       "reviewer-a",
     ].map((login) => ({ login, type: "User", permissions: { push: true } })),
+    requestedUsers: [{ login: "already-requested" }],
+    reviews: [{ user: { login: "already-reviewed" } }],
   });
 
   assert.deepEqual(
     calls.requestReviewers.map(({ reviewers }) => reviewers),
-    [["reviewer-a"], ["reviewer-b"], ["reviewer-c"]],
+    [["reviewer-a"]],
   );
 });
 
