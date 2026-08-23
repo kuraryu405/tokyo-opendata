@@ -73,6 +73,9 @@ export type Action = {
   shortDescription: string;
   reasonCode: string;
   reasonText: string;
+  ruleId: import("./rules").RuleId;
+  matchedRuleIds: import("./rules").RuleId[];
+  answerCodes: string[];
   sourceIds: string[];
   localResourceCategories?: LocalResourceCategory[];
   humanReviewRequired: boolean;
