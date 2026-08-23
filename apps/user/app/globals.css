@@ -152,3 +152,19 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
   font-size: 12px !important;
   line-height: 1.65 !important;
 }
+
+.action-card details .rule-trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.rule-trace code {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f7f9f8;
+  color: var(--ink);
+  font-size: 9px;
+}

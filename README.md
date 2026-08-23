@@ -10,7 +10,7 @@
 
 `Landing → Language → Situation Check → Personal Roadmap → Local Action → Human Support → Consultation Summary`
 
-- 決定論的なRule Engineが、回答から TODAY / THIS WEEK / NEXT 30 DAYS の行動を生成
+- 決定論的なRule Engineが、型付き回答コードと固定評価日から安定したRule IDの行動を生成
 - 公式情報は「何を確認するか」、Open Dataは「地域で何を確認できるか」を支える
 - 行政向け Crisis Support View は Potential Impact、Existing Resources、Data Gap、対応検討項目を表示
 
@@ -18,12 +18,13 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログイン・AI APIを必要としません。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。画面機能は静的データ中心で、ログイン・AI APIを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があります。
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev                  # 利用者アプリ: http://localhost:3000
 pnpm dev:municipality     # 自治体アプリ: http://localhost:3001
+pnpm db:local:init        # local D1へmigrationとseedを適用
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -34,7 +35,7 @@ pnpm build
 
 利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
 
-`main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`でcommit SHAを確認してから、同じビルド成果物をproductionへ自動昇格します。設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
+`main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`とD1の`/readyz`を確認してから、同じビルド成果物をproductionへ自動昇格します。D1の環境作成・migration・ローカル初期化は [Workers・D1バックエンド基盤](docs/backend-d1.md)、設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
 
 ## Contributors ✨
 
@@ -45,11 +46,13 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## 翻訳モック
 
-日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。各言語の専門家レビューと公開判断は [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) で管理します。
+日本語・English・မြန်မာဘာသာを含む12言語の表示は、MVPでは静的な翻訳カタログです。LLMや外部翻訳API、APIキーは使用していません。主要な行動決定は言語にかかわらずRule Engineで行います。専門家翻訳は現時点では実施できないため [Issue #7](https://github.com/kuraryu405/tokyo-opendata/issues/7) をcloseし、`expertReview` は未完了のままです。`ja` / `en` / `my` は内部確認済みの静的プレビュー、残る9言語は非公開draftとして扱います。
 
 ## Action Cardカタログ
 
 「あなたの次のステップ」は、型付きの静的Action Cardカタログから表示します。カード本文を実行時に生成せず、安定したID、注意事項、Source Registryの出典、CTA遷移、レビュー期限を管理します。未レビュー・期限切れ・出典不明のカードは表示せず、公式相談先へfallbackします。カード一覧と更新手順は [docs/action-card-catalog.md](docs/action-card-catalog.md) を参照してください。
+
+カード選定は [固定Rule Engine](docs/rule-engine.md) を正とします。Rule ID、回答コード、除外条件、priority、timing、reason codeを表で管理し、同じAction IDは最高priority、同点はRule ID順で1枚に解決します。評価日は東京日付を `asOfDate` として注入するため、AI/API/D1や実行時時計がなくても同じ入力から同じ順序・理由を再現できます。「なぜこの案内？」には採用Rule IDと回答コードを表示します。
 
 ## データ
 
@@ -70,4 +73,4 @@ StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就
 - [プロダクト概要](docs/product-overview.md) / [要件](docs/requirements.md) / [実装仕様](docs/specification.md)
 - [アーキテクチャ](docs/architecture.md) / [ルール](docs/rule-engine.md) / [Open Data戦略](docs/open-data-strategy.md)
 - [安全とプライバシー](docs/safety-and-privacy.md) / [2分デモ](docs/demo-script.md)
-- [CI・CD・外部E2E連携](docs/ci-and-e2e.md)
+- [CI・CD・外部E2E連携](docs/ci-and-e2e.md) / [Workers・D1バックエンド基盤](docs/backend-d1.md)

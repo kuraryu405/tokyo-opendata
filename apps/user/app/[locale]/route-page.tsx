@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { StayBridgeApp } from "../../src/components/StayBridgeApp";
+import { getTokyoAssessmentDate } from "../../src/assessment-date";
 import {
   parseStayBridgeRoute,
   type StayBridgeSearchParams,
@@ -31,7 +32,7 @@ async function StayBridgePageContent({
   const parsed = parseStayBridgeRoute(requestedPath, resolvedSearchParams);
 
   if (requestedPath !== parsed.canonicalPath) redirect(parsed.canonicalPath);
-  return <StayBridgeApp route={parsed.route} />;
+  return <StayBridgeApp route={parsed.route} assessmentDate={getTokyoAssessmentDate()} />;
 }
 
 function buildRequestedPath(

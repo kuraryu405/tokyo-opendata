@@ -27,7 +27,7 @@ describe("localized Local Action routes", () => {
       familyAnswers: [],
       answeredSteps: [0],
     }));
-    render(<StayBridgeApp />);
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     const card = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
     expect(card).not.toBeNull();
@@ -44,7 +44,7 @@ describe("localized Local Action routes", () => {
       familyAnswers: [],
       answeredSteps: [0],
     }));
-    render(<StayBridgeApp />);
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     const card = (await screen.findByRole("heading", { name: "豊川小学校" })).closest("article");
     expect(card).not.toBeNull();

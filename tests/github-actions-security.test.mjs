@@ -112,7 +112,7 @@ test("Cloudflare credentials are scoped to deployment steps", async () => {
   const scopedSecretBlocks = contents.match(/\n        env:\n((?:          [^\n]+\n)+)/g) ?? [];
   assert.equal(
     scopedSecretBlocks.filter((block) => block.includes("CLOUDFLARE_API_TOKEN")).length,
-    4,
-    "Cloudflare credentials should be present only on staging deploy, production previous-version, production deploy, and rollback steps",
+    5,
+    "Cloudflare credentials should be present only on D1 identity verification, staging deploy, production previous-version, production deploy, and rollback steps",
   );
 });
