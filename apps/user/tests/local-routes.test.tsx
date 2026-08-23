@@ -22,6 +22,7 @@ describe("localized Local Action routes", () => {
   it("renders catalog display values for /en/local", async () => {
     window.history.replaceState(null, "", "/en/local");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
       situation: { ...createInitialSituation(), currentMunicipality: "Kita" },
       stayAnswer: "unknown",
       familyAnswers: [],
@@ -39,6 +40,7 @@ describe("localized Local Action routes", () => {
   it("renders catalog display values for /my/local", async () => {
     window.history.replaceState(null, "", "/my/local");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
       situation: { ...createInitialSituation(), currentMunicipality: "Kita" },
       stayAnswer: "unknown",
       familyAnswers: [],
