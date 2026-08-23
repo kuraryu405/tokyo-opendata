@@ -12,7 +12,7 @@
 
 - 決定論的なRule Engineが、型付き回答コードと固定評価日から安定したRule IDの行動を生成
 - 公式情報は「何を確認するか」、Open Dataは「地域で何を確認できるか」を支える
-- 行政向け Crisis Support View は Potential Impact、Existing Resources、Data Gap、対応検討項目を表示
+- 行政向け Crisis Support View は公式Open Dataと、同意済み任意回答のk匿名集計を明確に分けて表示
 
 ## 技術と起動
 
@@ -61,6 +61,8 @@ Thanks to everyone who has contributed code through a merged pull request.
 人口・施設は、公的なOpen Dataから確認した北区の一部レコードをデモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来します。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
 Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
+
+自治体Workerだけの `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` は、同意済み`situation_submissions`を自治体・期間・1軸で匿名集計します。`municipality`、`period`（`7d` / `30d` / `90d`）、`view`（`needs` / `return_status` / `departure_window` / `accommodation`）は各1個のallowlistのみを受け付けます。5件未満の全体・カテゴリは数値を返さず、会話・個票を読取りません。これはOpen Dataでも母集団・不足・優先度・支援能力の指標でもありません。
 
 ## 安全性
 
