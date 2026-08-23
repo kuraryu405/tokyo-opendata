@@ -1,7 +1,9 @@
 name: Staging Issues 60 and 62 integration E2E
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - integration/issues-60-62-staging
 
 permissions:
   contents: read

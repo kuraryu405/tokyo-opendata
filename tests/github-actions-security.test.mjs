@@ -118,14 +118,14 @@ test("Cloudflare credentials are scoped to deployment steps", async () => {
   );
 });
 
-test("the Issue 60 and 62 integration workflow is dispatch-only and staging-only", async () => {
+test("the Issue 60 and 62 integration workflow is isolated to its staging branch", async () => {
   const contents = await readFile(
     new URL("staging-issues-60-62-e2e.yml", workflowsDirectory),
     "utf8",
   );
 
-  assert.match(contents, /workflow_dispatch:/);
-  assert.doesNotMatch(contents, /^\s*(push|pull_request|workflow_run):/m);
+  assert.match(contents, /push:\n    branches:\n      - integration\/issues-60-62-staging/);
+  assert.doesNotMatch(contents, /^\s*(pull_request|workflow_run):/m);
   assert.match(contents, /staybridge-staging/);
   assert.doesNotMatch(contents, /\bproduction\b/i);
   assert.doesNotMatch(contents, /\bd1 create\b/i);
