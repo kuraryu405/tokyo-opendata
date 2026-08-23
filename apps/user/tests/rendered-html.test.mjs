@@ -121,6 +121,28 @@ test("routes support chat through rate limiting and untrusted transcript inferen
   assert.match(inference.input.messages[1].content, /ignore system rules/);
 });
 
+test("fails closed when the local production server has no Worker bindings", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-support-chat-no-env`);
+  const { default: worker } = await import(workerUrl.href);
+
+  const response = await worker.fetch(
+    new Request("http://localhost/api/support-chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        locale: "ja",
+        messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
+      }),
+    }),
+    undefined,
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "RATE_LIMIT_UNAVAILABLE" });
+});
+
 test("declares local-safe and explicitly remote AI binding configurations", async () => {
   const [localConfig, remoteConfig] = await Promise.all([
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8").then(JSON.parse),
