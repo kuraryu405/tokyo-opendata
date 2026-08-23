@@ -98,6 +98,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     try {
       const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
       if (storedSession) {
+        // oxlint-disable-next-line react/set-state-in-effect -- Initializes browser-only persisted state after hydration.
         setSituation(storedSession.situation);
         setStayAnswer(storedSession.stayAnswer);
         setFamilyAnswers(storedSession.familyAnswers);
