@@ -83,6 +83,8 @@ jobs:
       production_worker: ${{ needs.detect.outputs.user_production_worker }}
       staging_environment: staging
       production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
       counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
@@ -102,6 +104,8 @@ jobs:
       production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
       staging_environment: staging
       production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
       counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
@@ -117,7 +121,7 @@ jobs:
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
       (needs.deploy-user.result == 'success' || needs.deploy-user.result == 'skipped') &&
       (needs.deploy-municipality.result == 'success' || needs.deploy-municipality.result == 'skipped')
-    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@d1428640c266f8c6f3e21faee800b6763269fb12 # main@d142864
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@a78ac48a824f61f5208b92a2a3858b32fa437c98 # main@a78ac48
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
       user_url: ${{ needs.detect.outputs.user_production_verification_url }}

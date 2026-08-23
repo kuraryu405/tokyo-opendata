@@ -11,17 +11,33 @@ const readText = (record: RawResourceRecord, ...keys: string[]) => {
   return undefined;
 };
 
+const readCoordinate = (record: RawResourceRecord, ...keys: string[]) => {
+  const value = readText(record, ...keys);
+  if (!value || !/^-?\d+(?:\.\d+)?$/.test(value)) return undefined;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : undefined;
+};
+
 /** Adapts a row only when the required source fields are genuinely present. */
 export function adaptResourceRecord(record: RawResourceRecord, options: {
   id: string; category: LocalResourceCategory; municipality: string; sourceId: string; dataUpdatedAt?: string;
 }): LocalResource | undefined {
-  const name = readText(record, "name", "名称", "施設名称", "学校名", "医療機関名");
+  const name = readText(record, "name", "名称", "施設名", "学校名", "医療機関名");
   if (!name) return undefined;
+  const address = readText(record, "address", "住所", "所在地", "所在地_連結表記");
+  const phone = readText(record, "phone", "電話", "電話番号");
+  const website = readText(record, "website", "url", "URL", "ホームページ");
+  const latitude = readCoordinate(record, "latitude", "緯度");
+  const longitude = readCoordinate(record, "longitude", "経度");
   return {
     id: options.id, name, category: options.category, municipality: options.municipality,
-    address: readText(record, "address", "住所", "所在地"), phone: readText(record, "phone", "電話", "電話番号"),
-    website: readText(record, "website", "url", "URL", "ホームページ"),
-    sourceId: options.sourceId, dataUpdatedAt: options.dataUpdatedAt,
+    ...(address ? { address } : {}),
+    ...(latitude === undefined ? {} : { latitude }),
+    ...(longitude === undefined ? {} : { longitude }),
+    ...(phone ? { phone } : {}),
+    ...(website ? { website } : {}),
+    sourceId: options.sourceId,
+    ...(options.dataUpdatedAt ? { dataUpdatedAt: options.dataUpdatedAt } : {}),
   };
 }
 
