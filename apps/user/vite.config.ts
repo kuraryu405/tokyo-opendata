@@ -1,13 +1,14 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
-import hostingConfig from "./.openai/hosting.json";
+import { fileURLToPath } from "node:url";
 import { sites } from "@staybridge/sites-vite-plugin";
-import { createLocalBindingConfig } from "./src/ai/local-bindings";
-
-const { d1, r2 } = hostingConfig;
+import { resolveUserWranglerConfigPath } from "./src/ai/local-bindings";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+const localD1StatePath = fileURLToPath(
+  new URL("../../.wrangler/state", import.meta.url),
+);
 
 export default defineConfig(async () => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
@@ -18,11 +19,6 @@ export default defineConfig(async () => {
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
-  const localBindingConfig = createLocalBindingConfig({
-    d1Binding: d1,
-    r2Binding: r2,
-    remoteAi: process.env.STAYBRIDGE_REMOTE_AI === "1",
-  });
 
   return {
     server: isCodexSeatbeltSandbox
@@ -32,8 +28,9 @@ export default defineConfig(async () => {
       vinext(),
       sites(),
       cloudflare({
+        configPath: resolveUserWranglerConfigPath(process.env.STAYBRIDGE_REMOTE_AI),
+        persistState: { path: localD1StatePath },
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
       }),
     ],
   };

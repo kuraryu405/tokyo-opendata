@@ -18,12 +18,13 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。Cloudflare Workers互換の静的データ中心構成で、DB・ログインを必要としません。主要導線はAIに依存せず、相談内容の整理にだけCloudflare Workers AIを使用します。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。画面機能は静的データ中心で、ログインを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があり、主要導線はAIに依存せず、相談内容の整理にだけCloudflare Workers AIを使用します。
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev                  # 利用者アプリ: http://localhost:3000
 pnpm dev:municipality     # 自治体アプリ: http://localhost:3001
+pnpm db:local:init        # local D1へmigrationとseedを適用
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -32,7 +33,7 @@ pnpm build
 
 利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
 
-`main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`でcommit SHAを確認してから、同じビルド成果物をproductionへ自動昇格します。設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
+`main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`とD1の`/readyz`を確認してから、同じビルド成果物をproductionへ自動昇格します。D1の環境作成・migration・ローカル初期化は [Workers・D1バックエンド基盤](docs/backend-d1.md)、設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
 
 ## Contributors ✨
 
@@ -82,4 +83,4 @@ StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就
 - [プロダクト概要](docs/product-overview.md) / [要件](docs/requirements.md) / [実装仕様](docs/specification.md)
 - [アーキテクチャ](docs/architecture.md) / [ルール](docs/rule-engine.md) / [Open Data戦略](docs/open-data-strategy.md)
 - [安全とプライバシー](docs/safety-and-privacy.md) / [2分デモ](docs/demo-script.md)
-- [CI・CD・外部E2E連携](docs/ci-and-e2e.md)
+- [CI・CD・外部E2E連携](docs/ci-and-e2e.md) / [Workers・D1バックエンド基盤](docs/backend-d1.md)

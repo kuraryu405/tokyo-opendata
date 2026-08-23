@@ -83,6 +83,8 @@ jobs:
       production_worker: ${{ needs.detect.outputs.user_production_worker }}
       staging_environment: staging
       production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
       counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
@@ -102,6 +104,8 @@ jobs:
       production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
       staging_environment: staging
       production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
       counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}

@@ -1,11 +1,15 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { createHealthResponse } from "@staybridge/worker-runtime";
+import {
+  createHealthResponse,
+  createMethodNotAllowedResponse,
+  createReadinessResponse,
+  type BackendEnv,
+} from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
 
-interface Env {
-  APP_REVISION?: string;
+interface Env extends BackendEnv {
   AI?: SupportChatAi;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
   ASSETS: Fetcher;
@@ -45,10 +49,15 @@ const worker = {
     }
 
     if (url.pathname === "/healthz") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers: { Allow: "GET" },
-      });
+      return createMethodNotAllowedResponse();
+    }
+
+    if (request.method === "GET" && url.pathname === "/readyz") {
+      return createReadinessResponse(env);
+    }
+
+    if (url.pathname === "/readyz") {
+      return createMethodNotAllowedResponse();
     }
 
     if (url.pathname === "/_vinext/image") {

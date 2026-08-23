@@ -5,7 +5,7 @@ import {
   type SupportChatAi,
   type SupportChatRateLimiter,
 } from "../src/ai/support-chat";
-import { createLocalBindingConfig } from "../src/ai/local-bindings";
+import { resolveUserWranglerConfigPath } from "../src/ai/local-bindings";
 
 function chatRequest(body: unknown, headers: Record<string, string> = {}) {
   return new Request("https://staybridge.example/api/support-chat", {
@@ -203,7 +203,8 @@ describe("support chat worker endpoint", () => {
 
 describe("local support chat bindings", () => {
   it("does not request remote AI unless explicitly enabled", () => {
-    expect(createLocalBindingConfig({ remoteAi: false })).not.toHaveProperty("ai");
-    expect(createLocalBindingConfig({ remoteAi: true })).toHaveProperty("ai", { binding: "AI", remote: true });
+    expect(resolveUserWranglerConfigPath(undefined)).toBe("./wrangler.jsonc");
+    expect(resolveUserWranglerConfigPath("0")).toBe("./wrangler.jsonc");
+    expect(resolveUserWranglerConfigPath("1")).toBe("./wrangler.remote-ai.jsonc");
   });
 });
