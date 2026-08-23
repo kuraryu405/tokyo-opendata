@@ -43,25 +43,26 @@ type NeedsState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; dat
 function CrisisNeedsPanel() {
   const [period, setPeriod] = useState<Period>("30d");
   const [view, setView] = useState<View>("needs");
-  const [state, setState] = useState<NeedsState>({ kind: "loading" });
+  const [state, setState] = useState<{ requestKey: string; value: NeedsState }>({ requestKey: "", value: { kind: "loading" } });
   const periodId = useId();
   const viewId = useId();
+  const requestKey = `${period}:${view}`;
+  const displayedState: NeedsState = state.requestKey === requestKey ? state.value : { kind: "loading" };
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({ kind: "loading" });
     const params = new URLSearchParams({ municipality: "13117", period, view });
     fetch(`/api/crisis/needs?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as { ok?: boolean; data?: CrisisNeedsData };
         if (!response.ok || !body.ok || !body.data) throw new Error("Crisis needs request failed");
-        setState({ kind: "ready", data: body.data });
+        setState({ requestKey, value: { kind: "ready", data: body.data } });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ kind: "error" });
+        if (!controller.signal.aborted) setState({ requestKey, value: { kind: "error" } });
       });
     return () => controller.abort();
-  }, [period, view]);
+  }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
     <div className="crisis-section-title"><span>03</span><div><small>VOLUNTARY STAYBRIDGE RESPONSES</small><h2 id="crisis-needs-title">匿名化した任意回答の傾向</h2></div><p>公式Open Dataとは別の、同意済み任意回答だけの集計です。</p></div>
@@ -75,9 +76,9 @@ function CrisisNeedsPanel() {
         <label htmlFor={viewId}>表示軸<select id={viewId} value={view} onChange={(event) => setView(event.target.value as View)}>{Object.entries(viewLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       </div>
       <div className="crisis-needs-result" aria-live="polite">
-        {state.kind === "loading" && <output className="crisis-needs-loading">匿名集計を確認しています…</output>}
-        {state.kind === "error" && <div data-testid="crisis-needs-error" className="crisis-needs-state crisis-needs-error"><strong>現在、匿名集計を表示できません</strong><p>個別の情報は表示せず、時間をおいて再度確認してください。</p></div>}
-        {state.kind === "ready" && <CrisisNeedsResult data={state.data} />}
+        {displayedState.kind === "loading" && <output className="crisis-needs-loading">匿名集計を確認しています…</output>}
+        {displayedState.kind === "error" && <div data-testid="crisis-needs-error" className="crisis-needs-state crisis-needs-error"><strong>現在、匿名集計を表示できません</strong><p>個別の情報は表示せず、時間をおいて再度確認してください。</p></div>}
+        {displayedState.kind === "ready" && <CrisisNeedsResult data={displayedState.data} />}
       </div>
     </div>
   </section>;
