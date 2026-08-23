@@ -172,6 +172,19 @@ test("fails closed when the local production server has no Worker bindings", asy
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: "RATE_LIMIT_UNAVAILABLE" });
+
+  const recommendationResponse = await worker.fetch(
+    new Request("http://localhost/api/recommend-actions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "医療相談のため" }),
+    }),
+    undefined,
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(recommendationResponse.status, 503);
+  assert.deepEqual(await recommendationResponse.json(), { error: "RATE_LIMIT_UNAVAILABLE" });
 });
 
 test("declares local-safe and explicitly remote AI binding configurations", async () => {

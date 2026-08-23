@@ -8,10 +8,17 @@ import {
   type BackendEnv,
 } from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
+import {
+  handleRecommendActionsRequest,
+  type RecommendActionsAi,
+  type RecommendActionsRateLimiter,
+} from "../src/ai/recommend-actions";
 
 interface Env extends BackendEnv {
-  AI?: SupportChatAi;
+  AI?: SupportChatAi & RecommendActionsAi;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
+  AI_USER_RATE_LIMITER?: RecommendActionsRateLimiter;
+  AI_GLOBAL_RATE_LIMITER?: RecommendActionsRateLimiter;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -41,6 +48,14 @@ const worker = {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
         rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
+      });
+    }
+
+    if (url.pathname === "/api/recommend-actions") {
+      return handleRecommendActionsRequest(request, {
+        ai: env?.AI,
+        userRateLimiter: env?.AI_USER_RATE_LIMITER,
+        globalRateLimiter: env?.AI_GLOBAL_RATE_LIMITER,
       });
     }
 
