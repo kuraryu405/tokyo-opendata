@@ -1,0 +1,23 @@
+{
+  "name": "@staybridge/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
+  },
+  "dependencies": {
+    "@staybridge/data": "workspace:*"
+  },
+  "devDependencies": {
+    "oxlint": "^1.78.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "type": "module"
+}

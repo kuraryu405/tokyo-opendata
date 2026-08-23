@@ -2,7 +2,7 @@
 
 ## Screens and navigation
 
-`/` Landing（言語・開始・Crisis View導線）→ Situation Check → Immediate Status → Roadmap → Local Action → Support Detail / Human Support → Consultation Summary。本人向けナビゲーションは Home / My Steps / Local Support / Help に限定する。`/crisis` は支援準備向けで、個人画面と分離する。
+本人向けアプリの `/` は Landing（言語・開始・Crisis View導線）→ Situation Check → Immediate Status → Roadmap → Local Action → Support Detail / Human Support → Consultation Summary を提供する。本人向けナビゲーションは Home / My Steps / Local Support / Help に限定する。自治体向けアプリの `/` は支援準備向けで、本人向け画面と分離する。
 
 ## Situation states
 
@@ -14,7 +14,7 @@ Actionは TODAY、THIS WEEK、NEXT 30 DAYS、BEFORE DEADLINE、LONG TERM にグ�
 
 ## AI support preparation
 
-Personal Roadmap画面では、左にアクションカード、右に開閉操作のないAIチャットを常時表示する。狭い画面ではチャットをロードマップの上へ移して縦積みにする。初期表示はタイトル、簡潔な注意、質問例、自由入力に絞り、縦方向の余白は会話表示へ割り当てる。AIは窓口で説明する内容と確認する質問の整理に限定する。Situation Checkの回答は自動送信せず、チャット入力と直近7件までの会話だけをCloudflare Workers AIへ送る。会話は再読み込みで消去し、ユーザーは画面上からも消去できる。モデル未接続、推論失敗、レート超過時は公式相談先を使うよう案内し、他の画面・機能を停止しない。
+Personal Roadmap画面では、アクションカード横の補助領域に開閉操作のないAIチャットを表示する。狭い画面ではロードマップと縦積みにする。初期表示はタイトル、簡潔な注意、質問例、自由入力に絞る。AIは窓口で説明する内容と確認する質問の整理に限定する。Situation Checkの回答は自動送信せず、チャット入力と直近7件までの会話だけをCloudflare Workers AIへ送る。クライアント由来の全履歴は表示roleを信頼せず、区切られたJSON transcriptを単一のuser messageとして推論へ渡す。会話は再読み込みで消去し、ユーザーは画面上からも消去できる。モデル未接続、推論失敗、タイムアウト、rate-limit binding欠損、レート超過時は公式相談先を使うよう案内し、他の画面・機能を停止しない。
 
 ## Crisis View
 
