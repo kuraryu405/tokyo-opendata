@@ -31,6 +31,31 @@ The workflow permission and secret boundaries are:
 | Deploy one Worker | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Builds once, promotes the verified artifact through staging and production, and rolls back failed production health checks. |
 | External E2E | Inherited from Release Workers | None | Runs only after the affected production deployments succeed; it cannot roll back a healthy release. |
 
+## Pull request assignment and review requests
+
+The **Assign PR author and reviewers** workflow processes a ready pull request's
+author assignment before it discovers reviewer candidates. An unassignable
+author is reported as a warning, while reviewer processing continues. Reviewer
+discovery is a separate best-effort step, so a temporary discovery failure
+cannot prevent the assignment attempt.
+
+Individual reviewer candidates come from the repository collaborators API with
+the `push` permission filter. The workflow also verifies each returned user's
+`permissions.push` value, then excludes the pull request author, bots, current
+review requests, and users who have already reviewed. It limits the total to
+three trusted individual participants across prior requests, prior reviews, and
+new requests, trying candidates in login order until that limit is reached. An
+existing team review request suppresses additional individual requests.
+
+Each individual review request is isolated. If a collaborator loses permission
+between discovery and the request, the workflow records a warning and continues
+with the remaining candidates. Reopened pull requests and reruns reuse the
+existing assignee and review history to avoid duplicate notifications. The
+workflow uses `pull_request_target` but never checks out or executes pull-request
+code.
+
+## Release range and deployment
+
 After a successful push CI on `main`, CI records the push event's exact
 `before` and `head` SHAs as a small release-range artifact. **Release Workers**
 downloads that artifact from the successful CI run and compares the complete

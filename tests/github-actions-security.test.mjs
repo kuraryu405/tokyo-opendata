@@ -97,6 +97,9 @@ test("the write-capable pull_request_target workflow never checks out PR code", 
   assert.match(contents, /\bpull_request_target:\s*$/m);
   assert.doesNotMatch(contents, /\bactions\/checkout@/);
   assert.doesNotMatch(contents, /\bgithub\.event\.pull_request\.head\b/);
+  assert.doesNotMatch(contents, /\bcontext\.payload\.pull_request\.head\b/);
+  assert.doesNotMatch(contents, /\bpullRequest\.head\b/);
+  assert.doesNotMatch(contents, /^\s+(?:-\s+)?run:/m);
 });
 
 test("Cloudflare credentials are scoped to deployment steps", async () => {
