@@ -1,10 +1,24 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { createHealthResponse } from "@staybridge/worker-runtime";
+import {
+  createHealthResponse,
+  createMethodNotAllowedResponse,
+  createReadinessResponse,
+  type BackendEnv,
+} from "@staybridge/worker-runtime";
+import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
+import {
+  handleRecommendActionsRequest,
+  type RecommendActionsAi,
+  type RecommendActionsRateLimiter,
+} from "../src/ai/recommend-actions";
 
-interface Env {
-  APP_REVISION?: string;
+interface Env extends BackendEnv {
+  AI?: SupportChatAi & RecommendActionsAi;
+  SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
+  AI_USER_RATE_LIMITER?: RecommendActionsRateLimiter;
+  AI_GLOBAL_RATE_LIMITER?: RecommendActionsRateLimiter;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -27,21 +41,44 @@ interface ExecutionContext {
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
 const worker = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/support-chat") {
+      return handleSupportChatRequest(request, {
+        ai: env?.AI,
+        rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
+      });
+    }
+
+    if (url.pathname === "/api/recommend-actions") {
+      return handleRecommendActionsRequest(request, {
+        ai: env?.AI,
+        userRateLimiter: env?.AI_USER_RATE_LIMITER,
+        globalRateLimiter: env?.AI_GLOBAL_RATE_LIMITER,
+      });
+    }
 
     if (request.method === "GET" && url.pathname === "/healthz") {
       return createHealthResponse(env, "user");
     }
 
     if (url.pathname === "/healthz") {
-      return new Response("Method Not Allowed", {
-        status: 405,
-        headers: { Allow: "GET" },
-      });
+      return createMethodNotAllowedResponse();
+    }
+
+    if (request.method === "GET" && url.pathname === "/readyz") {
+      return createReadinessResponse(env);
+    }
+
+    if (url.pathname === "/readyz") {
+      return createMethodNotAllowedResponse();
     }
 
     if (url.pathname === "/_vinext/image") {
+      if (!env) {
+        return new Response("Image bindings are unavailable.", { status: 503 });
+      }
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
         fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
@@ -52,7 +89,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    return handler.fetch(request, env as Env, ctx);
   },
 };
 

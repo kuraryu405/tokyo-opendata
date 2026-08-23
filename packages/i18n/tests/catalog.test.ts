@@ -5,6 +5,7 @@ import {
   getUserMessages,
   getPublishedUserLocales,
   needKeys,
+  otherAnswerKeys,
   reasonCodes,
   reviewedUserLocales,
   selectableUserLocales,
@@ -15,8 +16,22 @@ import {
   localResourceLocales,
 } from "../src/index";
 import { localResources } from "@staybridge/data";
+import {
+  actionNotices,
+  actionNoticeLocales,
+  assertValidActionNotices,
+} from "../src/action-notices";
 
 describe("user message catalogs", () => {
+  it("keeps complete non-empty card notices for every selectable locale", () => {
+    expect(actionNoticeLocales).toEqual(selectableUserLocales);
+    expect(() => assertValidActionNotices(actionNotices)).not.toThrow();
+    for (const locale of actionNoticeLocales) {
+      expect(Object.keys(actionNotices[locale]).sort()).toEqual([...actionIds].sort());
+      expect(Object.values(actionNotices[locale]).every((notice) => notice.trim() !== "")).toBe(true);
+    }
+  });
+
   it("exports exactly the supported static locale set", () => {
     expect(supportedUserLocales).toEqual(["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"]);
   });
@@ -29,6 +44,13 @@ describe("user message catalogs", () => {
       expect(Object.keys(messages.reasons)).toHaveLength(reasonCodes.length);
       expect(Object.keys(messages.timing)).toHaveLength(timingKeys.length);
       expect(Object.keys(messages.needs)).toHaveLength(needKeys.length);
+      expect(Object.keys(messages.otherAnswers).toSorted()).toEqual([...otherAnswerKeys].toSorted());
+      for (const copy of Object.values(messages.otherAnswers)) {
+        expect(copy.label.trim()).not.toBe("");
+        expect(copy.placeholder.trim()).not.toBe("");
+        expect(copy.required.trim()).not.toBe("");
+        expect(copy.notice.trim()).not.toBe("");
+      }
       expect(messages.metadata.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(messages.metadata.internalReview.status).toBe(reviewedUserLocales.includes(locale) ? "reviewed" : "pending");
       expect(["pending", "reviewed"]).toContain(messages.metadata.expertReview.status);
@@ -157,6 +179,13 @@ describe("user message catalogs", () => {
   it("only exposes the explicitly selectable preview locales", () => {
     expect(selectableUserLocales).toEqual(reviewedUserLocales);
     expect(selectableUserLocales.every((locale) => getUserMessages(locale).metadata.contentStatus === "reviewed")).toBe(true);
+  });
+
+  it("keeps reviewed Other-field copy localized and explicit", () => {
+    expect(userMessages.ja.otherAnswers.visitPurpose.required).toContain("入力が必要");
+    expect(userMessages.en.otherAnswers.visitPurpose.required).toBe("This field is required when Other is selected.");
+    expect(userMessages.my.otherAnswers.visitPurpose.required).toContain("လိုအပ်");
+    expect(Object.values(userMessages.en.otherAnswers).flatMap(Object.values).join(" ")).not.toMatch(/[\p{Script=Hiragana}\p{Script=Katakana}]/u);
   });
 
   it("rejects fake review metadata and incorrect review status", () => {

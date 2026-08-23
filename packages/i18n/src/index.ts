@@ -4,8 +4,17 @@ import { bnMessages, neMessages } from "./locales/south-asia";
 import { thMessages, viMessages } from "./locales/southeast-asia-a";
 import { filMessages, idMessages } from "./locales/southeast-asia-b";
 import { assertValidLocalResourceCatalogs, localResourceCatalogs } from "./local-resource-catalog";
+import { otherAnswerKeys, type OtherAnswerMessages } from "./other-answers";
+import {
+  actionIds,
+  type ActionId,
+} from "@staybridge/domain/action-catalog";
+
+export { actionIds } from "@staybridge/domain/action-catalog";
+export type { ActionId } from "@staybridge/domain/action-catalog";
 
 export * from "./support-copy";
+export * from "./other-answers";
 
 export const supportedUserLocales = ["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"] as const;
 
@@ -41,21 +50,6 @@ export type LocaleMetadata = {
   expertReview: LocaleReview;
 };
 
-export const actionIds = [
-  "CHECK_STAY_STATUS",
-  "CONTACT_OFFICIAL_SUPPORT",
-  "CHECK_CHILD_EDUCATION",
-  "PLAN_TEMPORARY_LIVING",
-  "CHECK_MEDICAL_OPTIONS",
-  "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH",
-  "FIND_LANGUAGE_SUPPORT",
-  "CHECK_BEFORE_STAY_DEADLINE",
-  "CHECK_CHILD_LOCAL_SUPPORT",
-  "CHECK_LIVING_COST_SUPPORT",
-] as const;
-
-export type ActionId = (typeof actionIds)[number];
-
 export const reasonCodes = [
   "RETURN_DIFFICULT_SHORT_TERM",
   "RETURN_DIFFICULT",
@@ -71,6 +65,7 @@ export const reasonCodes = [
   "LANGUAGE_BARRIER",
   "KNOWN_STAY_DEADLINE",
   "STAY_DEADLINE_PASSED",
+  "OTHER_VISIT_PURPOSE",
 ] as const;
 
 export type ReasonCode = (typeof reasonCodes)[number];
@@ -240,6 +235,7 @@ export type UserMessages = {
     QuestionMessage,
     QuestionMessage,
   ];
+  otherAnswers: OtherAnswerMessages;
   actions: Record<ActionId, ActionMessage>;
   timing: Record<TimingKey, string>;
   reasons: Record<ReasonCode, string>;
@@ -344,6 +340,9 @@ export function assertValidUserMessages(value: unknown): asserts value is UserMe
         assertNonEmpty(option[1], `${locale}.questions.${questionIndex}.${optionIndex}.label`);
       });
     });
+    if (!catalog.otherAnswers || typeof catalog.otherAnswers !== "object") throw new Error(`Invalid Other-answer messages for ${locale}`);
+    assertExactKeys(catalog.otherAnswers, otherAnswerKeys, `${locale}.otherAnswers`);
+    assertNoEmptyStrings(catalog.otherAnswers, `${locale}.otherAnswers`);
     for (const id of actionIds) {
       if (!hasOwn(catalog.actions, id)) throw new Error(`Missing action message ${locale}.${id}`);
       const action = catalog.actions[id];

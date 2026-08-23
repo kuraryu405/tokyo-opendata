@@ -51,15 +51,23 @@ export type LocalResourceCategory =
 
 export type Situation = {
   nationality: string;
+  /** Free text collected only when `nationality` is `OTHER`. */
+  nationalityOther?: string;
   /** Empty string means the municipality was not collected. */
   currentMunicipality: string;
+  /** Municipality-level free text collected only when `currentMunicipality` is `Other`. */
+  currentMunicipalityOther?: string;
   visitPurpose: VisitPurpose;
+  /** Free text collected only when `visitPurpose` is `other`. */
+  visitPurposeOther?: string;
   originalDepartureWindow: DepartureWindow;
   returnStatus: ReturnStatus;
   knownStayDeadline?: string;
   stayDeadlineKnown: boolean;
   accommodation: AccommodationType;
   japaneseLevel: JapaneseLevel;
+  /** Relationship description collected only when the family answer includes `other`. */
+  familyOther?: string;
   familyMembers: { children: { ageGroup: ChildAgeGroup }[] };
   needs: NeedCategory[];
 };

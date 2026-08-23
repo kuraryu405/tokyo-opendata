@@ -1,7 +1,9 @@
 import type { UserMessages } from "../index";
+import { createDraftOtherAnswerMessages } from "../other-answers";
 
 export const zhCNMessages = {
   metadata: { label: "Chinese (Simplified)", nativeLabel: "简体中文", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("其他"),
   ui: {
     skip: "跳到主要内容", navSteps: "我的步骤", navLocal: "当地支持", navHelp: "寻求帮助", crisis: "面向政府部门与支援人员的准备视图",
     eyebrow: "面向意外需要继续留在东京的人", hero: "你暂时无法回国。\n但你仍能在东京找到下一步。",
@@ -72,12 +74,14 @@ export const zhCNMessages = {
     LANGUAGE_BARRIER: "在官方咨询时，语言支持可能有助于你准确说明情况。",
     KNOWN_STAY_DEADLINE: "你输入了停留期限，因此这里提醒你在该日期前向官方窗口确认。",
     STAY_DEADLINE_PASSED: "你输入的停留期限已经过去，因此请立即向官方窗口确认当前情况。",
+    OTHER_VISIT_PURPOSE: "你在其他选项中填写的内容表明，这可能是值得确认的下一步。",
   },
   needs: { stay: "可以在日本停留多久", consultation: "所需手续与官方咨询", accommodation: "住宿与日常生活", living_cost: "生活费方面的帮助", employment: "是否可以工作", education: "儿童教育", childcare: "儿童的日常生活", medical: "可以就医的地点", language: "语言支持", daily_life: "日常生活" },
 } as const satisfies UserMessages;
 
 export const zhTWMessages = {
   metadata: { label: "Chinese (Traditional)", nativeLabel: "繁體中文", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("其他"),
   ui: {
     skip: "跳到主要內容", navSteps: "我的步驟", navLocal: "當地支援", navHelp: "尋求協助", crisis: "供政府部門與支援人員使用的準備檢視",
     eyebrow: "提供給意外需要繼續留在東京的人", hero: "你暫時無法回國。\n但仍能在東京找到下一步。",
@@ -148,12 +152,14 @@ export const zhTWMessages = {
     LANGUAGE_BARRIER: "在官方諮詢時，語言支援可能有助於你準確說明情況。",
     KNOWN_STAY_DEADLINE: "你輸入了停留期限，因此這裡提醒你在該日期前向官方窗口確認。",
     STAY_DEADLINE_PASSED: "你輸入的停留期限已經過去，因此請立即向官方窗口確認目前情況。",
+    OTHER_VISIT_PURPOSE: "你在其他選項中填寫的內容顯示，這可能是值得確認的下一步。",
   },
   needs: { stay: "可以在日本停留多久", consultation: "所需手續與官方諮詢", accommodation: "住宿與日常生活", living_cost: "生活費方面的協助", employment: "是否可以工作", education: "兒童教育", childcare: "兒童的日常生活", medical: "可以就醫的地點", language: "語言支援", daily_life: "日常生活" },
 } as const satisfies UserMessages;
 
 export const koMessages = {
   metadata: { label: "Korean", nativeLabel: "한국어", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("기타"),
   ui: {
     skip: "본문으로 건너뛰기", navSteps: "나의 단계", navLocal: "지역 지원", navHelp: "도움받기", crisis: "행정기관 및 지원 담당자를 위한 대비 현황",
     eyebrow: "예상치 못하게 도쿄에 계속 머물러야 하는 분들을 위해", hero: "지금은 고국으로 돌아가기 어렵습니다.\n하지만 도쿄에서 다음 단계를 찾을 수 있습니다.",
@@ -224,6 +230,7 @@ export const koMessages = {
     LANGUAGE_BARRIER: "공식 상담에서 상황을 설명할 때 언어 지원이 도움이 될 수 있습니다.",
     KNOWN_STAY_DEADLINE: "체류 기한을 입력했으므로 그 날짜 전에 공식 창구에 확인할 수 있도록 표시합니다.",
     STAY_DEADLINE_PASSED: "입력한 체류 기한이 지났으므로 지금 공식 창구에 현재 상황을 확인하도록 안내합니다.",
+    OTHER_VISIT_PURPOSE: "기타에 입력한 내용을 보면 확인해 볼 만한 다음 단계일 수 있습니다.",
   },
   needs: { stay: "일본에 얼마나 머물 수 있는지", consultation: "필요한 절차와 공식 상담", accommodation: "숙박과 일상생활", living_cost: "생활비 지원", employment: "일할 수 있는지", education: "아동 교육", childcare: "아동의 일상생활", medical: "진료받을 곳", language: "언어 지원", daily_life: "일상생활" },
 } as const satisfies UserMessages;

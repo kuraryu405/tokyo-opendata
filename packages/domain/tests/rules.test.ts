@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoSituation } from "../src/demo";
-import { generateActions } from "../src/rules";
+import { generateActions, parseAiActionIds } from "../src/rules";
 import type { Situation } from "../src/types";
 
 const situation = (overrides: Partial<Situation> = {}): Situation => ({
@@ -83,6 +83,23 @@ describe("generateActions", () => {
   it("works without a location so the UI can fall back to citywide resources", () => {
     expect(() => generateActions(situation({ currentMunicipality: "" }))).not.toThrow();
     expect(ids(situation({ currentMunicipality: "" }))).toContain("CHECK_MEDICAL_OPTIONS");
+  });
+  it("adds only validated Workers AI suggestions without replacing stronger rules", () => {
+    const actions = generateActions(situation(), {
+      recommendedActionIds: ["CHECK_LIVING_COST_SUPPORT", "CHECK_STAY_STATUS"],
+    });
+    expect(actions.find((action) => action.id === "CHECK_LIVING_COST_SUPPORT")?.reasonCode).toBe("OTHER_VISIT_PURPOSE");
+    expect(actions.find((action) => action.id === "CHECK_STAY_STATUS")?.reasonCode).toBe("RETURN_DIFFICULT_SHORT_TERM");
+  });
+  it("rejects unknown, duplicate, and excessive Workers AI card ids", () => {
+    expect(parseAiActionIds([
+      "CHECK_MEDICAL_OPTIONS",
+      "NOT_ALLOWED",
+      "CHECK_MEDICAL_OPTIONS",
+      "FIND_LANGUAGE_SUPPORT",
+      "CONTACT_OFFICIAL_SUPPORT",
+      "CHECK_STAY_STATUS",
+    ])).toEqual(["CHECK_MEDICAL_OPTIONS", "FIND_LANGUAGE_SUPPORT", "CONTACT_OFFICIAL_SUPPORT"]);
   });
   it("is deterministic and does not mutate its input", () => {
     const input = situation();

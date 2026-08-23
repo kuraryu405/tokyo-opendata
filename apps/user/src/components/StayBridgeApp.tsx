@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { demoSituation } from "@staybridge/domain/demo";
-import { generateActions } from "@staybridge/domain/rules";
+import {
+  getActionCatalogEntry,
+  type ActionDestination,
+  type ActionId,
+} from "@staybridge/domain/action-catalog";
+import {
+  generateActions,
+  parseAiActionIds,
+  type AiSelectableActionId,
+} from "@staybridge/domain/rules";
 import type { Action, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
   consultationSourcesByNeed,
@@ -18,13 +27,13 @@ import {
 import {
   getUserMessages,
   getLocalResourceDisplay,
+  getActionNotice,
   selectableUserLocales,
   type PublicUserMessages,
 } from "@staybridge/i18n/client";
 import {
   getLocalizedSupportText,
   supportUiCopy,
-  type ActionId,
   type NeedKey,
   type ReasonCode,
   type TimingKey,
@@ -49,6 +58,7 @@ import {
   type Locale,
   type StayAnswer,
 } from "./staybridge-session";
+import { SupportChat } from "./SupportChat";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
 
 type Screen = StayBridgeScreen;
@@ -58,16 +68,10 @@ type UserCopy = PublicUserMessages["ui"];
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
 const routeUi = {
-  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています" },
-  en: { restart: "Start over", preparing: "Preparing your next steps" },
-  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်" },
-} satisfies Record<Locale, { restart: string; preparing: string }>;
-
-const actionDestinations: Record<string, { screen: "local" | "help"; filter?: LocalFilter }> = {
-  CHECK_CHILD_EDUCATION: { screen: "local", filter: "school" },
-  CHECK_MEDICAL_OPTIONS: { screen: "local", filter: "medical" },
-  CHECK_CHILD_LOCAL_SUPPORT: { screen: "local", filter: "child_support" },
-};
+  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています", catalogUnavailable: "現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。", contactOfficial: "公式相談先を見る" },
+  en: { restart: "Start over", preparing: "Preparing your next steps", catalogUnavailable: "No reviewed action card is currently available. Please confirm your situation with an official support service.", contactOfficial: "View official support" },
+  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်" },
+} satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string }>;
 
 function currentTokyoDate(): string {
   const parts = new Intl.DateTimeFormat("en", {
@@ -96,6 +100,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
   const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
+  const [recommendedActionIds, setRecommendedActionIds] = useState<AiSelectableActionId[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -103,6 +108,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   const [assessmentDate] = useState(currentTokyoDate);
   const skipNextSessionWrite = useRef(false);
   const completionTimer = useRef<number | undefined>(undefined);
+  const recommendationController = useRef<AbortController | undefined>(undefined);
   const t = getUserMessages(locale).ui;
 
   useEffect(() => {
@@ -113,6 +119,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
         setStayAnswer(storedSession.stayAnswer);
         setFamilyAnswers(storedSession.familyAnswers);
         setAnsweredSteps(storedSession.answeredSteps);
+        setRecommendedActionIds(storedSession.recommendedActionIds);
       }
     } catch {
       setStorageError(true);
@@ -126,16 +133,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   }, [locale]);
 
   useEffect(() => {
-    if (screen === "check") return;
+    if (screen === "check" && step === 9) return;
     if (completionTimer.current !== undefined) {
       window.clearTimeout(completionTimer.current);
       completionTimer.current = undefined;
-      setIsPreparingResults(false);
     }
-  }, [screen]);
+    recommendationController.current?.abort();
+    recommendationController.current = undefined;
+    setIsPreparingResults(false);
+  }, [screen, step]);
 
   useEffect(() => () => {
     if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
+    recommendationController.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -170,13 +180,18 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
       return;
     }
     try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({ situation, stayAnswer, familyAnswers, answeredSteps }));
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({ situation, stayAnswer, familyAnswers, answeredSteps, recommendedActionIds }));
     } catch {
       window.setTimeout(() => setStorageError(true), 0);
     }
-  }, [answeredSteps, familyAnswers, situation, stayAnswer, storageReady]);
+  }, [answeredSteps, familyAnswers, recommendedActionIds, situation, stayAnswer, storageReady]);
 
-  const actions = useMemo(() => assessmentComplete ? generateActions(situation, { asOfDate: assessmentDate }) : [], [assessmentComplete, assessmentDate, situation]);
+  const actions = useMemo(() => {
+    if (!assessmentComplete) return [];
+    return generateActions(situation, { asOfDate: assessmentDate, recommendedActionIds }).filter((action) =>
+      action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
+    );
+  }, [assessmentComplete, assessmentDate, recommendedActionIds, situation]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -201,7 +216,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
   };
 
   const complete = () => {
-    if (completionTimer.current !== undefined) return;
+    if (completionTimer.current !== undefined || recommendationController.current) return;
     if (!assessmentComplete) {
       router.replace(buildStayBridgePath({
         locale,
@@ -211,8 +226,22 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
       return;
     }
     setIsPreparingResults(true);
-    completionTimer.current = window.setTimeout(() => {
+    const controller = new AbortController();
+    recommendationController.current = controller;
+    const otherPurpose = situation.visitPurpose === "other" ? situation.visitPurposeOther?.trim() : "";
+    const recommendations = otherPurpose
+      ? (() => {
+          const timeout = window.setTimeout(() => controller.abort(), 8_000);
+          return requestRecommendedActions(otherPurpose, controller.signal)
+            .finally(() => window.clearTimeout(timeout));
+        })()
+      : Promise.resolve([]);
+    completionTimer.current = window.setTimeout(async () => {
       completionTimer.current = undefined;
+      const nextRecommendedActionIds = await recommendations;
+      if (recommendationController.current !== controller) return;
+      recommendationController.current = undefined;
+      setRecommendedActionIds(nextRecommendedActionIds);
       setIsPreparingResults(false);
       go("status");
     }, 650);
@@ -223,6 +252,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     setStayAnswer("unknown");
     setFamilyAnswers(["children"]);
     setAnsweredSteps(Array.from({ length: 10 }, (_, index) => index));
+    setRecommendedActionIds([]);
     go("status");
   };
 
@@ -237,6 +267,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     setStayAnswer("unknown");
     setFamilyAnswers([]);
     setAnsweredSteps([]);
+    setRecommendedActionIds([]);
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
 
@@ -251,13 +282,13 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
     setStayAnswer("unknown");
     setFamilyAnswers([]);
     setAnsweredSteps([]);
+    setRecommendedActionIds([]);
     setCopyState("idle");
     router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
   };
 
-  const openAction = (actionId: string) => {
-    const destination = actionDestinations[actionId] ?? { screen: "help" as const };
-    go(destination.screen, destination.filter ? { filter: destination.filter } : {});
+  const openAction = (destination: ActionDestination) => {
+    go(destination.screen, destination.screen === "local" ? { filter: destination.filter } : {});
   };
 
   const summaryDate = useMemo(
@@ -274,7 +305,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute }: { route?: 
         {storageGate || routeNeedsAssessmentGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
           {screen === "check" && (
-            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} clearRecommendedActions={() => setRecommendedActionIds([])} assessmentDate={assessmentDate} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
           {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} roadmap={() => go("roadmap")} edit={() => go("check")} />}
           {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
@@ -335,10 +366,11 @@ function Landing({ t, showStart, start, demo, municipalityAppUrl }: { t: UserCop
   </>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, assessmentDate, restart, restartLabel, finish }: {
-  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; assessmentDate: string; restart: () => void; restartLabel: string; finish: () => void;
+function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, clearRecommendedActions, assessmentDate, restart, restartLabel, finish }: {
+  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; clearRecommendedActions: () => void; assessmentDate: string; restart: () => void; restartLabel: string; finish: () => void;
 }) {
-  const question = getUserMessages(locale).questions[step];
+  const messages = getUserMessages(locale);
+  const question = messages.questions[step];
   const [title, hint, options] = question;
   const current = getQuestionValue(step, situation, stayAnswer);
   const multi = step === 6 || step === 8;
@@ -349,9 +381,26 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     setAnsweredSteps(next);
   };
   const choose = (value: string) => {
-    if (step === 0) setSituation({ ...situation, currentMunicipality: value });
-    if (step === 1) setSituation({ ...situation, nationality: value });
-    if (step === 2) setSituation({ ...situation, visitPurpose: value as Situation["visitPurpose"] });
+    if (step === 0) {
+      const currentMunicipalityOther = value === "Other" ? situation.currentMunicipalityOther ?? "" : "";
+      setSituation({ ...situation, currentMunicipality: value, currentMunicipalityOther });
+      markAnswered(value !== "Other" || Boolean(currentMunicipalityOther.trim()));
+      return;
+    }
+    if (step === 1) {
+      const nationalityOther = value === "OTHER" ? situation.nationalityOther ?? "" : "";
+      setSituation({ ...situation, nationality: value, nationalityOther });
+      markAnswered(value !== "OTHER" || Boolean(nationalityOther.trim()));
+      return;
+    }
+    if (step === 2) {
+      const visitPurpose = value as Situation["visitPurpose"];
+      const visitPurposeOther = visitPurpose === "other" ? situation.visitPurposeOther ?? "" : "";
+      clearRecommendedActions();
+      setSituation({ ...situation, visitPurpose, visitPurposeOther });
+      markAnswered(visitPurpose !== "other" || Boolean(visitPurposeOther.trim()));
+      return;
+    }
     if (step === 3) setSituation({ ...situation, originalDepartureWindow: value as Situation["originalDepartureWindow"] });
     if (step === 4) setSituation({ ...situation, returnStatus: value as Situation["returnStatus"] });
     if (step === 5) { setStayAnswer(value as StayAnswer); setSituation({ ...situation, knownStayDeadline: value === "known" ? situation.knownStayDeadline : undefined, stayDeadlineKnown: value === "known" && Boolean(situation.knownStayDeadline) }); }
@@ -364,15 +413,17 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
           : [...familyAnswers.filter((item) => item !== "none"), answer];
       setFamilyAnswers(nextAnswers);
       const hasChildren = nextAnswers.includes("children");
+      const familyOther = nextAnswers.includes("other") ? situation.familyOther ?? "" : "";
       setSituation({
         ...situation,
+        familyOther,
         familyMembers: {
           children: hasChildren
             ? (situation.familyMembers.children.length ? situation.familyMembers.children : [{ ageGroup: "6-11" }])
             : [],
         },
       });
-      markAnswered(nextAnswers.length > 0);
+      markAnswered(nextAnswers.length > 0 && (!nextAnswers.includes("other") || Boolean(familyOther.trim())));
       return;
     }
     if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
@@ -385,15 +436,36 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
   };
-  const enabled = answeredSteps.includes(step) && (step === 6 ? familyAnswers.length > 0 : step === 8 ? situation.needs.length > 0 : Boolean(current));
+  const updateOtherAnswer = (value: string) => {
+    if (step === 0) setSituation({ ...situation, currentMunicipality: "Other", currentMunicipalityOther: value });
+    if (step === 1) setSituation({ ...situation, nationality: "OTHER", nationalityOther: value });
+    if (step === 2) {
+      clearRecommendedActions();
+      setSituation({ ...situation, visitPurpose: "other", visitPurposeOther: value });
+    }
+    if (step === 6) setSituation({ ...situation, familyOther: value });
+    markAnswered(Boolean(value.trim()));
+  };
+  const otherAnswer = getSelectedOtherAnswer(step, situation, familyAnswers);
+  const otherConfig = isOtherAnswerStep(step) ? messages.otherAnswers[otherAnswerKey(step)] : undefined;
+  const enabled = answeredSteps.includes(step) && (
+    otherAnswer !== undefined
+      ? Boolean(otherAnswer.trim())
+      : step === 6
+        ? familyAnswers.length > 0
+        : step === 8
+          ? situation.needs.length > 0
+          : Boolean(current)
+  );
   return <section className="check-page">
     <div className="check-progress"><div className="progress-meta"><span>{t.sectionSituationCheck}</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1><p>{hint}</p>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
+        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : (answeredSteps.includes(step) || isOtherValue(step, current)) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
       </div>
+      {otherAnswer !== undefined && otherConfig && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherConfig.label}</label><textarea id={`other-answer-${step}`} maxLength={step === 2 ? 300 : 100} rows={3} value={otherAnswer} placeholder={otherConfig.placeholder} required aria-required="true" aria-describedby={`other-answer-${step}-required other-answer-${step}-notice`} onChange={(event) => updateOtherAnswer(event.target.value)} /><p id={`other-answer-${step}-required`} className="required-cue">{otherConfig.required}</p><p id={`other-answer-${step}-notice`}>{otherConfig.notice}</p></div>}
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{["0-2", "3-5", "6-11", "12-14", "15-17", "18+"].map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age as Situation["familyMembers"]["children"][number]["ageGroup"] }] } })}>{age}</button>)}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" min={assessmentDate} value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
@@ -403,8 +475,46 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
   </section>;
 }
 
+function isOtherAnswerStep(step: number): step is 0 | 1 | 2 | 6 {
+  return step === 0 || step === 1 || step === 2 || step === 6;
+}
+
+function otherAnswerKey(step: 0 | 1 | 2 | 6): "area" | "nationality" | "visitPurpose" | "family" {
+  return step === 0 ? "area" : step === 1 ? "nationality" : step === 2 ? "visitPurpose" : "family";
+}
+
+function isOtherValue(step: number, value: string): boolean {
+  return (step === 0 && value === "Other") || (step === 1 && value === "OTHER") || (step === 2 && value === "other");
+}
+
+function getSelectedOtherAnswer(step: number, situation: Situation, familyAnswers: FamilyAnswers): string | undefined {
+  if (step === 0 && situation.currentMunicipality === "Other") return situation.currentMunicipalityOther ?? "";
+  if (step === 1 && situation.nationality === "OTHER") return situation.nationalityOther ?? "";
+  if (step === 2 && situation.visitPurpose === "other") return situation.visitPurposeOther ?? "";
+  if (step === 6 && familyAnswers.includes("other")) return situation.familyOther ?? "";
+  return undefined;
+}
+
 function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
+}
+
+async function requestRecommendedActions(text: string, signal: AbortSignal): Promise<AiSelectableActionId[]> {
+  try {
+    const response = await fetch("/api/recommend-actions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (!response.ok) return [];
+    const payload: unknown = await response.json();
+    return payload && typeof payload === "object" && "actionIds" in payload
+      ? parseAiActionIds(payload.actionIds)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; roadmap: () => void; edit: () => void }) {
@@ -412,17 +522,23 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><div className="success-mark">✓</div><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}><span>✓</span>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, visitPurpose, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; go: (s: Screen) => void; openAction: (actionId: string) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, visitPurpose, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{t.noEnteredInfo}</h2></div>}</div><aside className="roadmap-aside"><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{groups.length ? groups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
-function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; visitPurpose: Situation["visitPurpose"]; openAction: (actionId: string) => void }) {
+function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; visitPurpose: Situation["visitPurpose"]; openAction: (destination: ActionDestination) => void }) {
   const messages = getUserMessages(locale);
-  const ui = messages.actions[action.id as ActionId];
-  if (!ui) throw new Error(`Missing action translation: ${action.id}`);
-  const sources = action.sourceIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []).filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
-  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
+  const catalogEntry = getActionCatalogEntry(action.id);
+  if (!catalogEntry) return null;
+  const ui = messages.actions[catalogEntry.id as ActionId];
+  const sourceCandidates = catalogEntry.sourceIds.map((id) => sourceRegistry[id]);
+  if (sourceCandidates.some((source) => !source)) return null;
+  const sources = sourceCandidates
+    .filter((source): source is DataSource => Boolean(source))
+    .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
+  if (sources.length === 0) return null;
+  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>{t.priorityLabel} {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
 }
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
@@ -481,15 +597,19 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
   const find = (q: number, value: string) => labels[q][2].find(([v]) => v === value)?.[1] ?? "";
   const child = s.familyMembers.children[0];
   const byStep: Record<number, string | undefined> = {
-    0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${find(0, s.currentMunicipality)}` : undefined,
-    1: s.nationality ? `${messages.ui.nationalityLabel}: ${find(1, s.nationality)}` : undefined,
-    2: find(2, s.visitPurpose),
+    0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${s.currentMunicipality === "Other" && s.currentMunicipalityOther?.trim() ? s.currentMunicipalityOther.trim() : find(0, s.currentMunicipality)}` : undefined,
+    1: s.nationality ? `${messages.ui.nationalityLabel}: ${s.nationality === "OTHER" && s.nationalityOther?.trim() ? s.nationalityOther.trim() : find(1, s.nationality)}` : undefined,
+    2: s.visitPurpose === "other" && s.visitPurposeOther?.trim()
+      ? `${find(2, s.visitPurpose)}: ${s.visitPurposeOther.trim()}`
+      : find(2, s.visitPurpose),
     3: find(3, s.originalDepartureWindow),
     4: find(4, s.returnStatus),
     5: s.knownStayDeadline ? `${find(5, stayAnswer)}: ${s.knownStayDeadline}` : find(5, stayAnswer),
     6: familyAnswers.length
       ? familyAnswers.map((answer) => answer === "children" && child
         ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${child.ageGroup}`
+        : answer === "other" && s.familyOther?.trim()
+          ? `${find(6, answer)}: ${s.familyOther.trim()}`
         : find(6, answer)).join(" / ")
       : undefined,
     7: find(7, s.accommodation),

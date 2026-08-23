@@ -30,12 +30,81 @@ describe("StayBridge session data", () => {
       answeredSteps: [0, 1, 6, 8],
     });
     expect(parseStoredSession(serialized)).toEqual({
-      version: 2,
+      version: 3,
       situation: demoSituation,
       stayAnswer: "unknown",
       familyAnswers: ["children", "spouse"],
       answeredSteps: [0, 1, 6, 8],
+      recommendedActionIds: [],
     });
+  });
+
+  it("persists validated Workers AI card ids", () => {
+    const serialized = serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "other", visitPurposeOther: "国際会議に参加するため" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      recommendedActionIds: ["CONTACT_OFFICIAL_SUPPORT"],
+    });
+    expect(parseStoredSession(serialized)?.recommendedActionIds).toEqual(["CONTACT_OFFICIAL_SUPPORT"]);
+  });
+
+  it("drops persisted Workers AI cards when the visit purpose is no longer Other", () => {
+    const serialized = serializeStoredSession({
+      situation: { ...demoSituation, visitPurpose: "tourism", visitPurposeOther: "" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      recommendedActionIds: ["CHECK_LIVING_COST_SUPPORT"],
+    });
+    expect(parseStoredSession(serialized)?.recommendedActionIds).toEqual([]);
+  });
+
+  it("rejects persisted Other text that exceeds each field limit", () => {
+    const parseSituation = (situation: typeof demoSituation) => parseStoredSession(serializeStoredSession({
+      situation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+
+    expect(parseSituation({ ...demoSituation, currentMunicipalityOther: "x".repeat(101) })).toBeNull();
+    expect(parseSituation({ ...demoSituation, nationalityOther: "x".repeat(101) })).toBeNull();
+    expect(parseSituation({ ...demoSituation, visitPurposeOther: "x".repeat(301) })).toBeNull();
+    expect(parseSituation({ ...demoSituation, familyOther: "x".repeat(101) })).toBeNull();
+  });
+
+  it("reopens an old Other answer when it has no required free text", () => {
+    const versionTwo = JSON.stringify({
+      version: 2,
+      situation: { ...demoSituation, visitPurpose: "other" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    });
+    const restored = parseStoredSession(versionTwo);
+    expect(restored?.version).toBe(3);
+    expect(restored?.answeredSteps).not.toContain(2);
+    expect(restored?.recommendedActionIds).toEqual([]);
+  });
+
+  it("reopens every selected Other answer that is missing its required text", () => {
+    const restored = parseStoredSession(serializeStoredSession({
+      situation: {
+        ...demoSituation,
+        currentMunicipality: "Other",
+        nationality: "OTHER",
+        visitPurpose: "other",
+      },
+      stayAnswer: "unknown",
+      familyAnswers: ["other"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    expect(restored?.answeredSteps).not.toContain(0);
+    expect(restored?.answeredSteps).not.toContain(1);
+    expect(restored?.answeredSteps).not.toContain(2);
+    expect(restored?.answeredSteps).not.toContain(6);
   });
 
   it("never invents area, nationality, or needs for an unanswered summary", () => {
@@ -78,6 +147,25 @@ describe("StayBridge session data", () => {
   it("summarizes a spouse and child together", () => {
     expect(summarizeSituation("ja", demoSituation, "unknown", ["children", "spouse"], [6])).toEqual([
       "子どもがいる · 年齢: 6-11 / 配偶者がいる",
+    ]);
+  });
+
+  it("summarizes the entered text for every Other answer", () => {
+    const situation = {
+      ...createInitialSituation(),
+      currentMunicipality: "Other",
+      currentMunicipalityOther: "世田谷区",
+      nationality: "OTHER",
+      nationalityOther: "タイ",
+      visitPurpose: "other" as const,
+      visitPurposeOther: "国際会議に参加するため",
+      familyOther: "親",
+    };
+    expect(summarizeSituation("ja", situation, "unknown", ["other"], [0, 1, 2, 6])).toEqual([
+      "地域: 世田谷区",
+      "国籍・地域: タイ",
+      "その他: 国際会議に参加するため",
+      "その他家族がいる: 親",
     ]);
   });
 });

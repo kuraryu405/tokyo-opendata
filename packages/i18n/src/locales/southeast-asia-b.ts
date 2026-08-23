@@ -1,7 +1,9 @@
 import type { UserMessages } from "../index";
+import { createDraftOtherAnswerMessages } from "../other-answers";
 
 export const filMessages = {
   metadata: { label: "Filipino", nativeLabel: "Filipino", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("Iba pa"),
   ui: {
     skip: "Lumaktaw sa nilalaman", navSteps: "Mga hakbang ko", navLocal: "Lokal na suporta", navHelp: "Humingi ng tulong", crisis: "Tingnan para sa paghahanda ng mga pangkat ng publiko",
     eyebrow: "Para sa mga taong hindi inaasahang kailangang manatili sa Tokyo", hero: "Hindi ka makauwi sa inyong bansa.\nNgunit mahahanap mo ang susunod mong hakbang sa Tokyo.",
@@ -72,12 +74,14 @@ export const filMessages = {
     LANGUAGE_BARRIER: "Ipinapakita ito dahil maaaring makatulong ang suporta sa wika sa opisyal na konsultasyon.",
     KNOWN_STAY_DEADLINE: "Ipinapakita ito upang makakumpirma ka sa opisyal na tanggapan bago ang petsa ng pananatili na inilagay mo.",
     STAY_DEADLINE_PASSED: "Ipinapakita ito dahil lumipas na ang huling araw ng pananatili na inilagay mo; kumpirmahin agad ang sitwasyon sa opisyal na tanggapan.",
+    OTHER_VISIT_PURPOSE: "Ipinahihiwatig ng isinulat mo sa Iba pa na maaaring kapaki-pakinabang na suriin ang susunod na hakbang na ito.",
   },
   needs: { stay: "Hanggang kailan ako maaaring manatili sa Japan", consultation: "Mga kinakailangang hakbang at tanggapan ng konsultasyon", accommodation: "Pansamantalang tuluyan at pamumuhay", living_cost: "Konsultasyon tungkol sa gastos sa pamumuhay", employment: "Mga kondisyon sa pagtatrabaho", education: "Edukasyon ng bata", childcare: "Araw-araw na buhay ng bata", medical: "Saan makakakuha ng pangangalagang medikal", language: "Suporta sa wika", daily_life: "Araw-araw na pamumuhay" },
 } as const satisfies UserMessages;
 
 export const idMessages = {
   metadata: { label: "Indonesian", nativeLabel: "Bahasa Indonesia", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("Lainnya"),
   ui: {
     skip: "Lewati ke konten", navSteps: "Langkah saya", navLocal: "Dukungan setempat", navHelp: "Dapatkan bantuan", crisis: "Tampilan kesiapsiagaan untuk tim publik",
     eyebrow: "Untuk orang yang tanpa diduga perlu tinggal di Tokyo", hero: "Anda tidak dapat pulang ke negara asal.\nNamun, Anda dapat menemukan langkah berikutnya di Tokyo.",
@@ -148,6 +152,7 @@ export const idMessages = {
     LANGUAGE_BARRIER: "Ditampilkan karena dukungan bahasa mungkin berguna saat konsultasi resmi.",
     KNOWN_STAY_DEADLINE: "Ditampilkan agar Anda dapat memperoleh konfirmasi resmi sebelum tanggal masa tinggal yang dimasukkan.",
     STAY_DEADLINE_PASSED: "Ditampilkan karena batas masa tinggal yang dimasukkan telah berlalu; segera konfirmasikan situasi kepada kantor resmi.",
+    OTHER_VISIT_PURPOSE: "Keterangan yang Anda masukkan pada Lainnya menunjukkan bahwa langkah berikut ini mungkin berguna untuk diperiksa.",
   },
   needs: { stay: "Sampai kapan saya dapat tinggal di Jepang", consultation: "Prosedur yang diperlukan dan tempat konsultasi", accommodation: "Penginapan dan kehidupan sementara", living_cost: "Konsultasi tentang biaya hidup", employment: "Syarat untuk bekerja", education: "Pendidikan anak", childcare: "Kehidupan sehari-hari anak", medical: "Tempat menerima perawatan medis", language: "Dukungan bahasa", daily_life: "Kehidupan sehari-hari" },
 } as const satisfies UserMessages;

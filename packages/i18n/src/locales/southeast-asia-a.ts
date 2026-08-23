@@ -1,7 +1,9 @@
 import type { UserMessages } from "../index";
+import { createDraftOtherAnswerMessages } from "../other-answers";
 
 export const viMessages = {
   metadata: { label: "Vietnamese", nativeLabel: "Tiếng Việt", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("Khác"),
   ui: {
     skip: "Chuyển đến nội dung", navSteps: "Các bước của tôi", navLocal: "Hỗ trợ tại địa phương", navHelp: "Nhận hỗ trợ", crisis: "Chế độ chuẩn bị cho cơ quan công và tổ chức hỗ trợ",
     eyebrow: "Dành cho những người bất ngờ cần ở lại Tokyo", hero: "Bạn không thể trở về nhà.\nNhưng bạn vẫn có thể tìm bước tiếp theo ở Tokyo.",
@@ -72,12 +74,14 @@ export const viMessages = {
     LANGUAGE_BARRIER: "Hướng dẫn này được hiển thị vì hỗ trợ ngôn ngữ có thể hữu ích khi bạn trao đổi với nơi tư vấn chính thức.",
     KNOWN_STAY_DEADLINE: "Hướng dẫn này được hiển thị vì bạn đã nhập hạn lưu trú, để bạn có thể xác nhận với cơ quan chính thức trước ngày đó.",
     STAY_DEADLINE_PASSED: "Hướng dẫn liên hệ ngay với cơ quan chính thức được hiển thị vì hạn lưu trú bạn đã nhập đã qua.",
+    OTHER_VISIT_PURPOSE: "Nội dung bạn nhập trong mục Khác cho thấy đây có thể là bước tiếp theo hữu ích để kiểm tra.",
   },
   needs: { stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
 } as const satisfies UserMessages;
 
 export const thMessages = {
   metadata: { label: "Thai", nativeLabel: "ไทย", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
+  otherAnswers: createDraftOtherAnswerMessages("อื่นๆ"),
   ui: {
     skip: "ข้ามไปยังเนื้อหา", navSteps: "ขั้นตอนของฉัน", navLocal: "ความช่วยเหลือในพื้นที่", navHelp: "ขอความช่วยเหลือ", crisis: "มุมมองการเตรียมความพร้อมสำหรับหน่วยงานสาธารณะและองค์กรช่วยเหลือ",
     eyebrow: "สำหรับผู้ที่จำเป็นต้องอยู่ในโตเกียวต่อโดยไม่คาดคิด", hero: "คุณไม่สามารถกลับบ้านได้\nแต่คุณยังหาขั้นตอนต่อไปในโตเกียวได้",
@@ -148,6 +152,7 @@ export const thMessages = {
     LANGUAGE_BARRIER: "แสดงคำแนะนำนี้เพราะการสนับสนุนด้านภาษาอาจช่วยได้เมื่อคุณปรึกษากับหน่วยงานทางการ.",
     KNOWN_STAY_DEADLINE: "แสดงคำแนะนำนี้เพราะคุณป้อนกำหนดการพำนัก เพื่อให้คุณยืนยันกับหน่วยงานทางการก่อนวันดังกล่าว.",
     STAY_DEADLINE_PASSED: "แสดงคำแนะนำให้ติดต่อหน่วยงานทางการทันที เพราะกำหนดการพำนักที่คุณป้อนได้ผ่านไปแล้ว.",
+    OTHER_VISIT_PURPOSE: "ข้อมูลที่กรอกในตัวเลือกอื่นๆ แสดงว่านี่อาจเป็นขั้นตอนถัดไปที่ควรตรวจสอบ.",
   },
   needs: { stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
 } as const satisfies UserMessages;

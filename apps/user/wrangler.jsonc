@@ -1,0 +1,93 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "staybridge-user-local",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "ratelimits": [
+    {
+      "name": "SUPPORT_CHAT_RATE_LIMITER",
+      "namespace_id": "202608230020",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "AI_USER_RATE_LIMITER",
+      "namespace_id": "20260823005601",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "AI_GLOBAL_RATE_LIMITER",
+      "namespace_id": "20260823005602",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "STAYBRIDGE_DB",
+      "database_name": "staybridge-local",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "../../database/migrations",
+      "remote": false
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "staybridge-user-staging",
+      "ratelimits": [
+        {
+          "name": "SUPPORT_CHAT_RATE_LIMITER",
+          "namespace_id": "202608230021",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "AI_USER_RATE_LIMITER",
+          "namespace_id": "20260823005611",
+          "simple": { "limit": 10, "period": 60 }
+        },
+        {
+          "name": "AI_GLOBAL_RATE_LIMITER",
+          "namespace_id": "20260823005612",
+          "simple": { "limit": 30, "period": 60 }
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "STAYBRIDGE_DB",
+          "database_name": "staybridge-staging",
+          "database_id": "00000000-0000-4000-8000-000000000002",
+          "migrations_dir": "../../database/migrations"
+        }
+      ]
+    },
+    "production": {
+      "name": "staybridge-user-production",
+      "ratelimits": [
+        {
+          "name": "SUPPORT_CHAT_RATE_LIMITER",
+          "namespace_id": "202608230022",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "AI_USER_RATE_LIMITER",
+          "namespace_id": "20260823005621",
+          "simple": { "limit": 10, "period": 60 }
+        },
+        {
+          "name": "AI_GLOBAL_RATE_LIMITER",
+          "namespace_id": "20260823005622",
+          "simple": { "limit": 30, "period": 60 }
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "STAYBRIDGE_DB",
+          "database_name": "staybridge-production",
+          "database_id": "00000000-0000-4000-8000-000000000003",
+          "migrations_dir": "../../database/migrations"
+        }
+      ]
+    }
+  }
+}
