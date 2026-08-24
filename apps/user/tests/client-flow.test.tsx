@@ -146,7 +146,7 @@ describe("StayBridge client flow", () => {
   it("links from the user landing page to the municipality preparedness view", async () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("http://localhost:3001");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("http://localhost:3001");
   });
 
   it("saves only allowlisted Situation fields after separate explicit consent", async () => {
@@ -452,7 +452,7 @@ describe("StayBridge client flow", () => {
     vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
   });
 
   it("offers start over after completed answers and returns to the first question", async () => {

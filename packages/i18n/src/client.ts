@@ -122,10 +122,49 @@ function withDailyLifeNeed(messages: PublicUserMessages, label: string): PublicU
   return { ...messages, questions };
 }
 
+type PublicCopyOverrides = {
+  crisis: string;
+  principleBody: string;
+  sectionLocalAction: string;
+  openDataLabel: string;
+  localIntro?: string;
+};
+
+function withPublicCopy(messages: PublicUserMessages, overrides: PublicCopyOverrides): PublicUserMessages {
+  return {
+    ...messages,
+    ui: {
+      ...messages.ui,
+      crisis: overrides.crisis,
+      principleBodies: [messages.ui.principleBodies[0], messages.ui.principleBodies[1], overrides.principleBody],
+      sectionLocalAction: overrides.sectionLocalAction,
+      localIntro: overrides.localIntro ?? messages.ui.localIntro,
+      sourceTypeLabels: { ...messages.ui.sourceTypeLabels, openData: overrides.openDataLabel },
+    },
+  };
+}
+
 export const reviewedUserMessages = {
-  ja: withDailyLifeNeed(jaMessagesWithoutDailyLife, "日々の生活"),
-  en: withDailyLifeNeed(enMessagesWithoutDailyLife, "Daily life"),
-  my: withDailyLifeNeed(myMessagesWithoutDailyLife, "နေ့စဉ်ဘဝ"),
+  ja: withDailyLifeNeed(withPublicCopy(jaMessagesWithoutDailyLife, {
+    crisis: "行政・支援者向けの確認画面",
+    principleBody: "公開データから、地域で確認する意味のある場所へ。",
+    sectionLocalAction: "地域での行動",
+    openDataLabel: "公開データ",
+  }), "日々の生活"),
+  en: withDailyLifeNeed(withPublicCopy(enMessagesWithoutDailyLife, {
+    crisis: "Information for public teams",
+    principleBody: "Use publicly available data to find relevant places to check in your municipality.",
+    sectionLocalAction: "Local action",
+    openDataLabel: "Public data",
+    localIntro: "Public resources relevant to your situation, drawn from publicly available data. Ask each office about eligibility and availability.",
+  }), "Daily life"),
+  my: withDailyLifeNeed(withPublicCopy(myMessagesWithoutDailyLife, {
+    crisis: "အုပ်ချုပ်ရေးနှင့် ကူညီသူများအတွက် အချက်အလက်",
+    principleBody: "အများပြည်သူဒေတာမှ မိမိမြို့နယ်တွင် စစ်ဆေးသင့်သည့်နေရာများကို ရှာနိုင်သည်။",
+    sectionLocalAction: "ဒေသတွင်းလုပ်ဆောင်ချက်",
+    openDataLabel: "အများပြည်သူဒေတာ",
+    localIntro: "သင့်အခြေအနေနှင့် သက်ဆိုင်သည့် အများပြည်သူဆိုင်ရာအရင်းအမြစ်များကို အများပြည်သူရရှိနိုင်သောဒေတာမှ ပြထားပါသည်။ အသုံးပြုနိုင်မှုကို သက်ဆိုင်ရာဌာနသို့ မေးမြန်းပါ။",
+  }), "နေ့စဉ်ဘဝ"),
 } satisfies Record<SelectableUserLocale, PublicUserMessages>;
 
 export const { ja: jaMessages, en: enMessages, my: myMessages } = reviewedUserMessages;

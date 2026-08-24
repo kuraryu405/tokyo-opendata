@@ -77,6 +77,7 @@ test("server-renders the StayBridge landing page with its route locale on html",
   assert.match(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
+  assert.doesNotMatch(html, /MVP|Preparedness View|AI SUPPORT|VERIFIED CACHE/);
 });
 
 test("server-renders each reviewed locale with its SSR html lang", async () => {
@@ -283,5 +284,6 @@ test("keeps mobile navigation viewport-fixed outside the filtered header context
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav button \{[^}]*min-height: 48px;/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.app-shell \{ padding-bottom: calc\(62px \+ env\(safe-area-inset-bottom\)\); \}/);
   assert.doesNotMatch(css, /@media \(max-width: 900px\) \{[^@]*\.site-header nav \{[^}]*height: 62px;/);
+  assert.doesNotMatch(css, /\.trust-row span::first-letter/);
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*?\.brand-home-label \{ display: inline; \}/);
 });
