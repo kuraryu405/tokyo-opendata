@@ -14,12 +14,12 @@ test("layout does not load unused Google web fonts", async () => {
 });
 
 test("body keeps the multilingual font stack", async () => {
-  const globals = await readFile(
-    fileURLToPath(new URL("../app/globals.css", import.meta.url)),
+  const sharedStyles = await readFile(
+    fileURLToPath(new URL("../../../packages/ui/styles.css", import.meta.url)),
     "utf8",
   );
-  const bodyRule = globals.match(/body\s*\{[^}]*\}/);
+  const bodyRule = sharedStyles.match(/body\s*\{[^}]*\}/);
 
-  assert.ok(bodyRule, "globals.css must declare a body rule");
+  assert.ok(bodyRule, "shared UI styles must declare a body rule");
   assert.match(bodyRule[0], /font-family:[^;}]*"Noto Sans JP"/);
 });
