@@ -16,6 +16,7 @@ jobs:
     env:
       CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
       SOURCE_PR: ${{ github.event.pull_request.number }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Check contributor automation token
         id: contributor_token
@@ -37,7 +38,7 @@ jobs:
         if: steps.contributor_token.outputs.configured == 'true'
         with:
           ref: ${{ github.event.repository.default_branch }}
-          token: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.contributor_token.outputs.configured == 'true'
         with:
@@ -47,25 +48,54 @@ jobs:
       - name: Add the merged PR author to All Contributors
         if: steps.contributor_token.outputs.configured == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          [[ "$CONTRIBUTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]] || {
+            echo "Unexpected GitHub login format." >&2
+            exit 1
+          }
+          [[ "$SOURCE_PR" =~ ^[0-9]+$ ]] || {
+            echo "Unexpected source PR number." >&2
+            exit 1
+          }
           pnpm dlx all-contributors-cli all-contributors add "$CONTRIBUTOR" code
           pnpm dlx all-contributors-cli all-contributors generate
-      - name: Open a recognition pull request
+      - name: Commit recognition changes
+        id: recognition_commit
         if: steps.contributor_token.outputs.configured == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+        shell: bash
         run: |
-          git diff --quiet && exit 0
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           branch="chore/recognize-${CONTRIBUTOR}-${SOURCE_PR}"
           git switch -c "$branch"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .all-contributorsrc README.md
           git commit -m "docs: recognize ${CONTRIBUTOR} as a contributor"
-          git push --set-upstream origin "$branch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Push branch and open a recognition pull request
+        if: >-
+          steps.contributor_token.outputs.configured == 'true' &&
+          steps.recognition_commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+          BRANCH: ${{ steps.recognition_commit.outputs.branch }}
+          COMMIT_SHA: ${{ steps.recognition_commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/heads/${BRANCH}" \
+            -f sha="$COMMIT_SHA"
           gh pr create \
-            --base main \
-            --head "$branch" \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH" \
             --title "docs: recognize ${CONTRIBUTOR} as a contributor" \
             --body "Recognizes @${CONTRIBUTOR} for the merged source PR #${SOURCE_PR}."
