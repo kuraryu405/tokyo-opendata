@@ -144,7 +144,8 @@ export type UserMessages = {
     roadmapIntro: string;
     why: string;
     source: string;
-    verified: string;
+    fetched: string;
+    changesMade: string;
     human: string;
     localTitle: string;
     localIntro: string;

@@ -1089,7 +1089,8 @@ describe("StayBridge client flow", () => {
     const schoolAction = screen.getByRole("heading", { name: "子どもの教育について相談する" }).closest("article");
     await user.click(within(schoolAction!).getByRole("button", { name: /近くの学校を見る/ }));
     expect(screen.getByRole("button", { name: "学校・教育", pressed: true })).toBeTruthy();
-    expect(screen.getByText("豊川小学校")).toBeTruthy();
+    expect(screen.getByText("この地域の支援情報はまだ掲載がありません。相談窓口の一覧をご利用ください。")).toBeTruthy();
+    expect(screen.queryByText("豊川小学校")).toBeNull();
     expect(screen.queryByText("おうじキッズクリニック")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
@@ -1149,10 +1150,15 @@ describe("StayBridge client flow", () => {
 
     expect(screen.getByRole("button", { name: /ステップへ戻る/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談先へ進む/ })).toBeTruthy();
-    const schoolCard = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
-    expect(within(schoolCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
-    expect(within(schoolCard!).getByText("確認日: 2026-08-23")).toBeTruthy();
-    expect(within(schoolCard!).getByRole("link", { name: /LICENSE: Creative Commons Attribution 4.0 International/ }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
+    const resourceCard = screen.getByRole("heading", { name: "おうじキッズクリニック" }).closest("article");
+    expect(within(resourceCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
+    expect(within(resourceCard!).getByText("取得日: 2026-08-23")).toBeTruthy();
+    expect(within(resourceCard!).queryByText(/確認日/)).toBeNull();
+    expect(within(resourceCard!).getByText("東京都北区")).toBeTruthy();
+    expect(within(resourceCard!).getByRole("link", { name: /LICENSE: Creative Commons Attribution 4.0 International/ }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
+    await user.click(within(resourceCard!).getByText("出典を見る"));
+    expect(within(resourceCard!).getByText("自治体標準オープンデータセット：医療機関一覧")).toBeTruthy();
+    expect(within(resourceCard!).getByText("東京都北区Open DataをStayBridge用に一部選定・正規化しています")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /相談先へ進む/ }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();

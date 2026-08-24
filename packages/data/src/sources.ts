@@ -4,6 +4,7 @@ import type { LocalResourcesCache, PopulationCache } from "./adapters/types";
 import type { NeedCategory, VisitPurpose } from "@staybridge/domain/types";
 
 export type SourceType = "official_information" | "open_data";
+export type DataAdaptation = "selected_and_normalized";
 
 export type DataSource = {
   id: string;
@@ -22,6 +23,8 @@ export type DataSource = {
   eligibleVisitPurposes?: readonly VisitPurpose[];
   license?: string;
   licenseUrl?: string;
+  /** The bundled data is a transformed subset, not an unmodified mirror. */
+  adaptation?: DataAdaptation;
 };
 
 const fetchedAt = "2026-08-14";
@@ -44,30 +47,35 @@ export const sourceRegistry: Record<string, DataSource> = {
     dataUpdatedAt: kitaMyanmarPopulationCache.dataUpdatedAt,
     fetchedAt: kitaMyanmarPopulationCache.fetchedAt,
     license: "CC BY (Tokyo Metropolitan Government Open Data Catalog)",
+    adaptation: "selected_and_normalized",
     notes: "Resident Basic Register population, not a count of short-term visitors. Cached row is limited to Kita City and Myanmar for this MVP.",
   },
   KITA_ELEMENTARY_SCHOOLS_OPEN_DATA: {
     id: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA", title: "区立小学校一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
     downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/syougakkou-2.csv", sourceType: "open_data", category: "elementary schools", fetchedAt: kitaLocalResourcesCache.fetchedAt,
     license: kitaLicense, licenseUrl: kitaLicenseUrl,
-    notes: "The catalog lists this CSV as Open Data under CC BY 4.0. A school listing does not establish enrolment eligibility, catchment, vacancy, language support, or admission availability.",
+    adaptation: "selected_and_normalized",
+    notes: "The catalog lists this CSV as Open Data under CC BY 4.0. StayBridge selects and normalizes rows only after current identity/address checks. The refresh fails closed while the published CSV still contains the retired 十条台小学校 identity and the old 西が丘小学校 address; no school rows are bundled until the machine-readable source is current. A school listing does not establish enrolment eligibility, catchment, vacancy, language support, or admission availability.",
   },
   KITA_MEDICAL_INSTITUTIONS_OPEN_DATA: {
     id: "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA", title: "自治体標準オープンデータセット：医療機関一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
     downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "medical institutions", fetchedAt: kitaLocalResourcesCache.fetchedAt,
     license: kitaLicense, licenseUrl: kitaLicenseUrl,
+    adaptation: "selected_and_normalized",
     notes: "Rows are selected from 10_医療機関一覧.csv in the catalog's standard Open Data ZIP. Listing does not guarantee current services, appointments, hours, language support, or availability.",
   },
   KITA_CHILDCARE_FACILITIES_OPEN_DATA: {
     id: "KITA_CHILDCARE_FACILITIES_OPEN_DATA", title: "自治体標準オープンデータセット：子育て施設一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
     downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "child support facilities", fetchedAt: kitaLocalResourcesCache.fetchedAt,
     license: kitaLicense, licenseUrl: kitaLicenseUrl,
+    adaptation: "selected_and_normalized",
     notes: "Rows are selected from 05_子育て施設一覧.csv in the catalog's standard Open Data ZIP. They do not establish eligibility, capacity, current programmes, language support, or availability.",
   },
   KITA_PUBLIC_FACILITIES_OPEN_DATA: {
     id: "KITA_PUBLIC_FACILITIES_OPEN_DATA", title: "自治体標準オープンデータセット：公共施設一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
     downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "public facilities", fetchedAt: kitaLocalResourcesCache.fetchedAt,
     license: kitaLicense, licenseUrl: kitaLicenseUrl,
+    adaptation: "selected_and_normalized",
     notes: "Rows are selected from 01_公共施設一覧.csv in the catalog's standard Open Data ZIP. They do not establish current access, programme availability, language support, or eligibility.",
   },
   TOKYO_CONSULTATION: {

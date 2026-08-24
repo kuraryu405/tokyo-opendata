@@ -8,10 +8,11 @@ export type LocalResourceDisplay = { description: string };
 export type LocalResourceCatalog = Record<LocalResourceId, LocalResourceDisplay>;
 export type LocalResourceCatalogByLocale = Record<LocalResourceLocale, LocalResourceCatalog>;
 
+/** Current school IDs stay ready for the next successful source refresh; the cache may omit them while the currentness gate is closed. */
 const ja = {
   "kita-school-toyokawa": { description: "学校です。利用に関する詳細は直接確認してください。" },
   "kita-school-ukima": { description: "学校です。利用に関する詳細は直接確認してください。" },
-  "kita-school-jujodai": { description: "学校です。利用に関する詳細は直接確認してください。" },
+  "kita-school-jujo": { description: "学校です。利用に関する詳細は直接確認してください。" },
   "kita-school-nishigaoka": { description: "学校です。利用に関する詳細は直接確認してください。" },
   "kita-medical-oji-kids": { description: "医療機関です。診療内容と予約の必要性は直接確認してください。" },
   "kita-medical-kominato": { description: "医療機関です。診療内容と予約の必要性は直接確認してください。" },
@@ -26,7 +27,7 @@ const ja = {
 const en = {
   "kita-school-toyokawa": { description: "A school. Confirm current access and details directly." },
   "kita-school-ukima": { description: "A school. Confirm current access and details directly." },
-  "kita-school-jujodai": { description: "A school. Confirm current access and details directly." },
+  "kita-school-jujo": { description: "A school. Confirm current access and details directly." },
   "kita-school-nishigaoka": { description: "A school. Confirm current access and details directly." },
   "kita-medical-oji-kids": { description: "A medical institution. Confirm services and appointment requirements directly." },
   "kita-medical-kominato": { description: "A medical institution. Confirm services and appointment requirements directly." },
@@ -41,7 +42,7 @@ const en = {
 const my = {
   "kita-school-toyokawa": { description: "ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။" },
   "kita-school-ukima": { description: "ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။" },
-  "kita-school-jujodai": { description: "ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။" },
+  "kita-school-jujo": { description: "ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။" },
   "kita-school-nishigaoka": { description: "ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။" },
   "kita-medical-oji-kids": { description: "ဆေးဘက်ဆိုင်ရာအဖွဲ့အစည်းဖြစ်ပါသည်။ ဝန်ဆောင်မှုနှင့် ကြိုတင်ချိန်းဆိုမှုကို တိုက်ရိုက်အတည်ပြုပါ။" },
   "kita-medical-kominato": { description: "ဆေးဘက်ဆိုင်ရာအဖွဲ့အစည်းဖြစ်ပါသည်။ ဝန်ဆောင်မှုနှင့် ကြိုတင်ချိန်းဆိုမှုကို တိုက်ရိုက်အတည်ပြုပါ။" },
