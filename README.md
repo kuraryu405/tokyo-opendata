@@ -33,7 +33,7 @@ pnpm build
 
 北区の施設キャッシュと東京都の人口キャッシュを更新する場合は、`pnpm data:fetch` を実行します。実行時だけ一次配布元を取得し、通常のアプリ実行時は生成済みのJSONキャッシュだけを参照します。学校の機械可読 source が現行 identity/address と一致しない場合は、`data:fetch` が cache を変更せず失敗し、古い学校情報を再生成しません。
 
-利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
+利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。ブラウザへ配信する相互リンクは利用者側の `/crisis` と自治体側の `/user` に固定し、デプロイ時に各Workerへ注入した `COUNTERPART_APP_URL` で同じ環境の相手へリダイレクトします。ローカルアクセス時だけは上記のローカルURLを既定値として使います。
 
 `main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`とD1の`/readyz`を確認してから、同じビルド成果物をproductionへ自動昇格します。D1の環境作成・migration・ローカル初期化は [Workers・D1バックエンド基盤](docs/backend-d1.md)、設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
 

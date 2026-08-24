@@ -65,16 +65,22 @@ push range, including pushes that contain more than one commit:
 - a change under `apps/municipality/` releases only the municipality Worker;
 - a shared package, root file, workflow, or documentation change releases both.
 
-For each affected app, the reusable workflow builds once and uploads
+For each affected app, the reusable workflow builds once without a public
+environment URL and uploads
 `staybridge-<service>-<full SHA>` as an Actions artifact. The tarball includes
 the generated `dist/server/wrangler.json`, `dist/client`, and the Sites metadata
 under `dist/.openai`. Staging and production download the same tarball and check
 its SHA-256 before use.
 
-Wrangler 4.92.0 uploads a tagged Worker Version, deploys it to 100% traffic,
+Wrangler 4.92.0 uploads a tagged Worker Version with the target environment's
+`COUNTERPART_APP_URL`, deploys it to 100% traffic,
 and applies the `workers.dev` trigger. The workflow injects only the target
-environment's D1 ID into the verified artifact configuration; it does not run a
-migration. Staging `/healthz` must report the target service and commit SHA and
+environment's D1 ID into the verified artifact configuration and does not run a
+migration. Public metadata is derived from the incoming request origin. The
+browser-facing `/crisis` and `/user` links stay origin-relative until the Worker
+resolves them through the injected counterpart URL, so staging links stay in
+staging and production links stay in production while both use the same build
+artifact. Staging `/healthz` must report the target service and commit SHA and
 `/readyz` must confirm the D1 Binding before production starts. Production does
 the same. If production liveness or readiness fails, the workflow rolls back to
 the version that was active before release when one exists, verifies that
@@ -119,10 +125,12 @@ separate operator procedures documented in
 [Workers・D1バックエンド基盤](backend-d1.md).
 
 The reusable workflow receives the app directory, Worker names, GitHub
-Environment names, verification URLs, and revision as non-secret inputs. The
-build uses production URLs for canonical metadata and cross-application links
-so that the exact same artifact can be promoted through staging. Staging
-therefore tests production-link configuration as part of the release candidate.
+Environment names, the staging and production site/counterpart URL matrix, and
+the revision as non-secret inputs. It rejects identical staging/production URLs
+and injects the appropriate counterpart URL only while uploading each Worker
+Version. No staging or production origin is embedded during the one-time build.
+This makes a staging browser acceptance journey remain entirely on staging
+origins without weakening exact-artifact promotion.
 
 ### main branch protection
 

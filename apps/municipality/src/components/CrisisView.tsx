@@ -3,16 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry, type DataSource } from "@staybridge/data";
 import type { CrisisNeedsData } from "@staybridge/worker-runtime";
+import { userAppRoute } from "../user-url";
 
 export const municipalityChangesMadeCopy = "東京都北区Open DataをStayBridge用に一部選定・正規化しています";
 
 export function getMunicipalityChangesMade(adaptation: DataSource["adaptation"]): string | undefined {
   return adaptation === "selected_and_normalized" ? municipalityChangesMadeCopy : undefined;
 }
-
-const userAppUrl =
-  process.env.NEXT_PUBLIC_USER_APP_URL?.replace(/\/+$/, "") ||
-  "http://localhost:3000";
 
 const checklist = [
   { group: "情報提供", items: ["ミャンマー語・英語で案内できる情報を確認", "最新の在留関連公式情報への導線を確認", "外国人相談窓口への情報共有状況を確認"] },
@@ -143,9 +140,9 @@ export function CrisisView() {
 
   return <div className="crisis-shell">
     <header className="crisis-header">
-      <a className="brand" href={userAppUrl}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
+      <a className="brand" href={userAppRoute}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
       <div className="admin-label"><span /> 自治体・支援者向け確認画面</div>
-      <a className="back-to-service" href={userAppUrl}>本人向け画面へ ↗</a>
+      <a className="back-to-service" href={userAppRoute}>本人向け画面へ ↗</a>
     </header>
     <main className="crisis-main">
       <section className="crisis-intro">
