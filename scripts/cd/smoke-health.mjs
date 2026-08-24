@@ -1,6 +1,18 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
+export const DEFAULT_SMOKE_ATTEMPTS = 10;
+export const DEFAULT_SMOKE_DELAY_MS = 6000;
+export const DEFAULT_SMOKE_REQUEST_TIMEOUT_MS = 5000;
+
+export function maximumSmokeDurationMs({
+  attempts = DEFAULT_SMOKE_ATTEMPTS,
+  delayMs = DEFAULT_SMOKE_DELAY_MS,
+  requestTimeoutMs = DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
+} = {}) {
+  return attempts * requestTimeoutMs * 2 + Math.max(0, attempts - 1) * delayMs;
+}
+
 export async function assertHealth(response, expectedService, expectedRevision) {
   if (!response.ok) {
     throw new Error(`health endpoint returned HTTP ${response.status}`);
@@ -39,11 +51,43 @@ export async function assertReadiness(response) {
   }
 }
 
+async function withRequestTimeout(label, requestTimeoutMs, task) {
+  if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) {
+    throw new Error("requestTimeoutMs must be a positive finite number");
+  }
+
+  const controller = new AbortController();
+  let timeoutId;
+  const timeout = new Promise((_, rejectTimeout) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(
+        `${label} request timed out after ${requestTimeoutMs}ms`,
+      );
+      controller.abort(error);
+      rejectTimeout(error);
+    }, requestTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => task(controller.signal)),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function smokeHealth(
   baseUrl,
   expectedService,
   expectedRevision,
-  { attempts = 10, delayMs = 6000, fetchImpl = fetch } = {},
+  {
+    attempts = DEFAULT_SMOKE_ATTEMPTS,
+    delayMs = DEFAULT_SMOKE_DELAY_MS,
+    requestTimeoutMs = DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
+    fetchImpl = fetch,
+  } = {},
 ) {
   const healthUrl = new URL("/healthz", `${baseUrl.replace(/\/+$/, "")}/`);
   const readinessUrl = new URL("/readyz", `${baseUrl.replace(/\/+$/, "")}/`);
@@ -51,16 +95,22 @@ export async function smokeHealth(
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetchImpl(healthUrl, {
-        headers: { Accept: "application/json" },
-        redirect: "error",
+      await withRequestTimeout("health", requestTimeoutMs, async (signal) => {
+        const response = await fetchImpl(healthUrl, {
+          headers: { Accept: "application/json" },
+          redirect: "error",
+          signal,
+        });
+        await assertHealth(response, expectedService, expectedRevision);
       });
-      await assertHealth(response, expectedService, expectedRevision);
-      const readinessResponse = await fetchImpl(readinessUrl, {
-        headers: { Accept: "application/json" },
-        redirect: "error",
+      await withRequestTimeout("readiness", requestTimeoutMs, async (signal) => {
+        const readinessResponse = await fetchImpl(readinessUrl, {
+          headers: { Accept: "application/json" },
+          redirect: "error",
+          signal,
+        });
+        await assertReadiness(readinessResponse);
       });
-      await assertReadiness(readinessResponse);
       process.stdout.write(
         `Healthy and ready ${expectedService} revision ${expectedRevision} at ${healthUrl.origin}\n`,
       );
@@ -85,7 +135,10 @@ if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
   }
 
   await smokeHealth(baseUrl, service, revision, {
-    attempts: Number(process.env.SMOKE_ATTEMPTS ?? 10),
-    delayMs: Number(process.env.SMOKE_DELAY_MS ?? 6000),
+    attempts: Number(process.env.SMOKE_ATTEMPTS ?? DEFAULT_SMOKE_ATTEMPTS),
+    delayMs: Number(process.env.SMOKE_DELAY_MS ?? DEFAULT_SMOKE_DELAY_MS),
+    requestTimeoutMs: Number(
+      process.env.SMOKE_REQUEST_TIMEOUT_MS ?? DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
+    ),
   });
 }
