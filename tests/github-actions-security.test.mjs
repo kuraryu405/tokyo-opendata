@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
+import { resolveContributorInputs } from "../scripts/contributor-inputs.mjs";
 
 const workflowsDirectory = new URL("../.github/workflows/", import.meta.url);
 const dependabotFile = new URL("../.github/dependabot.yml", import.meta.url);
@@ -147,15 +148,50 @@ test("contributor recognition exposes the write PAT only to token detection and 
   assert.match(contents, /--base "\$DEFAULT_BRANCH"/);
 });
 
-test("contributor recognition validates event-derived shell inputs before using them", async () => {
+test("contributor recognition consumes validated outputs instead of raw event input in write steps", async () => {
   const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
 
-  assert.match(
-    contents,
-    /\[\[ "\$CONTRIBUTOR" =~ \^\[A-Za-z0-9\]\[A-Za-z0-9-\]\{0,38\}\$ \]\]/,
-  );
-  assert.match(contents, /\[\[ "\$SOURCE_PR" =~ \^\[0-9\]\+\$ \]\]/);
-  assert.match(contents, /branch="chore\/recognize-\$\{CONTRIBUTOR\}-\$\{SOURCE_PR\}"/);
+  assert.match(contents, /node scripts\/contributor-inputs\.mjs/);
+  assert.match(contents, /CONTRIBUTOR: \$\{\{ steps\.contributor_inputs\.outputs\.contributor \}\}/);
+  assert.match(contents, /SOURCE_PR: \$\{\{ steps\.contributor_inputs\.outputs\.source_pr \}\}/);
+  assert.match(contents, /BRANCH: \$\{\{ steps\.contributor_inputs\.outputs\.branch \}\}/);
+  assert.doesNotMatch(contents, /\$\{\{ github\.event\.pull_request\.title \}\}/);
+  assert.doesNotMatch(contents, /\$\{\{ github\.event\.pull_request\.body \}\}/);
+});
+
+test("contributor input validation rejects shell, path, and output-injection shaped values", () => {
+  assert.deepEqual(resolveContributorInputs("octocat-123", "42"), {
+    contributor: "octocat-123",
+    sourcePr: "42",
+    branch: "chore/recognize-octocat-123-42",
+  });
+
+  for (const contributor of [
+    "",
+    "-octocat",
+    "octocat-",
+    "octo--cat",
+    "octo/cat",
+    "octo cat",
+    "$(id)",
+    "octo;echo-pwned",
+    "octo\nbranch=evil",
+    "a".repeat(40),
+  ]) {
+    assert.throws(
+      () => resolveContributorInputs(contributor, "42"),
+      /Unexpected GitHub login format/,
+      contributor,
+    );
+  }
+
+  for (const sourcePr of ["", "0", "-1", "1.5", "1;echo-pwned", "1\nbranch=evil", "NaN"]) {
+    assert.throws(
+      () => resolveContributorInputs("octocat", sourcePr),
+      /Unexpected source PR number/,
+      sourcePr,
+    );
+  }
 });
 
 test("Cloudflare credentials are scoped to deployment steps", async () => {
