@@ -118,10 +118,40 @@ test("contributor recognition uses trusted base code and skips safely without it
   assert.match(contents, /echo "configured=false" >> "\$GITHUB_OUTPUT"/);
   assert.match(contents, /Contributor recognition skipped/);
   assert.match(contents, />> "\$GITHUB_STEP_SUMMARY"/);
+});
+
+test("contributor recognition exposes the write PAT only to token detection and GitHub writes", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+
   assert.equal(
-    contents.match(/if: steps\.contributor_token\.outputs\.configured == 'true'/g)?.length,
-    5,
+    contents.match(/\$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/g)?.length,
+    2,
   );
+  assert.match(contents, /persist-credentials: false/);
+  assert.doesNotMatch(
+    contents,
+    /token: \$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/,
+  );
+  assert.doesNotMatch(
+    contents,
+    /GITHUB_TOKEN: \$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/,
+  );
+  assert.match(contents, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.doesNotMatch(contents, /\bgit push\b/);
+  assert.match(contents, /gh api --method POST "repos\/\$\{GITHUB_REPOSITORY\}\/git\/refs"/);
+  assert.match(contents, /--repo "\$GITHUB_REPOSITORY"/);
+  assert.match(contents, /--base "\$DEFAULT_BRANCH"/);
+});
+
+test("contributor recognition validates event-derived shell inputs before using them", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+
+  assert.match(
+    contents,
+    /\[\[ "\$CONTRIBUTOR" =~ \^\[A-Za-z0-9\]\[A-Za-z0-9-\]\{0,38\}\$ \]\]/,
+  );
+  assert.match(contents, /\[\[ "\$SOURCE_PR" =~ \^\[0-9\]\+\$ \]\]/);
+  assert.match(contents, /branch="chore\/recognize-\$\{CONTRIBUTOR\}-\$\{SOURCE_PR\}"/);
 });
 
 test("Cloudflare credentials are scoped to deployment steps", async () => {
