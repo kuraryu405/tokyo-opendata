@@ -3,15 +3,15 @@ import test from "node:test";
 import { resolveReleaseConfig } from "./resolve-release-config.mjs";
 
 const workersSubdomain = "tokyo-odh-466";
+const workerKeys = [
+  "user_staging_worker",
+  "user_production_worker",
+  "municipality_staging_worker",
+  "municipality_production_worker",
+];
 
 test("resolves four unique workers and matching verification URLs", () => {
   const configuration = resolveReleaseConfig({ workersSubdomain });
-  const workerKeys = [
-    "user_staging_worker",
-    "user_production_worker",
-    "municipality_staging_worker",
-    "municipality_production_worker",
-  ];
   const workers = workerKeys.map((key) => configuration[key]);
 
   assert.equal(new Set(workers).size, workerKeys.length);
@@ -24,28 +24,33 @@ test("resolves four unique workers and matching verification URLs", () => {
   }
 });
 
-test("rejects duplicate staging and production names within one service", () => {
-  assert.throws(
-    () => resolveReleaseConfig({
-      workersSubdomain,
-      workers: {
-        user_staging_worker: "staybridge-user-shared",
-        user_production_worker: "staybridge-user-shared",
-      },
-    }),
-    /user_staging_worker and user_production_worker both resolve to staybridge-user-shared/,
-  );
+test("rejects duplicate Worker names for every pair of release targets", () => {
+  for (let leftIndex = 0; leftIndex < workerKeys.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < workerKeys.length; rightIndex += 1) {
+      const leftKey = workerKeys[leftIndex];
+      const rightKey = workerKeys[rightIndex];
+      assert.throws(
+        () => resolveReleaseConfig({
+          workersSubdomain,
+          workers: {
+            [leftKey]: "staybridge-shared",
+            [rightKey]: "staybridge-shared",
+          },
+        }),
+        new RegExp(`${leftKey} and ${rightKey} both resolve to staybridge-shared`),
+      );
+    }
+  }
 });
 
-test("rejects duplicate Worker names across services", () => {
+test("rejects a repository override that collides with another target's default", () => {
   assert.throws(
     () => resolveReleaseConfig({
       workersSubdomain,
       workers: {
-        user_staging_worker: "staybridge-shared",
-        municipality_production_worker: "staybridge-shared",
+        user_staging_worker: "staybridge-municipality-production",
       },
     }),
-    /user_staging_worker and municipality_production_worker both resolve to staybridge-shared/,
+    /user_staging_worker and municipality_production_worker both resolve to staybridge-municipality-production/,
   );
 });
