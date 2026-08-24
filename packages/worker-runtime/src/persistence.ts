@@ -491,7 +491,7 @@ function parseDeletionRoute(pathname: string): { kind: "situation" | "conversati
   return { kind, id: match[2] };
 }
 
-function containsRejectedIdentifier(value: string): boolean {
+export function containsRejectedIdentifier(value: string): boolean {
   return passportLabelPattern.test(value)
     || residenceLabelPattern.test(value)
     || residenceCardLikePattern.test(value)

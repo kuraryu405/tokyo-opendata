@@ -152,8 +152,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
   .crisis-header .admin-label { border: 0; padding: 0; }.crisis-header .admin-label { font-size: 0; }.crisis-header .admin-label span { display: block; }.back-to-service { font-size: 12px; }.coverage-banner { grid-template-columns: 22px 1fr; }.coverage-banner a { grid-column: 2; }.crisis-section-title { grid-template-columns: 30px 1fr; }.crisis-section-title > p { grid-column: 2; text-align: left; }.resource-counts { grid-template-columns: repeat(2, 1fr); }.gap-grid { grid-template-columns: 1fr; }.checklist-grid { grid-template-columns: 1fr; }.dataset-details ul { grid-template-columns: 1fr; }.feedback-loop { padding: 25px 18px; }.loop-flow { grid-template-columns: repeat(2, 1fr); }.loop-flow b { display: none; }.crisis-footer { display: grid; gap: 7px; }
 }
 
-@media (prefers-reduced-motion: reduce) { .chat-pending span { animation: none; } }
-
 @media print {
   .site-header, .site-footer, .page-heading, .summary-toolbar { display: none !important; }
   body, .app-shell { background: white; }.summary-page { padding: 0; }.summary-sheet { box-shadow: none; border: 0; }
@@ -174,3 +172,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
   font-size: 12px !important;
   line-height: 1.65 !important;
 }
+.review-chip { color: var(--accessible-text); }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .progress-track span { transition: none; } .chat-pending span { animation: none; } }
+
+.option-input { position: absolute; opacity: 0; pointer-events: none; }
+.option-button:has(.option-input:focus-visible), .age-chip:has(.option-input:focus-visible) { outline: 3px solid #ffbf47; outline-offset: 3px; }
+.age-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: white; border: 1px solid var(--line); border-radius: 6px; min-width: 65px; padding: 9px; cursor: pointer; font-weight: 700; }
+.age-chip.selected { background: var(--blue); border-color: var(--blue); color: white; }
+
+@media (max-width: 900px) { .app-shell:not(.nav-visible) { padding-bottom: 0; } }

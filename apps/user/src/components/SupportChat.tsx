@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { SupportChatMessage } from "../ai/support-chat";
+import { prefersReducedMotion } from "../motion";
 import type { Locale } from "./staybridge-session";
 
 const SUPPORT_CHAT_TIMEOUT_MS = 15_000;
@@ -19,6 +20,7 @@ const chatCopy = {
     assistant: "AI案内",
     pending: "回答を整理しています",
     error: "AI案内を利用できません。時間をおいて再試行するか、この画面の公式相談先を利用してください。",
+    identifierError: "旅券番号・在留カード番号が含まれているため送信できません。該当部分を消して再度送信してください。連絡先や住所は自動的に伏せ字で送られます。",
   },
   en: {
     title: "AI consultation assistant",
@@ -32,6 +34,7 @@ const chatCopy = {
     assistant: "AI guide",
     pending: "Organizing a response",
     error: "The AI guide is unavailable. Try again later or use an official support link on this page.",
+    identifierError: "This message cannot be sent because it contains a passport or residence card number. Please remove that part and send it again. Contact details and addresses are automatically masked.",
   },
   my: {
     title: "AI တိုင်ပင်ရေး အကူ",
@@ -45,10 +48,26 @@ const chatCopy = {
     assistant: "AI လမ်းညွှန်",
     pending: "အဖြေကို စီစဉ်နေသည်",
     error: "AI လမ်းညွှန်ကို ယခုမသုံးနိုင်ပါ။ နောက်မှ ထပ်ကြိုးစားပါ သို့မဟုတ် ဤစာမျက်နှာရှိ တရားဝင်တိုင်ပင်ရာကို အသုံးပြုပါ။",
+    identifierError: "နိုင်ငံကူးလက်မှတ် သို့မဟုတ် နေထိုင်ခွင့်ကတ်နံပါတ် ပါဝင်နေသောကြောင့် ပို့၍မရပါ။ ထိုအပိုင်းကို ဖျက်ပြီး ထပ်မံပို့ပါ။ ဆက်သွယ်ရန်အချက်အလက်နှင့် လိပ်စာများကို အလိုအလျောက် ဖုံးကွယ်ပေးပါသည်။",
   },
 } as const;
 
 type ChatEntry = SupportChatMessage & { id: string };
+
+class ChatRequestError extends Error {
+  constructor(readonly code: string) {
+    super(code || "REQUEST_FAILED");
+  }
+}
+
+const readErrorCode = async (response: Response): Promise<string> => {
+  try {
+    const body = await response.json() as { error?: unknown };
+    return typeof body.error === "string" ? body.error : "";
+  } catch {
+    return "";
+  }
+};
 
 export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
@@ -56,12 +75,21 @@ export function SupportChat({ locale }: { locale: Locale }) {
   const nextMessageId = useRef(0);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => () => activeRequest.current?.abort(), []);
+
+  useEffect(() => {
+    const log = chatLogRef.current;
+    if (!log) return;
+    const behavior = prefersReducedMotion() ? "auto" as const : "smooth" as const;
+    if (typeof log.scrollTo === "function") log.scrollTo({ top: log.scrollHeight, behavior });
+    else log.scrollTop = log.scrollHeight;
+  }, [messages.length, pending]);
 
   const createEntry = (role: SupportChatMessage["role"], content: string): ChatEntry => ({
     id: `${role}-${nextMessageId.current++}`,
@@ -85,7 +113,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
     setMessages((current) => [...current, userMessage]);
     setInput("");
     setPending(true);
-    setError(false);
+    setError("");
 
     try {
       const response = await fetch("/api/support-chat", {
@@ -94,17 +122,17 @@ export function SupportChat({ locale }: { locale: Locale }) {
         body: JSON.stringify({ locale, messages: requestMessages }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Support chat failed: ${response.status}`);
+      if (!response.ok) throw new ChatRequestError(await readErrorCode(response));
       const body = await response.json() as { reply?: unknown };
       if (typeof body.reply !== "string" || !body.reply.trim()) throw new Error("Support chat returned no reply");
       const reply = body.reply.trim();
       if (activeRequestId.current !== requestId) return;
       setMessages((current) => [...current, createEntry("assistant", reply)]);
-    } catch {
+    } catch (requestError) {
       if (activeRequestId.current !== requestId) return;
       setMessages((current) => current.filter((message) => message.id !== userMessage.id));
       setInput(content);
-      setError(true);
+      setError(requestError instanceof ChatRequestError ? requestError.code : "REQUEST_FAILED");
     } finally {
       window.clearTimeout(timeout);
       if (activeRequestId.current === requestId) {
@@ -120,7 +148,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
     activeRequestId.current += 1;
     setMessages([]);
     setPending(false);
-    setError(false);
+    setError("");
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -138,9 +166,9 @@ export function SupportChat({ locale }: { locale: Locale }) {
     <div className="support-chat-panel" id={panelId}>
       <p className="chat-disclosure">{t.disclosure}</p>
       {messages.length === 0 && !pending && <div className="chat-suggestions">{t.suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void sendMessage(undefined, suggestion)}>{suggestion}<span aria-hidden="true">→</span></button>)}</div>}
-      {messages.length > 0 && <div className="chat-log" aria-live="polite">{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p></article>)}</div>}
+      {messages.length > 0 && <div className="chat-log" aria-live="polite" ref={chatLogRef}>{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p></article>)}</div>}
       {pending && <output className="chat-pending" aria-live="polite"><span aria-hidden="true" />{t.pending}</output>}
-      {error && <p className="chat-error" role="alert">{t.error}</p>}
+      {error && <p className="chat-error" role="alert">{error === "HIGH_RISK_IDENTIFIER" ? t.identifierError : t.error}</p>}
       <form className="chat-form" onSubmit={sendMessage}>
         <label className="sr-only" htmlFor={`${panelId}-input`}>{t.label}</label>
         <div className="chat-compose"><textarea id={`${panelId}-input`} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown} maxLength={800} placeholder={t.placeholder} rows={2} disabled={pending} /><button type="submit" className="primary-button" aria-label={t.send} disabled={pending || !input.trim()}><span aria-hidden="true">↑</span></button></div>

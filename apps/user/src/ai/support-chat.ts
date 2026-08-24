@@ -1,4 +1,8 @@
+import { containsRejectedIdentifier, maskDetectableContactData } from "@staybridge/worker-runtime";
+
 export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+export const SUPPORT_CHAT_INFERENCE_TIMEOUT_MS = 12_000;
 
 const MAX_MESSAGES = 7;
 const MAX_MESSAGE_LENGTH = 800;
@@ -190,21 +194,43 @@ export async function handleSupportChatRequest(
   const parsed = parsePayload(payload);
   if (!parsed) return json({ error: "INVALID_MESSAGES" }, 400);
 
-  if (!bindings.ai) return json({ error: "AI_UNAVAILABLE" }, 503);
+  const ai = bindings.ai;
+  if (!ai) return json({ error: "AI_UNAVAILABLE" }, 503);
 
+  for (const message of parsed.messages) {
+    if (containsRejectedIdentifier(message.content)) {
+      return json({ error: "HIGH_RISK_IDENTIFIER" }, 400);
+    }
+  }
+  const maskedMessages = parsed.messages.map((message) => ({
+    role: message.role,
+    content: maskDetectableContactData(message.content),
+  }));
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const result = await bindings.ai.run(SUPPORT_CHAT_MODEL, {
+    // Normalise both a rejected Promise and a binding that throws before returning one.
+    const runPromise = Promise.resolve().then(() => ai.run(SUPPORT_CHAT_MODEL, {
       messages: [
         { role: "system", content: systemPrompt(parsed.locale) },
-        { role: "user", content: serializeUntrustedTranscript(parsed.messages) },
+        { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
       ],
       max_tokens: 320,
       temperature: 0.2,
-    });
+    }));
+    runPromise.catch(() => {});
+    const result = await Promise.race([
+      runPromise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("AI_INFERENCE_TIMEOUT")), SUPPORT_CHAT_INFERENCE_TIMEOUT_MS);
+      }),
+    ]);
     const reply = readModelReply(result);
     if (!reply) return json({ error: "EMPTY_AI_RESPONSE" }, 502);
     return json({ reply });
   } catch {
     return json({ error: "AI_REQUEST_FAILED" }, 502);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }

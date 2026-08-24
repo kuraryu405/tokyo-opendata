@@ -10,7 +10,7 @@ import {
 } from "@staybridge/domain/action-catalog";
 import { generateActions } from "@staybridge/domain/rules";
 import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
-import type { Action, NeedCategory, Situation } from "@staybridge/domain/types";
+import type { Action, ChildAgeGroup, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
   consultationSourcesByNeed,
   humanHandoffSourceIds,
@@ -56,6 +56,8 @@ import {
   type StayAnswer,
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
+import { prefersReducedMotion } from "../motion";
+import { formatAssessmentDateForLocale } from "../assessment-date";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -105,13 +107,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
-  const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
   const [isDemoSituation, setIsDemoSituation] = useState(false);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
-  const completionTimer = useRef<number | undefined>(undefined);
   const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
   const t = getUserMessages(locale).ui;
   const hasSavedSituationCredentials = "credentials" in situationPersistence;
@@ -156,19 +156,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   }, [locale]);
 
   useEffect(() => {
-    if (screen === "check") return;
-    if (completionTimer.current !== undefined) {
-      window.clearTimeout(completionTimer.current);
-      completionTimer.current = undefined;
-      setIsPreparingResults(false);
-    }
-  }, [screen]);
-
-  useEffect(() => () => {
-    if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
-  }, []);
-
-  useEffect(() => {
     if (!pathname) return;
     const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
     if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
@@ -178,6 +165,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const assessmentComplete = isAssessmentComplete(answeredSteps);
   const firstIncompleteStep = firstUnansweredStep(answeredSteps);
+  const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
+  const showStepsNav = assessmentComplete || isDemoSituation;
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
   const protectedSituationRouteGuard = storageReady
     && hasProtectedSituationSubmission
@@ -239,12 +228,12 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const go = (next: Screen, nextQuery: StayBridgeQuery = {}) => {
     router.push(buildStayBridgePath({ locale, screen: next, query: nextQuery }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const setStep = (nextStep: number) => {
     router.push(buildStayBridgePath({ locale, screen: "check", query: { step: nextStep } }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const setLocalFilter = (nextFilter: LocalFilter) => {
@@ -252,7 +241,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const complete = () => {
-    if (completionTimer.current !== undefined) return;
     if (!assessmentComplete) {
       router.replace(buildStayBridgePath({
         locale,
@@ -261,12 +249,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }));
       return;
     }
-    setIsPreparingResults(true);
-    completionTimer.current = window.setTimeout(() => {
-      completionTimer.current = undefined;
-      setIsPreparingResults(false);
-      go("status");
-    }, 650);
+    go("status");
   };
 
   const loadDemo = () => {
@@ -359,8 +342,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const summaryDate = useMemo(
-    () => new Date().toLocaleDateString(locale === "my" ? "en" : locale),
-    [locale],
+    () => formatAssessmentDateForLocale(assessmentDate, locale),
+    [assessmentDate, locale],
   );
 
   const persistSituation = async () => {
@@ -429,12 +412,12 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   return (
-    <div className={`app-shell locale-${locale}`}>
+    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} disabled={isPreparingResults} />
+      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} navVisible={navVisible} showStepsNav={showStepsNav} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
+        {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
@@ -454,16 +437,16 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   );
 }
 
-function Header({ locale, screen, go, switchLocale, disabled }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; disabled: boolean }) {
+function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; navVisible: boolean; showStepsNav: boolean }) {
   const t = getUserMessages(locale).ui;
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel} disabled={disabled}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
-    <nav aria-label={t.primaryNavLabel}>
-      <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
+    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
+    {navVisible && <nav aria-label={t.primaryNavLabel}>
+      {showStepsNav && <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>}
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
-    </nav>
-    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} disabled={disabled} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
+    </nav>}
+    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
 }
 
@@ -545,6 +528,14 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
   };
+  const toggleChildAge = (age: ChildAgeGroup) => {
+    const nextChildren = situation.familyMembers.children.some((child) => child.ageGroup === age)
+      ? situation.familyMembers.children.filter((child) => child.ageGroup !== age)
+      : [...situation.familyMembers.children, { ageGroup: age }].sort((a, b) =>
+        assessmentOptionCodes.childAge.indexOf(a.ageGroup) - assessmentOptionCodes.childAge.indexOf(b.ageGroup));
+    setSituation({ ...situation, familyMembers: { children: nextChildren } });
+    markAnswered(nextChildren.length > 0);
+  };
   const familyComplete = familyAnswers.length > 0 && (!familyAnswers.includes("children") || situation.familyMembers.children.length > 0);
   const enabled = answeredSteps.includes(step) && (step === 6 ? familyComplete : step === 8 ? situation.needs.length > 0 : Boolean(current));
   return <section className="check-page">
@@ -553,9 +544,9 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1><p>{hint}</p>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <button key={value} className={`option-button ${selected ? "selected" : ""}`} onClick={() => choose(value)} role={multi ? "checkbox" : "radio"} aria-checked={selected}><span className="option-control">{selected ? "✓" : ""}</span><span>{label}</span></button>; })}
+        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
       </div>
-      {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => { setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age }] } }); markAnswered(); }}>{age}</button>)}</div></div>}
+      {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
@@ -626,7 +617,7 @@ function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { l
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
   const filters: LocalFilter[] = ["all", "school", "medical", "child_support", "public_facility"];
-  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs" role="tablist">{filters.map((item) => <button role="tab" aria-selected={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} locale={locale} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
+  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs">{filters.map((item) => <button aria-pressed={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} locale={locale} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
 }
 
 function ResourceCard({ resource, locale, t }: { resource: LocalResource & { id: LocalResourceId }; locale: Locale; t: UserCopy }) {
@@ -678,7 +669,7 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
   const labels = getUserMessages(locale).questions;
   const messages = getUserMessages(locale);
   const find = (q: number, value: string) => labels[q][2].find(([v]) => v === value)?.[1] ?? "";
-  const child = s.familyMembers.children[0];
+  const childAgeLabels = s.familyMembers.children.map((child) => child.ageGroup).join(locale === "ja" ? "、" : ", ");
   const byStep: Record<number, string | undefined> = {
     0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${find(0, s.currentMunicipality)}` : undefined,
     1: s.nationality ? `${messages.ui.nationalityLabel}: ${find(1, s.nationality)}` : undefined,
@@ -687,8 +678,8 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
     4: find(4, s.returnStatus),
     5: s.knownStayDeadline ? `${find(5, stayAnswer)}: ${s.knownStayDeadline}` : find(5, stayAnswer),
     6: familyAnswers.length
-      ? familyAnswers.map((answer) => answer === "children" && child
-        ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${child.ageGroup}`
+      ? familyAnswers.map((answer) => answer === "children" && childAgeLabels
+        ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${childAgeLabels}`
         : find(6, answer)).join(" / ")
       : undefined,
     7: find(7, s.accommodation),
