@@ -14,8 +14,8 @@ jobs:
       github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     env:
-      CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
-      SOURCE_PR: ${{ github.event.pull_request.number }}
+      RAW_CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
+      RAW_SOURCE_PR: ${{ github.event.pull_request.number }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Check contributor automation token
@@ -45,25 +45,27 @@ jobs:
           node-version: 22
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         if: steps.contributor_token.outputs.configured == 'true'
+      - name: Validate contributor event inputs
+        id: contributor_inputs
+        if: steps.contributor_token.outputs.configured == 'true'
+        run: >-
+          node scripts/contributor-inputs.mjs
+          "$RAW_CONTRIBUTOR" "$RAW_SOURCE_PR" >> "$GITHUB_OUTPUT"
       - name: Add the merged PR author to All Contributors
         if: steps.contributor_token.outputs.configured == 'true'
         env:
+          CONTRIBUTOR: ${{ steps.contributor_inputs.outputs.contributor }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          [[ "$CONTRIBUTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]] || {
-            echo "Unexpected GitHub login format." >&2
-            exit 1
-          }
-          [[ "$SOURCE_PR" =~ ^[0-9]+$ ]] || {
-            echo "Unexpected source PR number." >&2
-            exit 1
-          }
           pnpm dlx all-contributors-cli@6.26.1 all-contributors add "$CONTRIBUTOR" code
           pnpm dlx all-contributors-cli@6.26.1 all-contributors generate
       - name: Commit recognition changes
         id: recognition_commit
         if: steps.contributor_token.outputs.configured == 'true'
+        env:
+          CONTRIBUTOR: ${{ steps.contributor_inputs.outputs.contributor }}
+          BRANCH: ${{ steps.contributor_inputs.outputs.branch }}
         shell: bash
         run: |
           set -euo pipefail
@@ -71,21 +73,21 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          branch="chore/recognize-${CONTRIBUTOR}-${SOURCE_PR}"
-          git switch -c "$branch"
+          git switch -c "$BRANCH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .all-contributorsrc README.md
           git commit -m "docs: recognize ${CONTRIBUTOR} as a contributor"
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
       - name: Push branch and open a recognition pull request
         if: >-
           steps.contributor_token.outputs.configured == 'true' &&
           steps.recognition_commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
-          BRANCH: ${{ steps.recognition_commit.outputs.branch }}
+          CONTRIBUTOR: ${{ steps.contributor_inputs.outputs.contributor }}
+          SOURCE_PR: ${{ steps.contributor_inputs.outputs.source_pr }}
+          BRANCH: ${{ steps.contributor_inputs.outputs.branch }}
         run: |
           set -euo pipefail
           git \
