@@ -619,7 +619,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: "近くの支援" }));
-    expect(screen.getByText(/詳細な地域データに対応していません/)).toBeTruthy();
+    expect(screen.getByText(/支援情報はまだ掲載がありません/)).toBeTruthy();
     expect(screen.queryByText("豊川小学校")).toBeNull();
   });
 
@@ -1101,7 +1101,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText("質問 05")).toBeTruthy();
     await user.selectOptions(screen.getByRole("combobox"), "en");
     expect(navigation.path()).toBe("/en/check?step=4");
-    expect(screen.getByText("QUESTION 05")).toBeTruthy();
+    expect(screen.getByText("Question 05")).toBeTruthy();
   });
 
   it("re-renders direct back and forward URL changes instead of keeping screen state", async () => {
