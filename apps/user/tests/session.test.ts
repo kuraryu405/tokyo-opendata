@@ -86,9 +86,31 @@ describe("StayBridge session data", () => {
     expect(parseStoredSession(versionOne)?.provenance).toBe("demo");
   });
 
+  it("round-trips multiple child age groups in order", () => {
+    const situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "6-11" }, { ageGroup: "0-2" }] } };
+    const serialized = serializeStoredSession({
+      provenance: "user",
+      situation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: [6],
+    });
+    expect(parseStoredSession(serialized)?.situation.familyMembers.children).toEqual([{ ageGroup: "6-11" }, { ageGroup: "0-2" }]);
+  });
+
   it("summarizes a spouse and child together", () => {
     expect(summarizeSituation("ja", demoSituation, "unknown", ["children", "spouse"], [6])).toEqual([
       "子どもがいる · 年齢: 6-11 / 配偶者がいる",
+    ]);
+  });
+
+  it("lists every selected child age group with a locale-aware separator", () => {
+    const situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "3-5" }, { ageGroup: "6-11" }] } };
+    expect(summarizeSituation("ja", situation, "unknown", ["children"], [6])).toEqual([
+      "子どもがいる · 年齢: 3-5、6-11",
+    ]);
+    expect(summarizeSituation("en", situation, "unknown", ["children"], [6])).toEqual([
+      "A child is with me · age: 3-5, 6-11",
     ]);
   });
 });

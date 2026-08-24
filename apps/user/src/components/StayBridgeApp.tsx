@@ -10,7 +10,7 @@ import {
 } from "@staybridge/domain/action-catalog";
 import { generateActions } from "@staybridge/domain/rules";
 import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
-import type { Action, NeedCategory, Situation } from "@staybridge/domain/types";
+import type { Action, ChildAgeGroup, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
   consultationSourcesByNeed,
   humanHandoffSourceIds,
@@ -525,6 +525,14 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
   };
+  const toggleChildAge = (age: ChildAgeGroup) => {
+    const nextChildren = situation.familyMembers.children.some((child) => child.ageGroup === age)
+      ? situation.familyMembers.children.filter((child) => child.ageGroup !== age)
+      : [...situation.familyMembers.children, { ageGroup: age }].sort((a, b) =>
+        assessmentOptionCodes.childAge.indexOf(a.ageGroup) - assessmentOptionCodes.childAge.indexOf(b.ageGroup));
+    setSituation({ ...situation, familyMembers: { children: nextChildren } });
+    markAnswered(nextChildren.length > 0);
+  };
   const familyComplete = familyAnswers.length > 0 && (!familyAnswers.includes("children") || situation.familyMembers.children.length > 0);
   const enabled = answeredSteps.includes(step) && (step === 6 ? familyComplete : step === 8 ? situation.needs.length > 0 : Boolean(current));
   return <section className="check-page">
@@ -535,7 +543,7 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
         {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
       </div>
-      {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => <button key={age} className={situation.familyMembers.children[0]?.ageGroup === age ? "selected" : ""} onClick={() => { setSituation({ ...situation, familyMembers: { children: [{ ageGroup: age }] } }); markAnswered(); }}>{age}</button>)}</div></div>}
+      {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
       <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
@@ -658,7 +666,7 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
   const labels = getUserMessages(locale).questions;
   const messages = getUserMessages(locale);
   const find = (q: number, value: string) => labels[q][2].find(([v]) => v === value)?.[1] ?? "";
-  const child = s.familyMembers.children[0];
+  const childAgeLabels = s.familyMembers.children.map((child) => child.ageGroup).join(locale === "ja" ? "、" : ", ");
   const byStep: Record<number, string | undefined> = {
     0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${find(0, s.currentMunicipality)}` : undefined,
     1: s.nationality ? `${messages.ui.nationalityLabel}: ${find(1, s.nationality)}` : undefined,
@@ -667,8 +675,8 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
     4: find(4, s.returnStatus),
     5: s.knownStayDeadline ? `${find(5, stayAnswer)}: ${s.knownStayDeadline}` : find(5, stayAnswer),
     6: familyAnswers.length
-      ? familyAnswers.map((answer) => answer === "children" && child
-        ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${child.ageGroup}`
+      ? familyAnswers.map((answer) => answer === "children" && childAgeLabels
+        ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${childAgeLabels}`
         : find(6, answer)).join(" / ")
       : undefined,
     7: find(7, s.accommodation),

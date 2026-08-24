@@ -178,3 +178,5 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
 
 .option-input { position: absolute; opacity: 0; pointer-events: none; }
 .option-button:has(.option-input:focus-visible), .age-chip:has(.option-input:focus-visible) { outline: 3px solid #ffbf47; outline-offset: 3px; }
+.age-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: white; border: 1px solid var(--line); border-radius: 6px; min-width: 65px; padding: 9px; cursor: pointer; font-weight: 700; }
+.age-chip.selected { background: var(--blue); border-color: var(--blue); color: white; }

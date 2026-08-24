@@ -662,9 +662,57 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: /次へ/ }).hasAttribute("disabled")).toBe(true);
     expect(screen.queryByText("6-11", { selector: ".age-options .selected" })).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "3-5" }));
-    expect(screen.getByRole("button", { name: /次へ/ }).hasAttribute("disabled")).toBe(false);
-    expect(screen.getByRole("button", { name: "3-5" }).classList.contains("selected")).toBe(true);
+    await user.click(screen.getByRole("checkbox", { name: "3-5" }));
+    expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("checkbox", { name: "3-5" }).closest(".age-chip")!.classList.contains("selected")).toBe(true);
+
+    await user.click(screen.getByRole("checkbox", { name: "3-5" }));
+    expect(screen.getByRole("button", { name: /次へ/ }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("tracks several child ages through rules, summary, and reload", async () => {
+    navigation.reset("/ja/check?step=6");
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: { ...demoSituation, familyMembers: { children: [] }, needs: [] },
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1, 2, 3, 4, 5],
+    }));
+    const user = userEvent.setup();
+    const firstRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    await screen.findByRole("heading", { name: "一緒に日本にいる家族はいますか？" });
+
+    await user.click(screen.getByRole("checkbox", { name: "子どもがいる" }));
+    await user.click(screen.getByRole("checkbox", { name: "3-5" }));
+    expect(screen.queryByRole("checkbox", { name: "6-11" })?.closest(".age-chip")?.classList.contains("selected")).toBe(false);
+    await user.click(screen.getByRole("button", { name: /次へ/ }));
+
+    await user.click(screen.getByRole("radio", { name: "賃貸住宅" }));
+    await user.click(screen.getByRole("button", { name: /次へ/ }));
+    await user.click(screen.getByRole("checkbox", { name: "子どもの学校・教育" }));
+    await user.click(screen.getByRole("checkbox", { name: "子どもの生活" }));
+    await user.click(screen.getByRole("button", { name: /次へ/ }));
+    await user.click(screen.getByRole("radio", { name: "日常会話ができる" }));
+    await user.click(screen.getByRole("button", { name: /状況を整理する/ }));
+
+    await user.click(await screen.findByRole("button", { name: /次のステップを見る/ }));
+    expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "子どもの教育について相談する" })).toBeNull();
+
+    navigation.reset("/ja/check?step=6");
+    await screen.findByRole("heading", { name: "一緒に日本にいる家族はいますか？" });
+    await user.click(screen.getByRole("checkbox", { name: "6-11" }));
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+
+    expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "子どもの教育について相談する" })).toBeTruthy();
+    await waitFor(() => expect(sessionStorage.getItem("staybridge.session")).toContain('"children":[{"ageGroup":"3-5"},{"ageGroup":"6-11"}]'));
+
+    navigation.reset("/ja/summary");
+    firstRender.unmount();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    expect(await screen.findByText(/年齢: 3-5、6-11/)).toBeTruthy();
   });
 
   it("moves radio selection with keyboard arrows inside the native radiogroup", async () => {
