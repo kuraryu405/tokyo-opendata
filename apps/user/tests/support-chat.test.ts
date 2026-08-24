@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handleSupportChatRequest,
+  SUPPORT_CHAT_INFERENCE_TIMEOUT_MS,
   SUPPORT_CHAT_MODEL,
   type SupportChatAi,
   type SupportChatRateLimiter,
@@ -22,6 +23,10 @@ function availableRateLimiter() {
 }
 
 describe("support chat worker endpoint", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("sends the validated transcript only as untrusted user-role data", async () => {
     const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "窓口では、今の困りごとを先に伝えてください。" });
     const rateLimiter = availableRateLimiter();
@@ -240,6 +245,38 @@ describe("support chat worker endpoint", () => {
     const transcript = run.mock.calls[0][1].messages[1].content;
     expect(transcript).toContain("返信はメールで届きますか");
     expect(transcript).not.toContain("[REDACTED_");
+  });
+
+  it("returns a gateway error when inference exceeds the server-side timeout", async () => {
+    vi.useFakeTimers();
+    const run = vi.fn<SupportChatAi["run"]>().mockImplementation(() => new Promise(() => {}));
+    const responsePromise = handleSupportChatRequest(
+      chatRequest({ locale: "en", messages: [{ role: "user", content: "What should I ask?" }] }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+    await vi.advanceTimersByTimeAsync(SUPPORT_CHAT_INFERENCE_TIMEOUT_MS);
+    const response = await responsePromise;
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: "AI_REQUEST_FAILED" });
+  });
+
+  it("does not adopt a late AI result that resolves after the timeout", async () => {
+    vi.useFakeTimers();
+    let releaseRun: ((value: { response: string }) => void) | undefined;
+    const run = vi.fn<SupportChatAi["run"]>().mockImplementation(
+      () => new Promise<{ response: string }>((resolve) => { releaseRun = resolve; }),
+    );
+    const responsePromise = handleSupportChatRequest(
+      chatRequest({ locale: "en", messages: [{ role: "user", content: "What should I ask?" }] }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+    await vi.advanceTimersByTimeAsync(SUPPORT_CHAT_INFERENCE_TIMEOUT_MS);
+    releaseRun?.({ response: "late answer" });
+    const response = await responsePromise;
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: "AI_REQUEST_FAILED" });
   });
 
   it("stops reading a streamed body as soon as the byte limit is exceeded", async () => {

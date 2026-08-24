@@ -2,6 +2,8 @@ import { containsRejectedIdentifier, maskDetectableContactData } from "@staybrid
 
 export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
+export const SUPPORT_CHAT_INFERENCE_TIMEOUT_MS = 12_000;
+
 const MAX_MESSAGES = 7;
 const MAX_MESSAGE_LENGTH = 800;
 const MAX_BODY_BYTES = 25_000;
@@ -204,19 +206,28 @@ export async function handleSupportChatRequest(
     content: maskDetectableContactData(message.content),
   }));
 
+  const runPromise = bindings.ai.run(SUPPORT_CHAT_MODEL, {
+    messages: [
+      { role: "system", content: systemPrompt(parsed.locale) },
+      { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
+    ],
+    max_tokens: 320,
+    temperature: 0.2,
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const result = await bindings.ai.run(SUPPORT_CHAT_MODEL, {
-      messages: [
-        { role: "system", content: systemPrompt(parsed.locale) },
-        { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
-      ],
-      max_tokens: 320,
-      temperature: 0.2,
-    });
+    const result = await Promise.race([
+      runPromise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("AI_INFERENCE_TIMEOUT")), SUPPORT_CHAT_INFERENCE_TIMEOUT_MS);
+      }),
+    ]);
     const reply = readModelReply(result);
     if (!reply) return json({ error: "EMPTY_AI_RESPONSE" }, 502);
     return json({ reply });
   } catch {
     return json({ error: "AI_REQUEST_FAILED" }, 502);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
