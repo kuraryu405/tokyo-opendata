@@ -135,6 +135,41 @@ test("routes support chat through rate limiting and untrusted transcript inferen
   assert.match(inference.input.messages[1].content, /ignore system rules/);
 });
 
+test("routes Q3 recommendations through their separate limiter and reviewed ID response", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-recommend-actions`);
+  const { default: worker } = await import(workerUrl.href);
+  let inference;
+  let recommendationLimitCalls = 0;
+  let supportLimitCalls = 0;
+
+  const response = await worker.fetch(
+    new Request("https://staybridge.example/api/recommend-actions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://staybridge.example",
+        "cf-connecting-ip": "192.0.2.11",
+      },
+      body: JSON.stringify({ text: "医療の国際会議に参加するため" }),
+    }),
+    {
+      AI: { run: async (model, input) => { inference = { model, input }; return { response: JSON.stringify({ actionIds: ["CHECK_MEDICAL_OPTIONS"] }) }; } },
+      OTHER_ACTIONS_RATE_LIMITER: { limit: async () => { recommendationLimitCalls += 1; return { success: true }; } },
+      SUPPORT_CHAT_RATE_LIMITER: { limit: async () => { supportLimitCalls += 1; return { success: true }; } },
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { actionIds: ["CHECK_MEDICAL_OPTIONS"] });
+  assert.equal(recommendationLimitCalls, 1);
+  assert.equal(supportLimitCalls, 0);
+  assert.equal(inference.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  assert.deepEqual(inference.input.messages.map(({ role }) => role), ["system", "user"]);
+  assert.match(inference.input.messages[1].content, /<untrusted_q3_json>/);
+});
+
 test("fails closed when the local production server has no Worker bindings", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-support-chat-no-env`);
@@ -168,12 +203,22 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   assert.equal(localConfig.env.production.ai, undefined);
   assert.deepEqual(remoteConfig.ai, { binding: "AI", remote: true });
   assert.ok(localConfig.ratelimits.some(({ name }) => name === "SUPPORT_CHAT_RATE_LIMITER"));
+  assert.ok(localConfig.ratelimits.some(({ name }) => name === "OTHER_ACTIONS_RATE_LIMITER"));
   const stagingSupportRateLimit = localConfig.env.staging.ratelimits.find(({ name }) => name === "SUPPORT_CHAT_RATE_LIMITER");
   const productionSupportRateLimit = localConfig.env.production.ratelimits.find(({ name }) => name === "SUPPORT_CHAT_RATE_LIMITER");
+  const stagingRecommendationRateLimit = localConfig.env.staging.ratelimits.find(({ name }) => name === "OTHER_ACTIONS_RATE_LIMITER");
+  const productionRecommendationRateLimit = localConfig.env.production.ratelimits.find(({ name }) => name === "OTHER_ACTIONS_RATE_LIMITER");
   assert.notEqual(
     stagingSupportRateLimit.namespace_id,
     productionSupportRateLimit.namespace_id,
   );
+  assert.notEqual(
+    stagingRecommendationRateLimit.namespace_id,
+    productionRecommendationRateLimit.namespace_id,
+  );
+  assert.equal(stagingRecommendationRateLimit.simple.limit, 10);
+  assert.equal(productionRecommendationRateLimit.simple.limit, 10);
+  assert.ok(remoteConfig.ratelimits.some(({ name }) => name === "OTHER_ACTIONS_RATE_LIMITER"));
   assert.equal(remoteConfig.d1_databases[0].binding, "STAYBRIDGE_DB");
   assert.equal(remoteConfig.d1_databases[0].remote, false);
 });

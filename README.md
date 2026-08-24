@@ -18,7 +18,7 @@
 
 Node.js 22.13 以上が必要です。
 
-技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。主要導線は静的データとRule Engineで動き、ログインやAIを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があり、任意の相談内容の整理にだけCloudflare Workers AIを使用します。
+技術スタックは Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、Vinext/Vite、Vitest です。主要導線は静的データとRule Engineで動き、ログインやAIを必要としません。Worker のバックエンド共通基盤にはローカル既定の Cloudflare D1 Binding があり、Cloudflare Workers AIはQUESTION 03「その他」の既存カード分類と、任意の相談内容整理だけに使用します。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -46,7 +46,11 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ## AI相談（Cloudflare Workers AI）と翻訳モック
 
-「あなたの次のステップ」画面では、ロードマップの横にCloudflare Workers AIチャットを常時表示し、質問例または自由入力から、公式窓口に伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。状況確認の回答はAIへ自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
+QUESTION 01・02・03・07で「その他」を選ぶと、100 / 100 / 300 / 100文字の自由記述が必須になります。QUESTION 03の記述だけを `POST /api/recommend-actions` へ送り、Workers AIはレビュー済みallowlistのAction IDを0〜3件返します。サーバーとクライアントが、配列、ID、重複、3件上限をそれぞれ検証します。結果は固定Rule Engineのカードへ重複排除して追加するだけで、ルールカードを削除・置換・優先度変更しません。障害、不正応答、timeout、回答変更後の遅延応答は破棄し、Rule Engineだけで完了します。
+
+自由記述と同じQUESTION 03入力から得たAction IDはversion 4のtab限定`sessionStorage`へ保存します。QUESTION 03を変更した時点で推論をabortし、派生IDを無効化します。QUESTION 01・02・07の記述はAIへ送らず、4項目すべてを端末内の回答要約へ反映します。画面では氏名、連絡先、旅券・在留カード番号、正確な住所、施設名、家族の氏名を入力しないよう案内します。
+
+「あなたの次のステップ」画面では、ロードマップの横にCloudflare Workers AIチャットを常時表示し、質問例または自由入力から、公式窓口に伝える内容・確認する質問を整理できます。在留・就労・就学・給付などの可否は判定せず、AIが利用できない場合もRule Engine、地域情報、公式相談先、相談サマリーはそのまま利用できます。相談チャットへ状況確認の回答を自動送信せず、チャットに入力した会話だけを返信生成のために送信します。
 
 ### AI相談の実装仕様
 
@@ -58,7 +62,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 - Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。`cf-connecting-ip` 単位で60秒あたり20回に制限し、応答には `Cache-Control: no-store` を付けます。
 - Workers AI未接続、推論失敗、空応答、レート超過時はチャット内に公式相談先を使う案内を表示します。AI障害によってロードマップなどの主要機能は停止しません。
 
-本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER` bindingと併用します。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
+本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER` と `OTHER_ACTIONS_RATE_LIMITER` を別契約で併用します。Q3分類はIP単位で60秒あたり10回、チャットは60秒あたり20回で、互いのquotaを共有しません。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
 
 ```bash
 pnpm --filter @staybridge/user exec wrangler deploy --dry-run
@@ -70,9 +74,11 @@ pnpm --filter @staybridge/user exec wrangler deploy --dry-run
 
 「あなたの次のステップ」は、型付きの静的Action Cardカタログから表示します。カード本文を実行時に生成せず、安定したID、注意事項、Source Registryの出典、CTA遷移、レビュー期限を管理します。未レビュー・期限切れ・出典不明のカードは表示せず、公式相談先へfallbackします。カード一覧と更新手順は [docs/action-card-catalog.md](docs/action-card-catalog.md) を参照してください。
 
-カード選定は [固定Rule Engine](docs/rule-engine.md) を正とします。Rule ID、回答コード、除外条件、priority、timing、reason codeを表で管理し、同じAction IDは最高priority、同点はRule ID順で1枚に解決します。評価日は東京日付を `asOfDate` として注入するため、AI/API/D1や実行時時計がなくても同じ入力から同じ順序・理由を再現できます。「なぜこの案内？」には採用Rule IDと回答コードを表示します。
+カード選定は [固定Rule Engine](docs/rule-engine.md) を正とします。Rule ID、回答コード、除外条件、priority、timing、reason codeを表で管理し、同じAction IDは最高priority、同点はRule ID順で1枚に解決します。評価日は東京日付を `asOfDate` として注入するため、AI/API/D1や実行時時計がなくても同じ入力から同じ順序・理由を再現できます。Q3分類はこの決定結果の後段で、現在も公開可能な既存カードだけをpriority 55で追加します。同一IDがルールにあればルール側の根拠とpriorityをそのまま採用します。
 
 ## データ
+
+QUESTION 03のAI補助分類はD1を使用せず、自由記述や返却されたAction IDをサーバーへ保存しません。QUESTION 01・02・03・07の自由記述は、tab限定の端末内セッションと相談サマリーだけに保持します。
 
 実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。
 

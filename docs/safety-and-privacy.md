@@ -6,11 +6,17 @@ StayBridge Tokyo は在留延長、在留資格変更、難民・補完的保護
 
 ## AI limitations and traceability
 
-主要導線はRule Engineで動作し、Actionは採用回答コード、安定したRule ID、Action ID、Source Registry出典を追跡できる。Action Cardの本文・注意事項・CTAはレビュー期限を持つ静的カタログで管理し、実行時に生成しない。未レビュー、期限切れ、出典不明のカードは表示せず、公式相談先へfallbackする。AIは公式窓口で何を伝え、何を確認するかの整理だけに使い、在留・就労・就学・給付などの可否や母国の安全性は判定させない。AI出力が固定ルールのカードを削除・上書き・並べ替えることはなく、AI障害時も同じRoadmap、理由、Local Action、Handoffを表示する。
+QUESTION 01・02・03・07の「その他」は端末内セッションと相談サマリーだけに保持し、QUESTION 03の自由記述だけを既存Action Cardの補助分類へ送る。分類結果はレビュー済みallowlist内のAction IDを最大3件とし、サーバーとクライアントの双方で配列全体を検証する。AIが返した本文をカードとして表示せず、固定Rule Engineのカードを削除・置換・並べ替えない。失敗、不正応答、timeout、QUESTION 03の変更後に届いた遅延応答は破棄し、AI由来カードを含まないRule EngineのみのRoadmapを表示する。
+
+補助分類の `POST /api/recommend-actions` と任意相談の `POST /api/support-chat` は、同じWorkers AI bindingを利用してもroute、request schema、prompt、rate-limit bindingを分離する。補助分類には会話履歴を送らず、相談チャットにはSituation Checkの回答を自動送信しない。
+
+主要導線はRule Engineで動作し、Actionは採用回答コード、安定したRule ID、Action ID、Source Registry出典を追跡できる。Action Cardの本文・注意事項・CTAはレビュー期限を持つ静的カタログで管理し、実行時に生成しない。未レビュー、期限切れ、出典不明のカードは表示せず、公式相談先へfallbackする。AIは公式窓口で何を伝え、何を確認するかの整理だけに使い、在留・就労・就学・給付などの可否や母国の安全性は判定させない。AI出力が固定ルールのカードを削除・上書き・並べ替えることはなく、AI障害時もRule EngineのみのRoadmap、理由、Local Action、Handoffを表示する。
 
 AIチャットにはSituation Checkの回答を自動送信しない。ユーザーがチャット欄へ入力した会話だけをCloudflare Workers AIへ送信し、公開routeは推論結果を返すだけでD1へ自動保存しない。クライアントが付けた `assistant` roleも信頼せず、全履歴を区切られたJSON transcriptとして単一のuser messageへ格納する。入力前に個人情報を記載しないよう明示し、氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は求めない。サーバー側では同一オリジン、入力長・履歴件数、レート制限を検証し、rate-limit bindingがない場合は推論せず503を返す。Roadmapの会話保存同意は将来の保存設定であり、現時点で会話が保存済みとは表示しない。
 
 ## Minimal data
+
+自由記述には氏名、連絡先、旅券・在留カード番号、正確な住所、施設名、家族の氏名を書かないよう各対応画面で案内する。「その他」の4回答はD1のSituation保存対象から除外し、補助分類routeもrequest bodyや推論結果をD1へ保存せず `Cache-Control: no-store` で返す。
 
 ログイン不要。氏名、連絡先、旅券・在留カード番号、画像、正確な住所、母国住所、政治・宗教・政党、政治活動、迫害内容を求めない。国籍・地域の回答は相談サマリー以外のカード選定に使わない。位置情報は任意で、未許可でも自治体単位で使える。端末内セッション保存とサーバー保存は別物である。POST前に生成したidempotency keyと削除コードはtab限定`sessionStorage`へ保存し、応答不明時もreload後の再試行で同じ値を使う。保存済み・送信結果不明のSituationがある間は、回答変更routeと端末データ消去をサーバー記録の状態が解決するまでblockする。
 

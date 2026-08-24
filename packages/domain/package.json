@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     "./action-catalog": "./src/action-catalog.ts",
+    "./ai-actions": "./src/ai-actions.ts",
     "./selection-coverage": "./src/selection-coverage.ts",
     "./demo": "./src/demo.ts",
     "./rules": "./src/rules.ts",

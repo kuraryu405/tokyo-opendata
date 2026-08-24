@@ -176,6 +176,12 @@ The receiving `acceptance.yml` accepts the same values through
 operator reruns and backwards compatibility; those paths are separate from the
 automated release contract.
 
+### QUESTION 03 AI補助分類のブラウザ確認
+
+Issue #56の利用者向け変更は、実際の公開URLでPC幅と390px幅を確認する。外部E2Eでは `ja` / `en` / `my` を対象に、QUESTION 01・02・03・07で「その他」を選ぶと対応するtextarea、文字数上限、個人情報を入力しない案内が表示され、空白だけでは「次へ」が押せないことを実クリックで検証する。各回答は相談サマリーにも表示されることを確認する。
+
+`POST /api/recommend-actions` はブラウザ側でinterceptし、bodyがQUESTION 03のtrim済み文字列だけを含む `{ "text": "..." }` で、他の3項目を含まないことを検証する。有効なallowlist IDを返した場合はRule Engineのカードを残したままAI由来カードが重複なく追加されること、502・不正JSON・allowlist外ID・8秒超の応答ではRule Engineだけで完了することを確認する。応答待ちに戻る、QUESTION 03を書き換える、再読込する、最初からやり直す各操作では、古い応答や保存済み派生IDが復活しないことも確認する。
+
 ## Local verification without deployment
 
 Run the normal checks and build both apps. The generated configuration can be

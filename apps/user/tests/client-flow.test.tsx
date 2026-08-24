@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -80,6 +80,19 @@ function restoreCompleteDemoSession() {
     stayAnswer: "unknown",
     familyAnswers: ["children"],
     answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+  }));
+}
+
+function restoreQ3OtherSession(actionIds: Array<"CHECK_LIVING_COST_SUPPORT"> = []) {
+  const input = "国際会議へ参加するため";
+  sessionStorage.setItem("staybridge.session", serializeStoredSession({
+    provenance: "user",
+    situation: { ...demoSituation, visitPurpose: "other" },
+    stayAnswer: "unknown",
+    familyAnswers: ["children"],
+    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    otherAnswers: { area: "", nationality: "", visitPurpose: input, family: "" },
+    aiRecommendation: actionIds.length ? { input, actionIds } : null,
   }));
 }
 
@@ -188,11 +201,11 @@ describe("StayBridge client flow", () => {
     expect((saveButton as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/デモ回答は支援ニーズデータへ保存できません/)).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 3, provenance: "demo" });
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 4, provenance: "demo" });
 
     navigation.reset("/ja/check?step=0");
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
-    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 3, provenance: "demo" });
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 4, provenance: "demo" });
     expect((screen.getByRole("button", { name: "同意して保存" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -265,7 +278,7 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByRole("button", { name: "同意して保存" })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
 
-    for (const answer of ["その他", "仕事", "3か月以内", "帰国できる", "書類を確認したい"] as const) {
+    for (const answer of ["ミャンマー", "仕事", "3か月以内", "帰国できる", "書類を確認したい"] as const) {
       await user.click(screen.getByRole("radio", { name: answer }));
       await user.click(screen.getByRole("button", { name: /次へ/ }));
     }
@@ -505,6 +518,246 @@ describe("StayBridge client flow", () => {
     expect((consultationNeed as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole("button", { name: "次へ" }));
     expect((screen.getByRole("radio", { name: "ほとんど話せない" }) as HTMLInputElement).checked).toBe(false);
+  });
+
+  it.each(selectableUserLocales)("shows localized required/privacy hierarchy for Q1 Other in %s", async (locale) => {
+    const messages = getUserMessages(locale);
+    navigation.reset(`/${locale}/check?step=0`);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    const otherLabel = messages.questions[0][2].find(([value]) => value === "Other")?.[1] ?? "";
+    await user.click(await screen.findByRole("radio", { name: otherLabel }));
+    const textarea = screen.getByRole("textbox", { name: messages.otherAnswers.area.label }) as HTMLTextAreaElement;
+    expect(textarea.maxLength).toBe(100);
+    expect(textarea.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText(messages.otherAnswers.area.notice)).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe(messages.otherAnswers.area.required);
+    expect((screen.getByRole("button", { name: new RegExp(messages.ui.next) }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("collects Q1/Q2/Q3/Q7 Other text, sends only Q3, and unions an allowlisted AI card", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      actionIds: ["CHECK_MEDICAL_OPTIONS", "CONTACT_OFFICIAL_SUPPORT"],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    await user.click(screen.getByRole("button", { name: "今の状況を確認する" }));
+    await user.click(screen.getByRole("radio", { name: "その他" }));
+    expect((screen.getByRole("button", { name: "次へ" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.type(screen.getByRole("textbox", { name: "滞在している区市町村を入力" }), "世田谷区");
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+
+    await user.click(screen.getByRole("radio", { name: "その他" }));
+    await user.type(screen.getByRole("textbox", { name: "国籍または地域を入力" }), "タイ");
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+
+    await user.click(screen.getByRole("radio", { name: "その他" }));
+    const q3 = screen.getByRole("textbox", { name: "その他の来日目的を入力" }) as HTMLTextAreaElement;
+    expect(q3.maxLength).toBe(300);
+    expect(screen.getByText(/この内容だけをCloudflare Workers AIへ送ります/)).toBeTruthy();
+    await user.type(q3, "医療に関する国際会議へ参加するため");
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+
+    for (const answer of ["3か月以内", "帰国できる", "書類を確認したい"] as const) {
+      await user.click(screen.getByRole("radio", { name: answer }));
+      await user.click(screen.getByRole("button", { name: "次へ" }));
+    }
+    await user.click(screen.getByRole("checkbox", { name: "その他家族がいる" }));
+    const q7 = screen.getByRole("textbox", { name: "一緒にいるその他の家族を入力" }) as HTMLTextAreaElement;
+    expect(q7.maxLength).toBe(100);
+    await user.type(q7, "親");
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    await user.click(screen.getByRole("radio", { name: "賃貸住宅" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    await user.click(screen.getByRole("checkbox", { name: "相談先" }));
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    await user.click(screen.getByRole("radio", { name: "日常会話ができる" }));
+    await user.click(screen.getByRole("button", { name: "状況を整理する" }));
+
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/recommend-actions");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ text: "医療に関する国際会議へ参加するため" });
+    expect(String(fetchMock.mock.calls[0][1]?.body)).not.toContain("世田谷区");
+    expect(String(fetchMock.mock.calls[0][1]?.body)).not.toContain("タイ");
+    expect(String(fetchMock.mock.calls[0][1]?.body)).not.toContain("親");
+    for (const summaryText of ["地域: 世田谷区", "国籍・地域: タイ", "その他: 医療に関する国際会議へ参加するため", "その他家族がいる: 親"]) {
+      expect(screen.getByText(summaryText)).toBeTruthy();
+    }
+
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(screen.getByRole("heading", { name: "医療を受けられる場所を確認する" })).toBeTruthy();
+    expect(screen.getAllByRole("heading", { name: "専門の相談窓口へ相談する" })).toHaveLength(1);
+    const stored = JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}") as Record<string, unknown>;
+    expect(stored).toMatchObject({
+      version: 4,
+      otherAnswers: { area: "世田谷区", nationality: "タイ", visitPurpose: "医療に関する国際会議へ参加するため", family: "親" },
+      aiRecommendation: { input: "医療に関する国際会議へ参加するため", actionIds: ["CHECK_MEDICAL_OPTIONS", "CONTACT_OFFICIAL_SUPPORT"] },
+    });
+  });
+
+  it.each([
+    ["request failure", new Response(JSON.stringify({ error: "AI_REQUEST_FAILED" }), { status: 502, headers: { "content-type": "application/json" } })],
+    ["invalid client payload", new Response(JSON.stringify({ actionIds: ["NOT_ALLOWED"] }), { status: 200, headers: { "content-type": "application/json" } })],
+  ] as const)("falls back to Rule Engine cards after %s", async (_label, response) => {
+    navigation.reset("/ja/check?step=9");
+    restoreQ3OtherSession();
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(response));
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    await user.click(await screen.findByRole("button", { name: "状況を整理する" }));
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(screen.getByRole("heading", { name: "専門の相談窓口へ相談する" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+  });
+
+  it("aborts a pending recommendation when leaving the final question and ignores the late result", async () => {
+    navigation.reset("/ja/check?step=9");
+    restoreQ3OtherSession();
+    let releaseFetch: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(
+      () => new Promise<Response>((resolve) => { releaseFetch = resolve; }),
+    ));
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    await user.click(await screen.findByRole("button", { name: "状況を整理する" }));
+    expect(screen.getByRole("button", { name: "次のステップを準備しています" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /戻る/ }));
+    expect(navigation.path()).toBe("/ja/check?step=8");
+
+    releaseFetch?.(new Response(JSON.stringify({ actionIds: ["CHECK_LIVING_COST_SUPPORT"] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=8"));
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+  });
+
+  it("falls back to Rule Engine-only cards when the client timeout reaches eight seconds", async () => {
+    vi.useFakeTimers();
+    navigation.reset("/ja/check?step=9");
+    restoreQ3OtherSession(["CHECK_LIVING_COST_SUPPORT"]);
+    let capturedSignal: AbortSignal | undefined;
+    let releaseFetch: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      capturedSignal = init?.signal ?? undefined;
+      return new Promise<Response>((resolve) => { releaseFetch = resolve; });
+    }));
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "状況を整理する" }));
+    expect(screen.getByRole("button", { name: "次のステップを準備しています" })).toBeTruthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7_999);
+    });
+    expect(navigation.path()).toBe("/ja/check?step=9");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(navigation.path()).toBe("/ja/status");
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+    await act(async () => {
+      releaseFetch?.(new Response(JSON.stringify({ actionIds: ["CHECK_LIVING_COST_SUPPORT"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+      await Promise.resolve();
+    });
+    expect(navigation.path()).toBe("/ja/status");
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+    fireEvent.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(screen.getByRole("heading", { name: "専門の相談窓口へ相談する" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+  });
+
+  it("ignores a delayed result after unmount and reloads without AI-derived cards", async () => {
+    navigation.reset("/ja/check?step=9");
+    restoreQ3OtherSession(["CHECK_LIVING_COST_SUPPORT"]);
+    let capturedSignal: AbortSignal | undefined;
+    let releaseFetch: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      capturedSignal = init?.signal ?? undefined;
+      return new Promise<Response>((resolve) => { releaseFetch = resolve; });
+    }));
+    const firstRender = render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "状況を整理する" }));
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+    firstRender.unmount();
+    expect(capturedSignal?.aborted).toBe(true);
+    await act(async () => {
+      releaseFetch?.(new Response(JSON.stringify({ actionIds: ["CHECK_LIVING_COST_SUPPORT"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
+    navigation.reset("/ja/roadmap");
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+  });
+
+  it("ignores a delayed result after restart and does not recreate the cleared session", async () => {
+    navigation.reset("/ja/check?step=9");
+    restoreQ3OtherSession(["CHECK_LIVING_COST_SUPPORT"]);
+    let capturedSignal: AbortSignal | undefined;
+    let releaseFetch: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      capturedSignal = init?.signal ?? undefined;
+      return new Promise<Response>((resolve) => { releaseFetch = resolve; });
+    }));
+    const firstRender = render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "状況を整理する" }));
+    fireEvent.click(screen.getByRole("button", { name: /最初からやり直す/ }));
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(navigation.path()).toBe("/ja/check?step=0");
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    await act(async () => {
+      releaseFetch?.(new Response(JSON.stringify({ actionIds: ["CHECK_LIVING_COST_SUPPORT"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+    firstRender.unmount();
+    navigation.reset("/ja/roadmap");
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+    expect(navigation.path()).toBe("/ja/check?step=0");
+    expect(screen.getByRole("heading", { name: "今、東京のどの地域に滞在していますか？" })).toBeTruthy();
+  });
+
+  it("invalidates restored AI cards as soon as Q3 text changes", async () => {
+    restoreQ3OtherSession(["CHECK_LIVING_COST_SUPPORT"]);
+    navigation.reset("/ja/roadmap");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-24" />);
+
+    expect(await screen.findByRole("heading", { name: "当面の生活費について相談する" })).toBeTruthy();
+    navigation.reset("/ja/check?step=2");
+    const q3 = await screen.findByRole("textbox", { name: "その他の来日目的を入力" });
+    await user.clear(q3);
+    await user.type(q3, "別のイベントへ参加するため");
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+
+    expect(await screen.findByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
   });
 
   it("keeps completed answers navigable without a landing start button", async () => {
@@ -1255,6 +1508,8 @@ describe("StayBridge client flow", () => {
       "stayAnswer",
       "familyAnswers",
       "answeredSteps",
+      "otherAnswers",
+      "aiRecommendation",
     ]);
     expect(storedSession).not.toHaveProperty("locale");
     expect(storedSession).not.toHaveProperty("screen");

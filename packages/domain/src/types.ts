@@ -73,9 +73,11 @@ export type Action = {
   shortDescription: string;
   reasonCode: string;
   reasonText: string;
-  ruleId: import("./rules").RuleId;
+  /** Null only for a reviewed catalogue card added by the Q3 classifier. */
+  ruleId: import("./rules").RuleId | null;
   matchedRuleIds: import("./rules").RuleId[];
   answerCodes: string[];
+  selectionSource: "rule" | "ai";
   sourceIds: string[];
   localResourceCategories?: LocalResourceCategory[];
   humanReviewRequired: boolean;

@@ -16,6 +16,11 @@
       "name": "SUPPORT_CHAT_RATE_LIMITER",
       "namespace_id": "202608230020",
       "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "OTHER_ACTIONS_RATE_LIMITER",
+      "namespace_id": "20260823005601",
+      "simple": { "limit": 10, "period": 60 }
     }
   ],
   "d1_databases": [
@@ -40,6 +45,11 @@
           "name": "SUPPORT_CHAT_RATE_LIMITER",
           "namespace_id": "202608230021",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "OTHER_ACTIONS_RATE_LIMITER",
+          "namespace_id": "20260823005611",
+          "simple": { "limit": 10, "period": 60 }
         }
       ],
       "d1_databases": [
@@ -63,6 +73,11 @@
           "name": "SUPPORT_CHAT_RATE_LIMITER",
           "namespace_id": "202608230022",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "OTHER_ACTIONS_RATE_LIMITER",
+          "namespace_id": "20260823005621",
+          "simple": { "limit": 10, "period": 60 }
         }
       ],
       "d1_databases": [
