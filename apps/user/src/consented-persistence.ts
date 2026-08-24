@@ -63,6 +63,7 @@ export async function saveSituationSubmission(
   situation: Situation,
   secrets: SituationSubmissionSecrets,
 ): Promise<SavedRecordCredentials> {
+  const capability = await issueSituationSubmissionCapability();
   const response = await fetch("/api/situation-submissions", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -70,6 +71,7 @@ export async function saveSituationSubmission(
       consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
       idempotencyKey: secrets.idempotencyKey,
       deletionToken: secrets.deletionToken,
+      capability,
       answers: {
         municipalityCode: municipalityCodes[situation.currentMunicipality] ?? null,
         visitPurpose: situation.visitPurpose,
@@ -89,6 +91,17 @@ export async function saveSituationSubmission(
   });
   if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
   return credentials;
+}
+
+async function issueSituationSubmissionCapability(): Promise<string> {
+  const response = await fetch("/api/situation-submission-capabilities", { method: "POST" });
+  const body = await readSuccessBody(response);
+  if (
+    typeof body?.capability !== "string"
+    || body.capability.length < 32
+    || body.capability.length > 1_024
+  ) throw new Error("SITUATION_CAPABILITY_FAILED");
+  return body.capability;
 }
 
 export async function deleteSituationSubmission(

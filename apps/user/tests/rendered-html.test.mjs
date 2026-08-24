@@ -35,6 +35,7 @@ async function callBuiltWorker(request) {
   return worker.fetch(request, {
     STAYBRIDGE_DB: {},
     PERSISTENCE_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    SITUATION_CAPABILITY_SECRET: "built-worker-test-secret-is-at-least-32-characters",
     ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
     IMAGES: { input() { throw new Error("Image binding should not be used during API tests"); } },
   }, { waitUntil() {}, passThroughOnException() {} });
@@ -176,6 +177,10 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   );
   assert.equal(remoteConfig.d1_databases[0].binding, "STAYBRIDGE_DB");
   assert.equal(remoteConfig.d1_databases[0].remote, false);
+  assert.deepEqual(
+    remoteConfig.ratelimits.find(({ name }) => name === "PERSISTENCE_RATE_LIMITER")?.simple,
+    { limit: 20, period: 60 },
+  );
 });
 
 test("links to the municipality app through the local default URL", async () => {
@@ -252,7 +257,7 @@ test("routes the compiled Worker persistence API without exposing a conversation
 
   const wrongTypeResponse = await callBuiltWorker(new Request(
     "https://staybridge.example/api/situation-submissions",
-    { method: "POST", body: "{}" },
+    { method: "POST", headers: { origin: "https://staybridge.example" }, body: "{}" },
   ));
   assert.equal(wrongTypeResponse.status, 415);
 

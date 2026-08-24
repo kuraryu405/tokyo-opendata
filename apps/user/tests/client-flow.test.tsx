@@ -83,6 +83,15 @@ function restoreCompleteDemoSession() {
   }));
 }
 
+const testSubmissionCapability = `cap_${"A".repeat(43)}`;
+
+function capabilityResponse(capability = testSubmissionCapability): Response {
+  return new Response(JSON.stringify({
+    ok: true,
+    data: { capability, expiresAt: "2026-08-24T10:05:00.000Z" },
+  }), { status: 201, headers: { "content-type": "application/json" } });
+}
+
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -152,18 +161,21 @@ describe("StayBridge client flow", () => {
   it("saves only allowlisted Situation fields after separate explicit consent", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_11111111-1111-4111-8111-111111111111", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_11111111-1111-4111-8111-111111111111", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     expect(await screen.findByRole("heading", { name: "削除に必要な情報" })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const request = fetchMock.mock.calls[0];
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
+    const request = fetchMock.mock.calls[1];
     expect(request[0]).toBe("/api/situation-submissions");
     const options = request[1] as RequestInit;
     const body = JSON.parse(String(options.body)) as Record<string, unknown>;
@@ -174,6 +186,7 @@ describe("StayBridge client flow", () => {
     expect(answers).not.toHaveProperty("stayDeadlineKnown");
     expect(answers).not.toHaveProperty("visitPurposeOther");
     expect(String(body.deletionToken)).toHaveLength(43);
+    expect(body.capability).toBe(testSubmissionCapability);
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_11111111");
   });
 
@@ -241,10 +254,12 @@ describe("StayBridge client flow", () => {
   });
 
   it("clears every demo answer before review and enables saving only after a complete real questionnaire", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_77777777-7777-4777-8777-777777777777", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_77777777-7777-4777-8777-777777777777", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -282,8 +297,8 @@ describe("StayBridge client flow", () => {
     expect((saveButton as HTMLButtonElement).disabled).toBe(false);
     await user.click(saveButton);
     await screen.findByRole("heading", { name: "削除に必要な情報" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { answers: { municipalityCode: string } };
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as { answers: { municipalityCode: string } };
     expect(body.answers.municipalityCode).toBe("13104");
   });
 
@@ -300,6 +315,8 @@ describe("StayBridge client flow", () => {
 
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
 
@@ -312,6 +329,7 @@ describe("StayBridge client flow", () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         data: { id: "sit_22222222-2222-4222-8222-222222222222", created: true },
@@ -327,8 +345,8 @@ describe("StayBridge client flow", () => {
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     await user.click(await screen.findByRole("button", { name: "このサーバー記録を削除" }));
     expect(await screen.findByText("サーバー記録を削除しました。")).toBeTruthy();
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/situation-submissions/sit_22222222-2222-4222-8222-222222222222");
-    const headers = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/situation-submissions/sit_22222222-2222-4222-8222-222222222222");
+    const headers = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
     expect(headers.authorization).toMatch(/^Bearer [A-Za-z0-9_-]{43}$/);
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
   });
@@ -336,10 +354,12 @@ describe("StayBridge client flow", () => {
   it("restores deletion credentials across remounts and blocks answer reset until server deletion", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_44444444-4444-4444-8444-444444444444", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_44444444-4444-4444-8444-444444444444", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const firstRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -360,7 +380,9 @@ describe("StayBridge client flow", () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse(`cap_${"A".repeat(43)}`))
       .mockRejectedValueOnce(new TypeError("response lost after request"))
+      .mockResolvedValueOnce(capabilityResponse(`cap_${"B".repeat(43)}`))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         data: { id: "sit_33333333-3333-4333-8333-333333333333", created: false },
@@ -373,7 +395,8 @@ describe("StayBridge client flow", () => {
     await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
     const pendingBeforeReload = sessionStorage.getItem("staybridge.pending-situation-submission");
     expect(pendingBeforeReload).toBeTruthy();
-    const firstBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    expect(Object.keys(JSON.parse(pendingBeforeReload ?? "{}")).sort()).toEqual(["deletionToken", "idempotencyKey"]);
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
 
     firstRender.unmount();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -381,10 +404,11 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "同意して保存" }));
     await screen.findByRole("heading", { name: "削除に必要な情報" });
 
-    const retryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body)) as Record<string, unknown>;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey);
     expect(retryBody.deletionToken).toBe(firstBody.deletionToken);
+    expect(retryBody.capability).not.toBe(firstBody.capability);
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_33333333");
   });

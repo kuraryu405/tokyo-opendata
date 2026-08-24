@@ -11,7 +11,7 @@
 |Open data|東京都北区 / [北区オープンデータ「自治体標準オープンデータセット」](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html) / [配布ZIP](https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip) 内の子育て施設一覧CSV|Local Actionの子ども施設|利用者|[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。元 ZIP から一部選定・Common Schemaへ正規化した2026-08-23取得の3件キャッシュ。現在のプログラム・対象・空き・言語対応は要確認|
 |Open data|東京都北区 / [北区オープンデータ「自治体標準オープンデータセット」](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html) / [配布ZIP](https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip) 内の公共施設一覧CSV|Local Actionの公共施設|利用者|[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。元 ZIP から一部選定・Common Schemaへ正規化した2026-08-23取得の2件キャッシュ。利用条件・現在のサービス・言語対応は要確認|
 |Demo fixture|架空Persona AとSituation回答|画面・ルール・デモの安定動作|両方|実在人物・個別ケースを表さない|
-|Voluntary service response|同意済み` situation_submissions `の匿名集計|Crisis Viewの任意回答傾向|行政|Open Dataではない。自治体13117・東京暦の直近7/30/90日・1軸のみ。全体・カテゴリとも5件未満を非表示。会話・個票を使わず、人口・不足・優先度・能力を示さない。|
+|Voluntary service response|同意済みかつcapability検証済み`accepted`の` situation_submissions `匿名集計|Crisis Viewの任意回答傾向|行政|Open Dataではない。`quarantined`は除外。自治体13117・東京暦の直近7/30/90日・1軸のみ。全体・カテゴリとも5件未満を非表示。会話・個票を使わず、人口・不足・優先度・能力を示さない。|
 
 形式は Raw Open Data → Adapter → Normalizer → Common Schema とする。`pnpm data:fetch` は北区オープンデータの配布CSV/ZIPと東京都の人口CSVを取得して、レビュー可能なJSONキャッシュを生成する。Sourceにはタイトル、提供者、カタログURL、配布URL、種別、カテゴリ、更新日、取得日、ライセンス、ライセンスURL、選定・正規化などの変更メタデータ、注記を持たせる。取得日は配布物を取得した日であり、内容を人手確認した日（`verifiedAt`）ではない。数値・施設情報・対応範囲の根拠は必ず該当metadataへ遡れるようにする。施設カードの名称・自治体・住所・電話・座標は生成キャッシュから表示し、翻訳カタログには安全上の説明文のみを置く。
 

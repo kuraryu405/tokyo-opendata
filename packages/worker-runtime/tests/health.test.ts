@@ -128,14 +128,21 @@ const municipalitySchema = {
       "id", "consent_version", "consented_at", "municipality_code", "visit_purpose",
       "departure_window", "return_status", "family_age_groups_json", "accommodation",
       "needs_json", "japanese_level", "deletion_token_hash", "idempotency_key_hash",
-      "payload_hash", "created_at",
+      "payload_hash", "created_at", "contribution_state", "capability_nonce_hash",
     ],
-    uniqueIndexes: [["idempotency_key_hash"]],
+    uniqueIndexes: [["idempotency_key_hash"], ["capability_nonce_hash"]],
   },
 } as const;
 
 const userSchema = {
   ...municipalitySchema,
+  situation_submission_capabilities: {
+    columns: [
+      "nonce_hash", "capability_version", "scope", "expires_at", "issued_at",
+      "consumed_at", "consumed_idempotency_key_hash",
+    ],
+    uniqueIndexes: [["nonce_hash"]],
+  },
   conversations: {
     columns: [
       "id", "consent_version", "consented_at", "model_id", "deletion_token_hash",
@@ -152,9 +159,14 @@ const userSchema = {
   },
 } as const;
 
+const readinessCapabilitySecret = "readiness-test-capability-secret-2026";
+
 test("reports schema-complete user readiness through the success envelope", async () => {
   const response = await createReadinessResponse(
-    { STAYBRIDGE_DB: readinessDatabase(userSchema) },
+    {
+      STAYBRIDGE_DB: readinessDatabase(userSchema),
+      SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret,
+    },
     "user",
   );
 
@@ -167,7 +179,10 @@ test("reports schema-complete user readiness through the success envelope", asyn
 
 test("reports an empty database as not ready", async () => {
   const response = await createReadinessResponse(
-    { STAYBRIDGE_DB: readinessDatabase({}) },
+    {
+      STAYBRIDGE_DB: readinessDatabase({}),
+      SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret,
+    },
     "user",
   );
 
@@ -177,7 +192,7 @@ test("reports an empty database as not ready", async () => {
 test("requires only the crisis-needs tables for the municipality service", async () => {
   const database = readinessDatabase(municipalitySchema);
   const userResponse = await createReadinessResponse(
-    { STAYBRIDGE_DB: database },
+    { STAYBRIDGE_DB: database, SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret },
     "user",
   );
   const municipalityResponse = await createReadinessResponse(
@@ -229,14 +244,22 @@ test("rejects a schema without the migration's unique or foreign-key constraints
     ...userSchema,
     conversation_messages: { ...userSchema.conversation_messages, foreignKeys: [] },
   };
+  const withoutCapabilityNonceUnique = {
+    ...userSchema,
+    situation_submission_capabilities: { ...userSchema.situation_submission_capabilities, uniqueIndexes: [] },
+  };
 
   for (const [schema, service] of [
     [withoutSubmissionUnique, "municipality"],
     [withoutMessageUnique, "user"],
     [withoutMessageForeignKey, "user"],
+    [withoutCapabilityNonceUnique, "user"],
   ] as const) {
     const response = await createReadinessResponse(
-      { STAYBRIDGE_DB: readinessDatabase(schema) },
+      {
+        STAYBRIDGE_DB: readinessDatabase(schema),
+        ...(service === "user" ? { SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret } : {}),
+      },
       service,
     );
     assert.equal(response.status, 503, service);
@@ -250,8 +273,18 @@ test("reports a missing D1 binding as not ready", async () => {
   assert.equal(response.status, 503);
 });
 
+test("reports a missing Situation capability secret as not ready for the user service only", async () => {
+  const database = readinessDatabase(userSchema);
+  const userResponse = await createReadinessResponse({ STAYBRIDGE_DB: database }, "user");
+  const municipalityResponse = await createReadinessResponse({ STAYBRIDGE_DB: database }, "municipality");
+
+  assert.equal(userResponse.status, 503);
+  assert.equal(municipalityResponse.status, 200);
+});
+
 test("does not expose D1 errors or binding identifiers", async () => {
   const response = await createReadinessResponse({
+    SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret,
     STAYBRIDGE_DB: {
       prepare: () => {
         throw new Error(

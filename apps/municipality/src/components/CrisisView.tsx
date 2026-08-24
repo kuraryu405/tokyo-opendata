@@ -92,8 +92,8 @@ function CrisisNeedsPanel() {
     <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">匿名化した任意回答の傾向</h2></div><p>支援準備の検討材料の一つとしてご覧ください。</p></div>
     <div className="crisis-needs-panel">
       <div className="crisis-needs-copy">
-        <span className="card-kicker">同意済みの任意回答のみ</span>
-        <p>この傾向は同意済みの任意回答から作成しています。会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
+        <span className="card-kicker">集計対象として確認できた任意回答のみ</span>
+        <p>この傾向は、同意と投稿条件を確認できた任意回答から作成しています。確認できない回答、会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
       </div>
       <div className="crisis-needs-controls" aria-label="任意回答の集計条件">
         <label htmlFor={periodId}>対象期間<select id={periodId} value={period} onChange={(event) => setPeriod(event.target.value as Period)}>{Object.entries(periodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>

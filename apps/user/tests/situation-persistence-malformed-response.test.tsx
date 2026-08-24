@@ -93,17 +93,26 @@ describe("Situation persistence malformed success responses", () => {
   ])("keeps pending secrets when a success response has malformed Situation ID %s", async (id) => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id, created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: {
+          capability: `cap_${"A".repeat(43)}`,
+          expiresAt: "2026-08-24T10:05:00.000Z",
+        },
+      }), { status: 201, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id, created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { idempotencyKey: string; deletionToken: string };
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as { idempotencyKey: string; deletionToken: string };
     expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual({
       idempotencyKey: requestBody.idempotencyKey,
       deletionToken: requestBody.deletionToken,
