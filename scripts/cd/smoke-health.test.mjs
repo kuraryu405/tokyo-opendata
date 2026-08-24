@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MAX_CONFIGURED_SMOKE_DURATION_MS,
   maximumSmokeDurationMs,
   smokeHealth,
 } from "./smoke-health.mjs";
@@ -154,7 +155,19 @@ test("rejects invalid smoke timing configuration before starting requests", asyn
   }
 });
 
-test("maximum duration rejects configurations that cannot provide a finite bound", () => {
+test("rejects finite configuration that would exceed the smoke safety budget", async () => {
+  await assert.rejects(
+    smokeHealth(baseUrl, service, revision, {
+      attempts: 100,
+      delayMs: 6000,
+      requestTimeoutMs: 5000,
+      fetchImpl: async () => healthyResponse(),
+    }),
+    new RegExp(`smoke timing budget must not exceed ${MAX_CONFIGURED_SMOKE_DURATION_MS}ms`),
+  );
+});
+
+test("maximum duration rejects configurations that cannot provide the supported finite bound", () => {
   assert.throws(
     () => maximumSmokeDurationMs({ attempts: Number.POSITIVE_INFINITY }),
     /attempts must be a positive integer/,
@@ -167,9 +180,15 @@ test("maximum duration rejects configurations that cannot provide a finite bound
     () => maximumSmokeDurationMs({ requestTimeoutMs: Number.NaN }),
     /requestTimeoutMs must be a positive finite number/,
   );
+  assert.throws(
+    () => maximumSmokeDurationMs({ attempts: 100 }),
+    new RegExp(`smoke timing budget must not exceed ${MAX_CONFIGURED_SMOKE_DURATION_MS}ms`),
+  );
 });
 
-test("default smoke timeout budget leaves ample room before the 20 minute production job timeout", () => {
+test("default smoke timeout budget is bounded well below the production job timeout", () => {
+  assert.equal(MAX_CONFIGURED_SMOKE_DURATION_MS, 180_000);
   assert.equal(maximumSmokeDurationMs(), 154_000);
-  assert.ok(maximumSmokeDurationMs() < 20 * 60 * 1000);
+  assert.ok(maximumSmokeDurationMs() <= MAX_CONFIGURED_SMOKE_DURATION_MS);
+  assert.ok(MAX_CONFIGURED_SMOKE_DURATION_MS < 20 * 60 * 1000);
 });
