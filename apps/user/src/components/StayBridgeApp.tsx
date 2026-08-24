@@ -56,6 +56,7 @@ import {
   type StayAnswer,
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
+import { prefersReducedMotion } from "../motion";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -224,12 +225,12 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const go = (next: Screen, nextQuery: StayBridgeQuery = {}) => {
     router.push(buildStayBridgePath({ locale, screen: next, query: nextQuery }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const setStep = (nextStep: number) => {
     router.push(buildStayBridgePath({ locale, screen: "check", query: { step: nextStep } }));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const setLocalFilter = (nextFilter: LocalFilter) => {

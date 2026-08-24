@@ -739,8 +739,30 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText("質問 01")).toBeTruthy();
   });
 
-  it("keeps a restart from reopening the old result route through Back", async () => {
-    navigation.reset("/ja/roadmap");
+  it("scrolls instantly when the user prefers reduced motion", async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal("scrollTo", scrollTo);
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("scrolls smoothly by default", async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal("scrollTo", scrollTo);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("keeps a restart from reopening the old result route through Back", async () => {    navigation.reset("/ja/roadmap");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
       situation: demoSituation,
