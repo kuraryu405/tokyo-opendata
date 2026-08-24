@@ -200,11 +200,11 @@ test("keeps the 0/1/4/5/6 respondent boundary contract", async () => {
 });
 
 test("uses the same lower-bound bucket across 7d, 30d, and 90d instead of exposing small deltas", async () => {
-  const results = await Promise.all([
+  const results = await Promise.all(([
     ["7d", 10],
     ["30d", 11],
     ["90d", 14],
-  ].map(async ([period, count]) => {
+  ] as const).map(async ([period, count]) => {
     const database = new CrisisDatabase(
       { respondent_count: count, last_updated_at: "2026-08-23T10:00:00.000Z" },
       [{ category: "possible", respondent_count: count }],
