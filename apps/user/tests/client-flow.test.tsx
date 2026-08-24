@@ -804,9 +804,9 @@ describe("StayBridge client flow", () => {
   });
 
   it("scrolls instantly when the user prefers reduced motion", async () => {
-    const scrollTo = vi.fn();
+    const scrollTo = vi.fn<(...args: unknown[]) => void>();
     vi.stubGlobal("scrollTo", scrollTo);
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    vi.stubGlobal("matchMedia", vi.fn<() => { matches: boolean }>().mockReturnValue({ matches: true }));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -816,7 +816,7 @@ describe("StayBridge client flow", () => {
   });
 
   it("scrolls smoothly by default", async () => {
-    const scrollTo = vi.fn();
+    const scrollTo = vi.fn<(...args: unknown[]) => void>();
     vi.stubGlobal("scrollTo", scrollTo);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

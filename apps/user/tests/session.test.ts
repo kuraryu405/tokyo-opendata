@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
+import type { Situation } from "@staybridge/domain/types";
 import {
   createInitialSituation,
   isAssessmentComplete,
@@ -87,7 +88,7 @@ describe("StayBridge session data", () => {
   });
 
   it("round-trips multiple child age groups in order", () => {
-    const situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "6-11" }, { ageGroup: "0-2" }] } };
+    const situation: Situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "6-11" }, { ageGroup: "0-2" }] } };
     const serialized = serializeStoredSession({
       provenance: "user",
       situation,
@@ -105,7 +106,7 @@ describe("StayBridge session data", () => {
   });
 
   it("lists every selected child age group with a locale-aware separator", () => {
-    const situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "3-5" }, { ageGroup: "6-11" }] } };
+    const situation: Situation = { ...demoSituation, familyMembers: { children: [{ ageGroup: "3-5" }, { ageGroup: "6-11" }] } };
     expect(summarizeSituation("ja", situation, "unknown", ["children"], [6])).toEqual([
       "子どもがいる · 年齢: 3-5、6-11",
     ]);

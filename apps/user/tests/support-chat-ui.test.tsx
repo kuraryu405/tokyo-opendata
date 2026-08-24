@@ -10,7 +10,7 @@ describe("SupportChat conversation log autoscroll", () => {
   let scrollToSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    scrollToSpy = vi.fn();
+    scrollToSpy = vi.fn<(...args: unknown[]) => void>();
     Element.prototype.scrollTo = scrollToSpy as unknown as typeof Element.prototype.scrollTo;
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       reply: "窓口で確認してください。",
