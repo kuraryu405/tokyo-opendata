@@ -31,6 +31,58 @@ describe("user message catalogs", () => {
     }
   });
 
+  it("makes every action notice a confirmation destination and question", () => {
+    const contracts = {
+      ja: { destination: /確認先:/, item: /確認項目:/, defensive: /しません|行いません|保証しません/ },
+      en: { destination: /Where to confirm:/, item: /What to ask:/, defensive: /\b(?:do not|does not|will not|never)\b/i },
+      my: { destination: /အတည်ပြုရန်နေရာ:/, item: /မေးရန်:/, defensive: /မလုပ်|မသိမ်း|မပြ/ },
+    } as const;
+
+    for (const locale of actionNoticeLocales) {
+      for (const notice of Object.values(actionNotices[locale])) {
+        expect(notice).toMatch(contracts[locale].destination);
+        expect(notice).toMatch(contracts[locale].item);
+        expect(notice).not.toMatch(contracts[locale].defensive);
+      }
+    }
+  });
+
+  it("keeps primary journey copy action-first while retaining required safety details", () => {
+    const primaryKeys = [
+      "hero",
+      "intro",
+      "reviewed",
+      "reviewedIntro",
+      "roadmapTitle",
+      "roadmapIntro",
+      "localTitle",
+      "localIntro",
+      "helpTitle",
+      "helpIntro",
+      "summaryTitle",
+      "summaryIntro",
+    ] as const;
+    const defensivePatterns = {
+      ja: /しません|行いません|保証しません|保存しません/,
+      en: /\b(?:do not|does not|will not|never|not saved)\b/i,
+      my: /မလုပ်|မသိမ်း|မပြ/,
+    } as const;
+
+    for (const locale of selectableUserLocales) {
+      const ui = getUserMessages(locale).ui;
+      expect(primaryKeys.map((key) => ui[key]).join(" ")).not.toMatch(defensivePatterns[locale]);
+      expect(ui.emergency).toMatch(/110/);
+      expect(ui.emergency).toMatch(/119/);
+    }
+
+    expect(getUserMessages("ja").ui.notDecision).toMatch(/在留手続.*専門相談窓口/);
+    expect(getUserMessages("en").ui.notDecision).toMatch(/immigration procedures.*specialist support desk/i);
+    expect(getUserMessages("my").ui.notDecision).toMatch(/နေထိုင်ခွင့်လုပ်ငန်းစဉ်.*ကျွမ်းကျင်တိုင်ပင်ရေးဌာန/);
+    expect(getUserMessages("ja").ui.privacyText).toMatch(/氏名.*旅券番号/);
+    expect(getUserMessages("en").ui.privacyText).toMatch(/names.*passport numbers/i);
+    expect(getUserMessages("my").ui.privacyText).toMatch(/အမည်.*နိုင်ငံကူးလက်မှတ်နံပါတ်/);
+  });
+
   it("keeps the deadline notice valid for short-term visitors and other document holders", () => {
     expect(actionNotices.ja.CHECK_BEFORE_STAY_DEADLINE).toMatch(/パスポート.*在留カード/);
     expect(actionNotices.en.CHECK_BEFORE_STAY_DEADLINE).toMatch(/passport, residence card, or other official documents/);
