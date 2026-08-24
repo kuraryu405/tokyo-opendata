@@ -58,8 +58,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          pnpm dlx all-contributors-cli@6.26.1 all-contributors add "$CONTRIBUTOR" code
-          pnpm dlx all-contributors-cli@6.26.1 all-contributors generate
+          pnpm dlx --package=all-contributors-cli@6.26.1 all-contributors add "$CONTRIBUTOR" code
+          pnpm dlx --package=all-contributors-cli@6.26.1 all-contributors generate
       - name: Commit recognition changes
         id: recognition_commit
         if: steps.contributor_token.outputs.configured == 'true'

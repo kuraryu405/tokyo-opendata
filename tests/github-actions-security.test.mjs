@@ -138,7 +138,18 @@ test("contributor recognition exposes the write PAT only to token detection and 
     /GITHUB_TOKEN: \$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/,
   );
   assert.match(contents, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
-  assert.match(contents, /pnpm dlx all-contributors-cli@6\.26\.1 all-contributors add/);
+  assert.match(
+    contents,
+    /pnpm dlx --package=all-contributors-cli@6\.26\.1 all-contributors add "\$CONTRIBUTOR" code/,
+  );
+  assert.match(
+    contents,
+    /pnpm dlx --package=all-contributors-cli@6\.26\.1 all-contributors generate/,
+  );
+  assert.doesNotMatch(
+    contents,
+    /pnpm dlx all-contributors-cli@6\.26\.1 all-contributors/,
+  );
   assert.match(contents, /-c core\.hooksPath=\/dev\/null/);
   assert.match(contents, /-c credential\.helper=/);
   assert.match(contents, /-c credential\.helper='!gh auth git-credential'/);
