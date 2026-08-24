@@ -1,7 +1,7 @@
 name: Recognize contributors
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
 
 permissions:
@@ -14,28 +14,45 @@ jobs:
       github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     env:
-      CONTRIBUTOR_AUTOMATION_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
       CONTRIBUTOR: ${{ github.event.pull_request.user.login }}
       SOURCE_PR: ${{ github.event.pull_request.number }}
     steps:
+      - name: Check contributor automation token
+        id: contributor_token
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Contributor recognition skipped"
+              echo
+              echo "CONTRIBUTOR_AUTOMATION_TOKEN is not configured for this workflow run."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.contributor_token.outputs.configured == 'true'
         with:
+          ref: ${{ github.event.repository.default_branch }}
           token: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.contributor_token.outputs.configured == 'true'
         with:
           node-version: 22
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        if: steps.contributor_token.outputs.configured == 'true'
       - name: Add the merged PR author to All Contributors
+        if: steps.contributor_token.outputs.configured == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
         run: |
-          if [ -z "$CONTRIBUTOR_AUTOMATION_TOKEN" ]; then
-            echo "CONTRIBUTOR_AUTOMATION_TOKEN must be configured before contributor recognition can run." >&2
-            exit 1
-          fi
           pnpm dlx all-contributors-cli all-contributors add "$CONTRIBUTOR" code
           pnpm dlx all-contributors-cli all-contributors generate
       - name: Open a recognition pull request
+        if: steps.contributor_token.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
         run: |

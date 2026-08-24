@@ -102,6 +102,28 @@ test("the write-capable pull_request_target workflow never checks out PR code", 
   assert.doesNotMatch(contents, /^\s+(?:-\s+)?run:/m);
 });
 
+test("contributor recognition uses trusted base code and skips safely without its token", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+  const tokenGuardIndex = contents.indexOf("id: contributor_token");
+  const checkoutIndex = contents.indexOf("uses: actions/checkout@");
+
+  assert.match(contents, /^  pull_request_target:\s*$/m);
+  assert.doesNotMatch(contents, /^  pull_request:\s*$/m);
+  assert.doesNotMatch(contents, /\bgithub\.event\.pull_request\.head\b/);
+  assert.match(
+    contents,
+    /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/,
+  );
+  assert.ok(tokenGuardIndex >= 0 && tokenGuardIndex < checkoutIndex);
+  assert.match(contents, /echo "configured=false" >> "\$GITHUB_OUTPUT"/);
+  assert.match(contents, /Contributor recognition skipped/);
+  assert.match(contents, />> "\$GITHUB_STEP_SUMMARY"/);
+  assert.equal(
+    contents.match(/if: steps\.contributor_token\.outputs\.configured == 'true'/g)?.length,
+    5,
+  );
+});
+
 test("Cloudflare credentials are scoped to deployment steps", async () => {
   const contents = await readFile(new URL("deploy-worker.yml", workflowsDirectory), "utf8");
   const jobLevelSecretEnv = contents.match(/\n    env:\n((?:      [^\n]+\n)+)/g) ?? [];
