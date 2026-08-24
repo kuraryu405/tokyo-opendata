@@ -34,15 +34,15 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: siteUrl,
     title: {
-      default: "Preparedness View | StayBridge Tokyo",
+      default: "支援準備の確認 | StayBridge Tokyo",
       template: "%s | StayBridge Tokyo",
     },
-    description: "Open-data context for public teams preparing local support.",
+    description: "地域の支援準備に役立つ公開情報と確認事項を整理します。",
     openGraph: {
-      title: "Preparedness View | StayBridge Tokyo",
-      description: "Open-data context for public teams preparing local support.",
+      title: "支援準備の確認 | StayBridge Tokyo",
+      description: "地域の支援準備に役立つ公開情報と確認事項を整理します。",
       type: "website",
-      images: imageUrl ? [{ url: imageUrl, width: 1728, height: 909, alt: "StayBridge Tokyo Preparedness View" }] : undefined,
+      images: imageUrl ? [{ url: imageUrl, width: 1728, height: 909, alt: "StayBridge Tokyo 支援準備の確認" }] : undefined,
     },
   };
 }

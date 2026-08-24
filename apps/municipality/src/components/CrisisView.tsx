@@ -20,6 +20,24 @@ const gapLabels: Record<string, string> = {
   "language-capacity": "対応言語の統一データ",
   "real-time-availability": "リアルタイムの利用可否",
 };
+const gapCopy: Record<string, { description: string; whyItMatters: string }> = {
+  "short-term-visitor-distribution": {
+    description: "住民基本台帳の人口統計だけでは、短期滞在者が現在どの地域にいるかは分かりません。",
+    whyItMatters: "危機の影響を受けた人が、住民統計に含まれない可能性があります。",
+  },
+  "facility-capacity": {
+    description: "掲載施設は、空き状況・予約状況・受け入れ余力までは示していません。",
+    whyItMatters: "施設の件数を、利用できる支援の量と受け取らないでください。",
+  },
+  "language-capacity": {
+    description: "掲載元の公開情報には、施設ごとの現在の対応言語が一律には含まれていません。",
+    whyItMatters: "訪問前に通訳や対応言語を確認してください。",
+  },
+  "real-time-availability": {
+    description: "開所時間・休止・予約の要否は、出典の更新後に変わっている可能性があります。",
+    whyItMatters: "訪問前に各窓口へ直接確認してください。",
+  },
+};
 
 const periodLabels = { "7d": "直近7日", "30d": "直近30日", "90d": "直近90日" } as const;
 const viewLabels = {
@@ -65,11 +83,11 @@ function CrisisNeedsPanel() {
   }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
-    <div className="crisis-section-title"><span>03</span><div><small>VOLUNTARY STAYBRIDGE RESPONSES</small><h2 id="crisis-needs-title">匿名化した任意回答の傾向</h2></div><p>公式Open Dataとは別の、同意済み任意回答だけの集計です。</p></div>
+    <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">匿名化した任意回答の傾向</h2></div><p>支援準備の検討材料の一つとしてご覧ください。</p></div>
     <div className="crisis-needs-panel">
       <div className="crisis-needs-copy">
-        <span className="card-kicker">NOT OFFICIAL OPEN DATA</span>
-        <p>個票や会話は表示しません。これは人口、支援不足、優先度、サービス提供能力を示すものではありません。</p>
+        <span className="card-kicker">同意済みの任意回答のみ</span>
+        <p>この傾向は同意済みの任意回答から作成しています。会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
       </div>
       <div className="crisis-needs-controls" aria-label="任意回答の集計条件">
         <label htmlFor={periodId}>対象期間<select id={periodId} value={period} onChange={(event) => setPeriod(event.target.value as Period)}>{Object.entries(periodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -92,8 +110,9 @@ function CrisisNeedsResult({ data }: { data: CrisisNeedsData }) {
     return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>匿名性の基準を満たさないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は表示しません。</p><Coverage data={data} /></div>;
   }
   return <div data-testid="crisis-needs-available" className="crisis-needs-available">
-    <div className="crisis-needs-meta"><strong>回答者数 {data.respondentCount}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
-    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}</strong></li>)}</ul> : <p className="crisis-needs-empty">表示基準を満たすカテゴリはありません。カテゴリ別の小さな数は表示しません。</p>}
+    <div className="crisis-needs-meta"><strong>{typeof data.respondentCount === "number" ? `回答者数 ${data.respondentCount}件以上` : "回答者数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
+    {data.hasSuppressedCategories && <p className="crisis-needs-note">件数が少ない区分は表示を控えています。</p>}
+    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}件以上</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
     <Coverage data={data} />
   </div>;
 }
@@ -118,27 +137,27 @@ export function CrisisView() {
   return <div className="crisis-shell">
     <header className="crisis-header">
       <a className="brand" href={userAppUrl}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
-      <div className="admin-label"><span /> Preparedness View</div>
+      <div className="admin-label"><span /> 自治体・支援者向け確認画面</div>
       <a className="back-to-service" href={userAppUrl}>本人向け画面へ ↗</a>
     </header>
     <main className="crisis-main">
       <section className="crisis-intro">
-        <div><span className="section-label">CRISIS SUPPORT · OPEN DATA</span><h1>支援準備のために、<br />次に確認すること。</h1><p>人口統計と地域資源を「対応の断定」ではなく、確認を始めるための手がかりとして整理します。</p></div>
-        <div className="country-picker" aria-label="MVP固定対象"><span>MVPで確認できる固定対象</span><strong>北区 × Myanmar · ミャンマー</strong><small>他の自治体・国籍は未対応です</small></div>
+        <div><span className="section-label">支援準備の参考情報</span><h1>支援準備のために、<br />次に確認すること。</h1><p>人口統計と地域資源を「対応の断定」ではなく、確認を始めるための手がかりとして整理します。</p></div>
+        <div className="country-picker" aria-label="集計の対象"><span>今回集計している対象</span><strong>北区 × Myanmar · ミャンマー</strong><small>他の自治体・国籍は未対応です</small></div>
       </section>
 
-      <div className="coverage-banner"><span className="coverage-icon">i</span><div><strong>Data coverage note</strong><p>この人口データは住民基本台帳に基づく居住者の参考データです。東京に短期滞在中の旅行者等を完全には表しません。</p></div><a href={populationSource.url} target="_blank" rel="noreferrer">出典を見る ↗</a></div>
+      <div className="coverage-banner"><span className="coverage-icon">i</span><div><strong>人口データについて</strong><p>この人口データは住民基本台帳に基づく居住者の参考データです。短期滞在者など、すべての滞在者を表すものではありません。</p></div><a href={populationSource.url} target="_blank" rel="noreferrer">出典を見る ↗</a></div>
 
       <section className="crisis-section" data-testid="crisis-official-data">
-        <div className="crisis-section-title"><span>01</span><div><small>POTENTIAL IMPACT</small><h2>確認を始める地域</h2></div><p>人口の多さだけで支援不足を判断しません。</p></div>
+        <div className="crisis-section-title"><span>01</span><div><h2>確認を始める地域</h2></div><p>人口数は参考値です。判断には各窓口の公開情報を併用してください。</p></div>
         <div className="impact-grid">
-          <article className="population-card"><div className="population-top"><span>北区 · KITA CITY</span><span className="verified-chip">VERIFIED CACHE</span></div><strong>{profile.residentPopulation?.toLocaleString("ja-JP")}</strong><p>ミャンマー国籍・地域の住民（比較率ではなく参考人数）</p><footer><span>基準日 {populationSource.dataUpdatedAt}</span><a href={populationSource.url} target="_blank" rel="noreferrer">東京都統計 ↗</a></footer></article>
-          <article className="interpretation-card"><span className="card-kicker">HOW TO READ</span><h3>「支援が不足」とは断定できません</h3><p>この数字から分かるのは、平時の居住者分布の一部です。短期滞在者、実際の相談件数、窓口の処理能力は含まれません。</p><div className="confirm-row"><span>→</span><strong>地域の相談導線と言語対応を確認する</strong></div></article>
+          <article className="population-card"><div className="population-top"><span>北区</span><span className="verified-chip">住民基本台帳</span></div><strong>{profile.residentPopulation?.toLocaleString("ja-JP")}</strong><p>ミャンマー国籍・地域の住民（比較率ではなく参考人数）</p><footer><span>基準日 {populationSource.dataUpdatedAt}</span><a href={populationSource.url} target="_blank" rel="noreferrer">東京都統計 ↗</a></footer></article>
+          <article className="interpretation-card"><h3>「支援が不足」とは断定できません</h3><p>この数字から分かるのは、平時の居住者分布の一部です。短期滞在者、実際の相談件数、窓口の処理能力は含まれません。</p><div className="confirm-row"><span>→</span><strong>地域の相談導線と言語対応を確認する</strong></div></article>
         </div>
       </section>
 
       <section className="crisis-section">
-        <div className="crisis-section-title"><span>02</span><div><small>EXISTING RESOURCES</small><h2>確認できた地域資源</h2></div><p>件数はMVPに収録した出典確認済みキャッシュです。</p></div>
+        <div className="crisis-section-title"><span>02</span><div><h2>確認できた地域資源</h2></div><p>掲載情報は各提供元の公開情報をもとに整理しています。最新の内容は公式情報をご確認ください。</p></div>
         <div className="resource-counts">{counts.map(([label, count, kind]) => <article key={label}><span className={`count-icon ${kind}`}>{kind === "school" ? "学" : kind === "medical" ? "+" : kind === "child" ? "こ" : "公"}</span><strong>{count}</strong><p>{label}</p><small>要確認</small></article>)}</div>
         <details className="dataset-details"><summary>収録した施設を見る（{resources.length}件）</summary><ul>{resources.map((resource) => <li key={resource.id}><span>{resource.name}</span><small>{resource.category} · {resource.address}</small></li>)}</ul></details>
         <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
@@ -147,17 +166,15 @@ export function CrisisView() {
       <CrisisNeedsPanel />
 
       <section className="crisis-section">
-        <div className="crisis-section-title"><span>04</span><div><small>DATA GAP</small><h2>今のOpen Dataでは分からないこと</h2></div><p>不足を隠さず、次に整備すべき情報として扱います。</p></div>
-        <div className="gap-grid">{dataGaps.map((gap, index) => <article key={gap.id}><span className="gap-index">GAP 0{index + 1}</span><h3>{gapLabels[gap.id] || gap.title}</h3><p>{gap.description}</p><footer>{gap.whyItMatters}</footer></article>)}</div>
+        <div className="crisis-section-title"><span>04</span><div><h2>公開情報だけでは分からないこと</h2></div><p>不足を隠さず、次に整備すべき情報として扱います。</p></div>
+        <div className="gap-grid">{dataGaps.map((gap, index) => { const copy = gapCopy[gap.id] || gap; return <article key={gap.id}><span className="gap-index">確認項目 0{index + 1}</span><h3>{gapLabels[gap.id] || gap.title}</h3><p>{copy.description}</p><footer>{copy.whyItMatters}</footer></article>; })}</div>
       </section>
 
       <section className="crisis-section checklist-section">
-        <div className="crisis-section-title"><span>05</span><div><small>PREPARATION CHECKLIST</small><h2>対応検討項目</h2></div><p>自動判断や命令ではなく、担当者が確認するための一覧です。</p></div>
-        <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3>{group.items.map((item) => <label key={item}><input type="checkbox" /><span>{item}</span></label>)}</article>)}</div>
+        <div className="crisis-section-title"><span>05</span><div><h2>対応検討項目</h2></div><p>自動判断や命令ではなく、担当者が確認するための一覧です。</p></div>
+        <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3><ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
       </section>
-
-      <section className="feedback-loop"><div><span className="section-label">FUTURE FEEDBACK LOOP</span><h2>Open Dataを、次の支援準備へ。</h2><p>将来は個人を特定しない利用傾向から、実際の困りごとと不足データを把握し、データ整備へ還元します。</p></div><div className="loop-flow">{["Public Open Data", "StayBridge", "Anonymous needs", "Public preparation"].map((item, i) => <div key={item}><span>{String(i + 1).padStart(2, "0")}</span><strong>{item}</strong>{i < 3 && <b>→</b>}</div>)}</div></section>
     </main>
-    <footer className="crisis-footer"><span>StayBridge Tokyo · Preparedness View</span><span>個人追跡・住所レベル表示・法的判断を行いません</span></footer>
+    <footer className="crisis-footer"><span>StayBridge Tokyo · 支援準備の確認画面</span><span>個人が特定される情報は表示しません</span></footer>
   </div>;
 }
