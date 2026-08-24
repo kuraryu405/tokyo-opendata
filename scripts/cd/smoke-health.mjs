@@ -5,12 +5,37 @@ export const DEFAULT_SMOKE_ATTEMPTS = 10;
 export const DEFAULT_SMOKE_DELAY_MS = 6000;
 export const DEFAULT_SMOKE_REQUEST_TIMEOUT_MS = 5000;
 
+function requirePositiveInteger(value, name) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+}
+
+function requireNonNegativeFinite(value, name) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative finite number`);
+  }
+}
+
+function requirePositiveFinite(value, name) {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive finite number`);
+  }
+}
+
+function validateSmokeTiming({ attempts, delayMs, requestTimeoutMs }) {
+  requirePositiveInteger(attempts, "attempts");
+  requireNonNegativeFinite(delayMs, "delayMs");
+  requirePositiveFinite(requestTimeoutMs, "requestTimeoutMs");
+}
+
 export function maximumSmokeDurationMs({
   attempts = DEFAULT_SMOKE_ATTEMPTS,
   delayMs = DEFAULT_SMOKE_DELAY_MS,
   requestTimeoutMs = DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
 } = {}) {
-  return attempts * requestTimeoutMs * 2 + Math.max(0, attempts - 1) * delayMs;
+  validateSmokeTiming({ attempts, delayMs, requestTimeoutMs });
+  return attempts * requestTimeoutMs * 2 + (attempts - 1) * delayMs;
 }
 
 export async function assertHealth(response, expectedService, expectedRevision) {
@@ -52,9 +77,7 @@ export async function assertReadiness(response) {
 }
 
 async function withRequestTimeout(label, requestTimeoutMs, task) {
-  if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) {
-    throw new Error("requestTimeoutMs must be a positive finite number");
-  }
+  requirePositiveFinite(requestTimeoutMs, "requestTimeoutMs");
 
   const controller = new AbortController();
   let timeoutId;
@@ -89,6 +112,11 @@ export async function smokeHealth(
     fetchImpl = fetch,
   } = {},
 ) {
+  validateSmokeTiming({ attempts, delayMs, requestTimeoutMs });
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetchImpl must be a function");
+  }
+
   const healthUrl = new URL("/healthz", `${baseUrl.replace(/\/+$/, "")}/`);
   const readinessUrl = new URL("/readyz", `${baseUrl.replace(/\/+$/, "")}/`);
   let lastError;
