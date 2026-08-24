@@ -118,6 +118,8 @@ secrets; the workflow does not print them. Database creation and migration are
 separate operator procedures documented in
 [Workers・D1バックエンド基盤](backend-d1.md).
 
+自治体Workerの `OPEN_DATA_SYNC_SECRET` はrequired Worker secretとしてstaging/productionへ別々に登録する。値はrepository secretやbuild artifactへ入れない。Open Data migration後は認証付きdry-runが既存12 identityを全件検証した場合だけ実同期し、両Workerの公開GETをstaging確認する。Cron自動同期はIssue #61の対象外である。
+
 The reusable workflow receives the app directory, Worker names, GitHub
 Environment names, verification URLs, and revision as non-secret inputs. The
 build uses production URLs for canonical metadata and cross-application links

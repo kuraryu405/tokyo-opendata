@@ -1151,7 +1151,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: /ステップへ戻る/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談先へ進む/ })).toBeTruthy();
     const resourceCard = screen.getByRole("heading", { name: "おうじキッズクリニック" }).closest("article");
-    expect(within(resourceCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
+    expect(within(resourceCard!).getByText("データ更新: 2024-10-31")).toBeTruthy();
     expect(within(resourceCard!).getByText("取得日: 2026-08-23")).toBeTruthy();
     expect(within(resourceCard!).queryByText(/確認日/)).toBeNull();
     expect(within(resourceCard!).getByText("東京都北区")).toBeTruthy();

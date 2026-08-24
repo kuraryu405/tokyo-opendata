@@ -4,12 +4,15 @@ import handler from "vinext/server/app-router-entry";
 import {
   createHealthResponse,
   handleCrisisNeedsRequest,
+  handleOpenDataResourcesRequest,
+  handleOpenDataSyncRequest,
   createMethodNotAllowedResponse,
   createReadinessResponse,
   type BackendEnv,
 } from "@staybridge/worker-runtime";
 
 interface Env extends BackendEnv {
+  OPEN_DATA_SYNC_SECRET?: string;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -53,6 +56,14 @@ const worker = {
 
     if (url.pathname === "/api/crisis/needs") {
       return handleCrisisNeedsRequest(request, env?.STAYBRIDGE_DB);
+    }
+
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
+    }
+
+    if (url.pathname === "/internal/open-data/sync") {
+      return handleOpenDataSyncRequest(request, env);
     }
 
     if (url.pathname === "/_vinext/image") {
