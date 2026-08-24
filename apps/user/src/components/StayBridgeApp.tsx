@@ -165,6 +165,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const assessmentComplete = isAssessmentComplete(answeredSteps);
   const firstIncompleteStep = firstUnansweredStep(answeredSteps);
+  const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
+  const showStepsNav = assessmentComplete || isDemoSituation;
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
   const protectedSituationRouteGuard = storageReady
     && hasProtectedSituationSubmission
@@ -410,9 +412,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   return (
-    <div className={`app-shell locale-${locale}`}>
+    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} />
+      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} navVisible={navVisible} showStepsNav={showStepsNav} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
@@ -435,15 +437,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   );
 }
 
-function Header({ locale, screen, go, switchLocale }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void }) {
+function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; navVisible: boolean; showStepsNav: boolean }) {
   const t = getUserMessages(locale).ui;
   return <header className="site-header">
     <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
-    <nav aria-label={t.primaryNavLabel}>
-      <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
+    {navVisible && <nav aria-label={t.primaryNavLabel}>
+      {showStepsNav && <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>}
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
-    </nav>
+    </nav>}
     <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
 }

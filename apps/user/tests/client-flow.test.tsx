@@ -603,9 +603,9 @@ describe("StayBridge client flow", () => {
 
   it("does not invent location, nationality, or needs when Help is opened directly", async () => {
     const user = userEvent.setup();
+    navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: "相談先" }));
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
 
     expect(screen.getByText("まだ入力された情報はありません。")).toBeTruthy();
@@ -615,10 +615,9 @@ describe("StayBridge client flow", () => {
   });
 
   it("shows no Kita resources before a municipality is selected", async () => {
-    const user = userEvent.setup();
+    navigation.reset("/ja/local");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: "近くの支援" }));
     expect(screen.getByText(/支援情報はまだ掲載がありません/)).toBeTruthy();
     expect(screen.queryByText("豊川小学校")).toBeNull();
   });
@@ -827,6 +826,40 @@ describe("StayBridge client flow", () => {
     expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "smooth" });
   });
 
+  it("gates the primary navigation by assessment progress", async () => {
+    const user = userEvent.setup();
+    navigation.reset("/ja/");
+    const landingRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+    expect(screen.queryByRole("navigation")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "主要ナビゲーション" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "わたしのステップ" })).toBeTruthy();
+
+    landingRender.unmount();
+    sessionStorage.removeItem("staybridge.session");
+    navigation.reset("/ja/check?step=2");
+    const checkRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    await screen.findByRole("heading", { name: "今、東京のどの地域に滞在していますか？" });
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(screen.getByRole("navigation", { name: "主要ナビゲーション" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "わたしのステップ" })).toBeNull();
+    expect(screen.getByRole("button", { name: "近くの支援" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "相談先" })).toBeTruthy();
+
+    checkRender.unmount();
+    restoreCompleteUserSession();
+    navigation.reset("/ja/check?step=0");
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    await waitFor(() => expect(screen.getByRole("radio", { name: "北区" }).closest(".option-button")?.classList.contains("selected")).toBe(true));
+    expect(screen.getByRole("button", { name: "わたしのステップ" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+    expect(await screen.findByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
+  });
+
   it("keeps a restart from reopening the old result route through Back", async () => {    navigation.reset("/ja/roadmap");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
@@ -879,9 +912,9 @@ describe("StayBridge client flow", () => {
       configurable: true,
       value: { writeText: vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error("denied")) },
     });
+    navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: "相談先" }));
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
     await user.click(screen.getByRole("button", { name: /コピーする/ }));
     expect((await screen.findByRole("alert")).textContent).toContain("コピーできませんでした");
@@ -1069,7 +1102,7 @@ describe("StayBridge client flow", () => {
 
   it("renders restored stay and family answers in the consultation summary", async () => {
     const user = userEvent.setup();
-    navigation.reset("/en/");
+    navigation.reset("/en/help");
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
       situation: { ...demoSituation, knownStayDeadline: undefined, stayDeadlineKnown: false, familyMembers: { children: [] } },
@@ -1078,9 +1111,8 @@ describe("StayBridge client flow", () => {
       answeredSteps: [5, 6],
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
-    await screen.findByRole("button", { name: "My steps" });
 
-    await user.click(screen.getByRole("button", { name: "Get help" }));
+    await screen.findByRole("heading", { name: "Talk to a person" });
     await user.click(screen.getByRole("button", { name: /Create consultation summary/ }));
     expect(screen.getByText("I want to check my documents")).toBeTruthy();
     expect(screen.getByText("My spouse is with me")).toBeTruthy();
