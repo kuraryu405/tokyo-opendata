@@ -2,50 +2,6 @@
   "fetchedAt": "2026-08-23",
   "resources": [
     {
-      "id": "kita-school-toyokawa",
-      "name": "豊川小学校",
-      "category": "school",
-      "municipality": "Kita",
-      "address": "東京都北区豊島3丁目10番23号",
-      "latitude": 35.7609590228,
-      "longitude": 139.74278228,
-      "phone": "(03)3913-4111",
-      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
-    },
-    {
-      "id": "kita-school-ukima",
-      "name": "浮間小学校",
-      "category": "school",
-      "municipality": "Kita",
-      "address": "東京都北区浮間3丁目4番27号",
-      "latitude": 35.7858416507,
-      "longitude": 139.700528812,
-      "phone": "(03)3969-0491",
-      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
-    },
-    {
-      "id": "kita-school-jujodai",
-      "name": "十条台小学校",
-      "category": "school",
-      "municipality": "Kita",
-      "address": "東京都北区中十条1丁目5番6号",
-      "latitude": 35.7586649505,
-      "longitude": 139.73054084,
-      "phone": "(03)3908-3300",
-      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
-    },
-    {
-      "id": "kita-school-nishigaoka",
-      "name": "西が丘小学校",
-      "category": "school",
-      "municipality": "Kita",
-      "address": "東京都北区十条仲原4丁目5番17号",
-      "latitude": 35.7699183746,
-      "longitude": 139.721294622,
-      "phone": "(03)3900-8866",
-      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
-    },
-    {
       "id": "kita-medical-oji-kids",
       "name": "おうじキッズクリニック",
       "category": "medical",
@@ -135,7 +91,8 @@
     }
   ],
   "coverageNotes": [
-    "Selected from https://www.city.kita.lg.jp/city-information/disclosure/1014461.html; facility rows are cached for a stable MVP and are not a complete inventory.",
+    "Selected and normalized from https://www.city.kita.lg.jp/city-information/disclosure/1014461.html; facility rows are cached for a stable MVP and are not a complete inventory.",
+    "School rows are intentionally withheld: the published machine-readable school CSV fails the current identity/address contract, so no school record is shown as current until the source is corrected.",
     "A listed facility does not establish eligibility, capacity, language support, appointment availability, or service availability."
   ]
 }

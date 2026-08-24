@@ -15,7 +15,7 @@ export const kitaMyanmarProfile: MunicipalityCrisisProfile = {
   municipalityCode: "13117", municipalityName: "Kita", targetNationality: "Myanmar", residentPopulation: kitaMyanmarPopulation.residentPopulation,
   populationSourceId: kitaMyanmarPopulationCache.sourceId, populationDataUpdatedAt: kitaMyanmarPopulationCache.dataUpdatedAt, populationFetchedAt: kitaMyanmarPopulationCache.fetchedAt,
   resourceCounts,
-  coverageNotes: ["Resident population is from Tokyo Metropolitan Government's 2026-01-01 statistic; it does not represent short-term visitors.", "Resource counts are derived from the curated, source-backed Open Data cache used by this MVP, not citywide capacity or a complete facility count.", "Facility count does not indicate available places, eligibility, language capacity, or quality of support."],
+  coverageNotes: ["Resident population is from Tokyo Metropolitan Government's 2026-01-01 statistic; it does not represent short-term visitors.", "Resource counts are derived from the curated, source-backed Open Data cache used by this MVP, not citywide capacity or a complete facility count.", "School resources are withheld because the published machine-readable school source currently conflicts with current identity/address checks.", "Facility count does not indicate available places, eligibility, language capacity, or quality of support."],
   dataGapIds: ["short-term-visitor-distribution", "facility-capacity", "language-capacity", "real-time-availability"],
 };
 export const municipalityProfiles: MunicipalityCrisisProfile[] = [kitaMyanmarProfile];

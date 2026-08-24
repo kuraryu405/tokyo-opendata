@@ -48,7 +48,7 @@ export type PopulationCache = {
   coverageNotes: string[];
 };
 
-/** A reproducible, bundled subset selected from verified Open Data rows. */
+/** A reproducible, bundled subset selected from source-backed Open Data rows. */
 export type LocalResourcesCache = {
   fetchedAt: string;
   resources: LocalResource[];

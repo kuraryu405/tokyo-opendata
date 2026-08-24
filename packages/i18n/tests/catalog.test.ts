@@ -14,7 +14,7 @@ import {
   localResourceCatalogs,
   localResourceLocales,
 } from "../src/index";
-import { localResources } from "@staybridge/data";
+import { localResources, schoolSelection } from "@staybridge/data";
 import {
   actionNotices,
   actionNoticeLocales,
@@ -60,6 +60,30 @@ describe("user message catalogs", () => {
       expect(messages.metadata.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(messages.metadata.internalReview.status).toBe(reviewedUserLocales.includes(locale) ? "reviewed" : "pending");
       expect(["pending", "reviewed"]).toContain(messages.metadata.expertReview.status);
+    }
+  });
+
+  it("labels fetchedAt as a retrieval date and keeps adaptation copy localized", () => {
+    const fetchedLabels = {
+      ja: "取得日",
+      en: "Fetched",
+      "zh-CN": "获取日期",
+      "zh-TW": "取得日期",
+      ko: "가져온 날짜",
+      ne: "प्राप्त मिति",
+      vi: "Ngày lấy dữ liệu",
+      my: "ရယူသည့်ရက်",
+      fil: "Petsa ng pagkuha",
+      id: "Tanggal diambil",
+      bn: "আহরণের তারিখ",
+      th: "วันที่ดึงข้อมูล",
+    } as const satisfies Record<(typeof supportedUserLocales)[number], string>;
+
+    for (const locale of supportedUserLocales) {
+      const ui = getUserMessages(locale).ui;
+      expect(ui.fetched).toBe(fetchedLabels[locale]);
+      expect(ui).not.toHaveProperty("verified");
+      expect(ui.changesMade.trim()).not.toBe("");
     }
   });
 
@@ -148,12 +172,12 @@ describe("user message catalogs", () => {
   it("has a non-empty display value for every resource ID in every locale", () => {
     for (const locale of localResourceLocales) {
       const catalog = localResourceCatalogs[locale];
-      expect(Object.keys(catalog)).toHaveLength(localResources.length);
-      expect(Object.keys(catalog).sort()).toEqual(localResources.map((resource) => resource.id).sort());
+      expect(Object.keys(catalog).length).toBeGreaterThanOrEqual(localResources.length);
       for (const resource of localResources) {
         const display = catalog[resource.id];
         expect(display.description.trim()).not.toBe("");
       }
+      for (const selection of schoolSelection) expect(catalog[selection.id].description.trim()).not.toBe("");
     }
   });
 

@@ -30,11 +30,11 @@ describe("localized Local Action routes", () => {
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    const card = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
+    const card = screen.getByRole("heading", { name: "おうじキッズクリニック" }).closest("article");
     expect(card).not.toBeNull();
     expect(within(card!).getByText("Kita")).toBeTruthy();
-    expect(within(card!).getByText("東京都北区豊島3丁目10番23号")).toBeTruthy();
-    expect(within(card!).getByText("A school. Confirm current access and details directly.")).toBeTruthy();
+    expect(within(card!).getByText("東京都北区王子五丁目1-40サミットストア王子桜田通り店2階12室")).toBeTruthy();
+    expect(within(card!).getByText("A medical institution. Confirm services and appointment requirements directly.")).toBeTruthy();
   });
 
   it("renders source-backed facility facts with a Burmese safety description for /my/local", async () => {
@@ -48,10 +48,10 @@ describe("localized Local Action routes", () => {
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    const card = (await screen.findByRole("heading", { name: "豊川小学校" })).closest("article");
+    const card = (await screen.findByRole("heading", { name: "おうじキッズクリニック" })).closest("article");
     expect(card).not.toBeNull();
     expect(within(card!).getByText("Kita")).toBeTruthy();
-    expect(within(card!).getByText("東京都北区豊島3丁目10番23号")).toBeTruthy();
-    expect(within(card!).getByText("ကျောင်းဖြစ်ပါသည်။ လက်ရှိအသုံးပြုမှုနှင့် အသေးစိတ်ကို တိုက်ရိုက်အတည်ပြုပါ။")).toBeTruthy();
+    expect(within(card!).getByText("東京都北区王子五丁目1-40サミットストア王子桜田通り店2階12室")).toBeTruthy();
+    expect(within(card!).getByText("ဆေးဘက်ဆိုင်ရာအဖွဲ့အစည်းဖြစ်ပါသည်။ ဝန်ဆောင်မှုနှင့် ကြိုတင်ချိန်းဆိုမှုကို တိုက်ရိုက်အတည်ပြုပါ။")).toBeTruthy();
   });
 });

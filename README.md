@@ -31,7 +31,7 @@ pnpm test
 pnpm build
 ```
 
-北区の施設キャッシュと東京都の人口キャッシュを更新する場合は、`pnpm data:fetch` を実行します。実行時だけ一次配布元を取得し、通常のアプリ実行時は生成済みのJSONキャッシュだけを参照します。
+北区の施設キャッシュと東京都の人口キャッシュを更新する場合は、`pnpm data:fetch` を実行します。実行時だけ一次配布元を取得し、通常のアプリ実行時は生成済みのJSONキャッシュだけを参照します。学校の機械可読 source が現行 identity/address と一致しない場合は、`data:fetch` が cache を変更せず失敗し、古い学校情報を再生成しません。
 
 利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。相互リンク先はそれぞれ `NEXT_PUBLIC_MUNICIPALITY_APP_URL` と `NEXT_PUBLIC_USER_APP_URL` で設定でき、未設定時は上記のローカルURLを使います。
 
@@ -76,7 +76,7 @@ pnpm --filter @staybridge/user exec wrangler deploy --dry-run
 
 実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。
 
-人口・施設は、公的なOpen Dataから確認した北区の一部レコードをデモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来します。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
+人口・施設は、公的なOpen Dataから一部レコードを選定・正規化し、デモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来し、カード上でも変更内容を表示します。現行性を検証できない学校レコードは cache から除外しています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
 Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
 
