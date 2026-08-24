@@ -59,8 +59,8 @@ jobs:
             echo "Unexpected source PR number." >&2
             exit 1
           }
-          pnpm dlx all-contributors-cli all-contributors add "$CONTRIBUTOR" code
-          pnpm dlx all-contributors-cli all-contributors generate
+          pnpm dlx all-contributors-cli@6.26.1 all-contributors add "$CONTRIBUTOR" code
+          pnpm dlx all-contributors-cli@6.26.1 all-contributors generate
       - name: Commit recognition changes
         id: recognition_commit
         if: steps.contributor_token.outputs.configured == 'true'
@@ -79,7 +79,6 @@ jobs:
           git commit -m "docs: recognize ${CONTRIBUTOR} as a contributor"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Push branch and open a recognition pull request
         if: >-
           steps.contributor_token.outputs.configured == 'true' &&
@@ -87,12 +86,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CONTRIBUTOR_AUTOMATION_TOKEN }}
           BRANCH: ${{ steps.recognition_commit.outputs.branch }}
-          COMMIT_SHA: ${{ steps.recognition_commit.outputs.sha }}
         run: |
           set -euo pipefail
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/heads/${BRANCH}" \
-            -f sha="$COMMIT_SHA"
+          git \
+            -c core.hooksPath=/dev/null \
+            -c credential.helper= \
+            -c credential.helper='!gh auth git-credential' \
+            push --set-upstream origin "$BRANCH"
           gh pr create \
             --repo "$GITHUB_REPOSITORY" \
             --base "$DEFAULT_BRANCH" \
