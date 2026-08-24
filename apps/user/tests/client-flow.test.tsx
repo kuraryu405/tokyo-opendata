@@ -814,7 +814,7 @@ describe("StayBridge client flow", () => {
     expect(workLinks.some((link) => (link.textContent ?? "").includes("Bureau of Labor"))).toBe(true);
     expect(within(workAction!).queryByText(/確認日:/)).toBeNull();
     expect(within(workAction!).queryByText(/LICENSE:/)).toBeNull();
-    expect(within(workAction!).getByText(/StayBridgeは就労可否を判断しません/)).toBeTruthy();
+    expect(within(workAction!).getByText(/在留資格によって異なります/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     expect(await screen.findByRole("heading", { name: "関連する公式情報", level: 2 })).toBeTruthy();
