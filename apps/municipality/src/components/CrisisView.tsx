@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry } from "@staybridge/data";
+import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry, type DataSource } from "@staybridge/data";
 import type { CrisisNeedsData } from "@staybridge/worker-runtime";
+
+export const municipalityChangesMadeCopy = "東京都北区Open DataをStayBridge用に一部選定・正規化しています";
+
+export function getMunicipalityChangesMade(adaptation: DataSource["adaptation"]): string | undefined {
+  return adaptation === "selected_and_normalized" ? municipalityChangesMadeCopy : undefined;
+}
 
 const userAppUrl =
   process.env.NEXT_PUBLIC_USER_APP_URL?.replace(/\/+$/, "") ||
@@ -127,12 +133,13 @@ export function CrisisView() {
   const resources = localResources.filter((item) => item.municipality === profile.municipalityName);
   const facilitySources = [...new Set(resources.map((resource) => resource.sourceId))]
     .flatMap((sourceId) => sourceRegistry[sourceId] ? [sourceRegistry[sourceId]] : []);
-  const counts = [
-    ["学校", profile.resourceCounts.school ?? 0, "school"],
-    ["医療機関", profile.resourceCounts.medical ?? 0, "medical"],
-    ["子ども施設", profile.resourceCounts.child_support ?? 0, "child"],
-    ["公共施設", profile.resourceCounts.public_facility ?? 0, "public"],
-  ] as const;
+  const counts: readonly (readonly [string, number | undefined, string])[] = [
+    ["学校", profile.resourceCounts.school, "school"],
+    ["医療機関", profile.resourceCounts.medical, "medical"],
+    ["子ども施設", profile.resourceCounts.child_support, "child"],
+    ["公共施設", profile.resourceCounts.public_facility, "public"],
+  ];
+  const availableCounts = counts.filter((item): item is readonly [string, number, string] => item[1] !== undefined && item[1] > 0);
 
   return <div className="crisis-shell">
     <header className="crisis-header">
@@ -158,9 +165,9 @@ export function CrisisView() {
 
       <section className="crisis-section">
         <div className="crisis-section-title"><span>02</span><div><h2>確認できた地域資源</h2></div><p>掲載情報は各提供元の公開情報をもとに整理しています。最新の内容は公式情報をご確認ください。</p></div>
-        <div className="resource-counts">{counts.map(([label, count, kind]) => <article key={label}><span className={`count-icon ${kind}`}>{kind === "school" ? "学" : kind === "medical" ? "+" : kind === "child" ? "こ" : "公"}</span><strong>{count}</strong><p>{label}</p><small>要確認</small></article>)}</div>
+        <div className="resource-counts">{availableCounts.map(([label, count, kind]) => <article key={label}><span className={`count-icon ${kind}`}>{kind === "school" ? "学" : kind === "medical" ? "+" : kind === "child" ? "こ" : "公"}</span><strong>{count}</strong><p>{label}</p><small>要確認</small></article>)}</div>
         <details className="dataset-details"><summary>収録した施設を見る（{resources.length}件）</summary><ul>{resources.map((resource) => <li key={resource.id}><span>{resource.name}</span><small>{resource.category} · {resource.address}</small></li>)}</ul></details>
-        <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
+        <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}{getMunicipalityChangesMade(source.adaptation) && <small>{getMunicipalityChangesMade(source.adaptation)}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
       </section>
 
       <CrisisNeedsPanel />

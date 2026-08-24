@@ -1,6 +1,7 @@
 export * from "./sources";
 export * from "./adapters/types";
 export * from "./adapters/open-data";
+export * from "./adapters/current-data";
 export * from "./adapters/population-cache";
 export * from "./normalized/kita-resources";
 

@@ -2,8 +2,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
-import { adaptResourceRecord, adaptTokyoForeignPopulation, type RawResourceRecord } from "../src/adapters/open-data";
-import type { LocalResource, LocalResourceCategory, LocalResourcesCache, PopulationCache } from "../src/adapters/types";
+import { adaptTokyoForeignPopulation, type RawResourceRecord } from "../src/adapters/open-data";
+import { schoolSelection, selectResources, type SelectedResource } from "../src/adapters/current-data";
+import type { LocalResourcesCache, PopulationCache } from "../src/adapters/types";
 
 const tokyoPopulationUrl = "https://www.toukei.metro.tokyo.lg.jp/gaikoku/2026/ga26ev0300.csv";
 const kitaOpenDataPageUrl = "https://www.city.kita.lg.jp/city-information/disclosure/1014461.html";
@@ -11,14 +12,6 @@ const kitaElementarySchoolsUrl = "https://www.city.kita.lg.jp/_res/projects/defa
 const kitaStandardOpenDataUrl = "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip";
 const outputDirectory = join(process.cwd(), "src/normalized");
 
-type SelectedResource = { id: string; name: string; category: LocalResourceCategory; sourceId: string };
-
-const schoolSelection: SelectedResource[] = [
-  { id: "kita-school-toyokawa", name: "豊川小学校", category: "school", sourceId: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA" },
-  { id: "kita-school-ukima", name: "浮間小学校", category: "school", sourceId: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA" },
-  { id: "kita-school-jujodai", name: "十条台小学校", category: "school", sourceId: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA" },
-  { id: "kita-school-nishigaoka", name: "西が丘小学校", category: "school", sourceId: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA" },
-];
 const standardSelections: Record<string, SelectedResource[]> = {
   "10_医療機関一覧.csv": [
     { id: "kita-medical-oji-kids", name: "おうじキッズクリニック", category: "medical", sourceId: "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA" },
@@ -74,16 +67,6 @@ function extractZipFiles(archive: Buffer): Map<string, Buffer> {
   return files;
 }
 
-function selectResources(records: RawResourceRecord[], selected: SelectedResource[]): LocalResource[] {
-  return selected.map((selection) => {
-    const record = records.find((candidate) => candidate["名称"] === selection.name || candidate["施設名"] === selection.name);
-    if (!record) throw new Error(`${selection.name} was not found in its verified Open Data dataset.`);
-    const resource = adaptResourceRecord(record, { id: selection.id, category: selection.category, municipality: "Kita", sourceId: selection.sourceId });
-    if (!resource) throw new Error(`${selection.name} has no usable source name and will not be fabricated.`);
-    return resource;
-  });
-}
-
 async function fetchBytes(url: string): Promise<Buffer> {
   const response = await fetch(url, { headers: { "User-Agent": "StayBridgeTokyo-data-refresh/0.1" } });
   if (!response.ok) throw new Error(`Request failed (${response.status}) for ${url}`);
@@ -104,7 +87,11 @@ async function main() {
   await mkdir(outputDirectory, { recursive: true });
   await Promise.all([writeFile(join(outputDirectory, "kita-myanmar-population.json"), `${JSON.stringify(populationCache, null, 2)}\n`), writeFile(join(outputDirectory, "kita-local-resources.json"), `${JSON.stringify(resourceCache, null, 2)}\n`)]);
   console.log(`Cached Kita / Myanmar population (${myanmar.residentPopulation}); data date 2026-01-01; fetched ${fetchedAt}.`);
-  console.log(`Cached ${resources.length} Kita facility rows from verified CC BY 4.0 Open Data; fetched ${fetchedAt}.`);
+  console.log(`Cached ${resources.length} Kita facility rows from CC BY 4.0 Open Data; fetched ${fetchedAt}.`);
 }
 
-void main();
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Open Data refresh aborted without changing the cache: ${message}`);
+  process.exitCode = 1;
+});

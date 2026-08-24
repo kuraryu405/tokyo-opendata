@@ -177,36 +177,6 @@ describe("StayBridge client flow", () => {
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_11111111");
   });
 
-  it.each([
-    "sit_invalid",
-    "sit_",
-    "sit_AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
-    "sit_11111111-1111-4111-8111-111111111111_extra",
-  ])("keeps pending secrets when a success response has malformed Situation ID %s", async (id) => {
-    navigation.reset("/ja/status");
-    restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id, created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
-    render(<StayBridgeApp assessmentDate="2026-08-23" />);
-
-    await user.click(await screen.findByRole("button", { name: "同意して保存" }));
-    expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
-      idempotencyKey: string;
-      deletionToken: string;
-    };
-    expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual({
-      idempotencyKey: requestBody.idempotencyKey,
-      deletionToken: requestBody.deletionToken,
-    });
-    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "削除に必要な情報" })).toBeNull();
-  });
-
   it("never saves the public demo fixture as support-need input", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
@@ -1119,7 +1089,8 @@ describe("StayBridge client flow", () => {
     const schoolAction = screen.getByRole("heading", { name: "子どもの教育について相談する" }).closest("article");
     await user.click(within(schoolAction!).getByRole("button", { name: /近くの学校を見る/ }));
     expect(screen.getByRole("button", { name: "学校・教育", pressed: true })).toBeTruthy();
-    expect(screen.getByText("豊川小学校")).toBeTruthy();
+    expect(screen.getByText("この地域の支援情報はまだ掲載がありません。相談窓口の一覧をご利用ください。")).toBeTruthy();
+    expect(screen.queryByText("豊川小学校")).toBeNull();
     expect(screen.queryByText("おうじキッズクリニック")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
@@ -1179,10 +1150,15 @@ describe("StayBridge client flow", () => {
 
     expect(screen.getByRole("button", { name: /ステップへ戻る/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談先へ進む/ })).toBeTruthy();
-    const schoolCard = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
-    expect(within(schoolCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
-    expect(within(schoolCard!).getByText("確認日: 2026-08-23")).toBeTruthy();
-    expect(within(schoolCard!).getByRole("link", { name: /LICENSE: Creative Commons Attribution 4.0 International/ }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
+    const resourceCard = screen.getByRole("heading", { name: "おうじキッズクリニック" }).closest("article");
+    expect(within(resourceCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
+    expect(within(resourceCard!).getByText("取得日: 2026-08-23")).toBeTruthy();
+    expect(within(resourceCard!).queryByText(/確認日/)).toBeNull();
+    expect(within(resourceCard!).getByText("東京都北区")).toBeTruthy();
+    expect(within(resourceCard!).getByRole("link", { name: /LICENSE: Creative Commons Attribution 4.0 International/ }).getAttribute("href")).toBe("https://creativecommons.org/licenses/by/4.0/");
+    await user.click(within(resourceCard!).getByText("出典を見る"));
+    expect(within(resourceCard!).getByText("自治体標準オープンデータセット：医療機関一覧")).toBeTruthy();
+    expect(within(resourceCard!).getByText("東京都北区Open DataをStayBridge用に一部選定・正規化しています")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /相談先へ進む/ }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();

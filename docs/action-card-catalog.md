@@ -32,5 +32,5 @@
 - high risk: 3か月以内に再確認する。
 - standard: 6か月以内に再確認する。
 - 内容、出典、CTA、リスク区分のいずれかを変更した場合は `reviewedAt`、`reviewedBy`、`reviewAfter` を同じ変更で更新する。
-- 公式ページのURL、提供者、取得・確認日はSource Registryを正とする。2026-08-23時点で本カタログが参照する公式URLのHTTP到達性を確認済み。
+- 公式ページのURL、提供者、取得日はSource Registryを正とする。取得日は配布物の取得日であり、内容を人手で確認した日を意味しない。レビュー時点はAction Card側の`reviewAfter`を使う。2026-08-23時点で本カタログが参照する公式URLのHTTP到達性を確認済み。
 - 選択ルールの追加・変更は本台帳へ混ぜず、Rule Engine側で扱う。
