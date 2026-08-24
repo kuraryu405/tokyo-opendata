@@ -720,6 +720,17 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByText("まだ入力された情報はありません。")).toBeNull();
   });
 
+  it("keeps the self-reported status review free of confirmation checkmarks", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    const resultPage = document.querySelector(".result-page");
+    expect(resultPage).not.toBeNull();
+    expect(resultPage!.textContent).not.toContain("✓");
+  });
+
   it("returns a direct link to the final question to the first unanswered step", async () => {
     navigation.reset("/ja/check?step=9");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
