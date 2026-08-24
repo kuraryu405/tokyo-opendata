@@ -146,7 +146,7 @@ describe("StayBridge client flow", () => {
   it("links from the user landing page to the municipality preparedness view", async () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("http://localhost:3001");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("http://localhost:3001");
   });
 
   it("saves only allowlisted Situation fields after separate explicit consent", async () => {
@@ -452,7 +452,7 @@ describe("StayBridge client flow", () => {
     vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向け Preparedness View/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
   });
 
   it("offers start over after completed answers and returns to the first question", async () => {
@@ -619,7 +619,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: "近くの支援" }));
-    expect(screen.getByText(/詳細な地域データに対応していません/)).toBeTruthy();
+    expect(screen.getByText(/支援情報はまだ掲載がありません/)).toBeTruthy();
     expect(screen.queryByText("豊川小学校")).toBeNull();
   });
 
@@ -699,8 +699,10 @@ describe("StayBridge client flow", () => {
     const urgentStay = await screen.findByRole("heading", { name: "日本に滞在できる期間を確認する" });
     const urgentCard = urgentStay.closest("article");
     expect(urgentCard).not.toBeNull();
-    expect(within(urgentCard!).getByText("優先度 110")).toBeTruthy();
-    expect(within(urgentCard!).getByText("R-STAY-DEADLINE-PAST")).toBeTruthy();
+    expect(within(urgentCard!).queryByText(/優先度/)).toBeNull();
+    expect(within(urgentCard!).queryByText("R-STAY-DEADLINE-PAST")).toBeNull();
+    expect(within(urgentCard!).getByText("入力した滞在期限を過ぎているため、すぐに公式窓口へ状況を確認する案内を表示しています。")).toBeTruthy();
+    expect(within(urgentCard!).getByRole("button", { name: /公式相談先を見る/ })).toBeTruthy();
   });
 
   it("does not flash an empty result while restoring a completed session", async () => {
@@ -716,6 +718,17 @@ describe("StayBridge client flow", () => {
 
     expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
     expect(screen.queryByText("まだ入力された情報はありません。")).toBeNull();
+  });
+
+  it("keeps the self-reported status review free of confirmation checkmarks", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteDemoSession();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    const resultPage = document.querySelector(".result-page");
+    expect(resultPage).not.toBeNull();
+    expect(resultPage!.textContent).not.toContain("✓");
   });
 
   it("returns a direct link to the final question to the first unanswered step", async () => {
@@ -798,12 +811,29 @@ describe("StayBridge client flow", () => {
     const workLinks = within(workAction!).getAllByRole("link");
     expect(workLinks.length).toBeGreaterThan(2);
     expect(workLinks.some((link) => link.getAttribute("href")?.includes("hataraku.metro.tokyo.lg.jp"))).toBe(true);
-    expect(within(workAction!).getAllByText(/確認日:/).length).toBeGreaterThan(2);
-    expect(within(workAction!).getByText(/StayBridgeは就労可否を判断しません/)).toBeTruthy();
+    expect(workLinks.some((link) => (link.textContent ?? "").includes("Bureau of Labor"))).toBe(true);
+    expect(within(workAction!).queryByText(/確認日:/)).toBeNull();
+    expect(within(workAction!).queryByText(/LICENSE:/)).toBeNull();
+    expect(within(workAction!).getByText(/在留資格によって異なります/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     expect(await screen.findByRole("heading", { name: "関連する公式情報", level: 2 })).toBeTruthy();
     expect(screen.getByRole("heading", { name: sourceRegistry.TOKYO_LABOR_CONSULT.title, level: 3 })).toBeTruthy();
+  });
+
+  it("numbers roadmap actions uniquely across timing groups from 01", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+
+    const numbers = [...document.querySelectorAll(".action-number")].map((element) => element.textContent);
+    const parsed = numbers.map((value) => Number(value));
+    expect(numbers.length).toBeGreaterThan(2);
+    expect(parsed[0]).toBe(1);
+    for (let index = 1; index < numbers.length; index += 1) expect(parsed[index]).toBe(parsed[index - 1] + 1);
+    expect(new Set(numbers).size).toBe(numbers.length);
+    expect(numbers[0]).toBe("01");
   });
 
   it.each([
@@ -1008,7 +1038,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
   });
 
-  it("traces each displayed reason to its winning Rule ID, answer codes, and catalog source", async () => {
+  it("explains each displayed action with its natural-language reason and source link", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -1019,8 +1049,9 @@ describe("StayBridge client flow", () => {
     expect(stayCard).not.toBeNull();
     await user.click(within(stayCard!).getByText("なぜこの案内？"));
 
-    expect(within(stayCard!).getByText("R-STAY-RETURN-DIFFICULT-SHORT-NEAR")).toBeTruthy();
-    expect(within(stayCard!).getByText("returnStatus=difficult")).toBeTruthy();
+    expect(within(stayCard!).queryByText("R-STAY-RETURN-DIFFICULT-SHORT-NEAR")).toBeNull();
+    expect(within(stayCard!).queryByText("returnStatus=difficult")).toBeNull();
+    expect(within(stayCard!).getByText("「旅行・短期の訪問で来た」「予定どおり帰ることが難しい」と回答したため表示しています。")).toBeTruthy();
     expect(within(stayCard!).getByRole("link", { name: /Immigration Services Agency/ })).toBeTruthy();
   });
 
@@ -1070,7 +1101,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText("質問 05")).toBeTruthy();
     await user.selectOptions(screen.getByRole("combobox"), "en");
     expect(navigation.path()).toBe("/en/check?step=4");
-    expect(screen.getByText("QUESTION 05")).toBeTruthy();
+    expect(screen.getByText("Question 05")).toBeTruthy();
   });
 
   it("re-renders direct back and forward URL changes instead of keeping screen state", async () => {

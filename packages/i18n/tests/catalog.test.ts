@@ -31,6 +31,20 @@ describe("user message catalogs", () => {
     }
   });
 
+  it("keeps the deadline notice valid for short-term visitors and other document holders", () => {
+    expect(actionNotices.ja.CHECK_BEFORE_STAY_DEADLINE).toMatch(/パスポート.*在留カード/);
+    expect(actionNotices.en.CHECK_BEFORE_STAY_DEADLINE).toMatch(/passport, residence card, or other official documents/);
+    expect(actionNotices.my.CHECK_BEFORE_STAY_DEADLINE).toMatch(/နိုင်ငံကူးလက်မှတ်.*နေထိုင်ခွင့်ကတ်/);
+    expect(Object.values(actionNotices).join(" ")).not.toMatch(/Renewal procedures require|更新手続き.*必要|သက်တမ်းတိုးလုပ်ငန်းစဉ်.*လိုအပ်/);
+  });
+
+  it("keeps reviewed public UI copy free of prototype and internal dashboard labels", () => {
+    const prototypeTerms = /MVP|AI SUPPORT|VERIFIED CACHE|NOT OFFICIAL OPEN DATA|Preparedness View|Open Data source|static translation|POTENTIAL IMPACT|VOLUNTARY STAYBRIDGE|DATA GAP/i;
+    for (const locale of selectableUserLocales) {
+      expect(JSON.stringify(getUserMessages(locale).ui)).not.toMatch(prototypeTerms);
+    }
+  });
+
   it("exports exactly the supported static locale set", () => {
     expect(supportedUserLocales).toEqual(["ja", "en", "zh-CN", "zh-TW", "ko", "ne", "vi", "my", "fil", "id", "bn", "th"]);
   });

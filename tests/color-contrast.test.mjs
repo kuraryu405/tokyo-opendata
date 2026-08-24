@@ -32,7 +32,6 @@ test("Issue #14 critical color pairs meet WCAG 2 AA normal-text contrast", () =>
   const pairs = [
     ["landing roadmap preview step number", accessibleText, "#ffffff"],
     ["roadmap action number", accessibleText, "#f0f5f3"],
-    ["review chip", accessibleText, "#eef2f1"],
     ["local location pill", accessibleText, "#e9f1ef"],
     ["resource definition label", accessibleText, "#ffffff"],
     ["municipality Tokyo brand", brandOnDark, "#102d36"],
@@ -45,7 +44,7 @@ test("Issue #14 critical color pairs meet WCAG 2 AA normal-text contrast", () =>
 });
 
 test("targeted selectors use semantic accessible color variables", () => {
-  for (const selector of [".step-number", ".action-number", ".review-chip", ".location-pill", ".resource-main dt"]) {
+  for (const selector of [".step-number", ".action-number", ".location-pill", ".resource-main dt"]) {
     const escaped = selector.replaceAll(".", "\\.");
     assert.match(userCss, new RegExp(`${escaped}[^}]*color:\\s*var\\(--accessible-text\\)`));
   }

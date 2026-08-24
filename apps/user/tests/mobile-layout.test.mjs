@@ -1,0 +1,142 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { fileURLToPath } from "node:url";
+import { chromium } from "@playwright/test";
+import test from "node:test";
+
+const appRoot = fileURLToPath(new URL("..", import.meta.url));
+const port = 3100;
+const testUrl = new URL(process.env.STAYBRIDGE_MOBILE_TEST_URL ?? `http://127.0.0.1:${port}`);
+const serverCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
+let server;
+let browser;
+
+async function waitForServer() {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch(new URL("/ja", testUrl));
+      if (response.status < 500) return;
+    } catch {
+      // The dev server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Mobile layout test server did not start at ${testUrl}`);
+}
+
+async function openRoute(context, locale) {
+  const page = await context.newPage();
+  await page.goto(new URL(`/${locale}`, testUrl).toString(), { waitUntil: "domcontentloaded" });
+  await page.locator("nav[aria-label] button").first().waitFor();
+  return page;
+}
+
+async function measureLayout(page, safeAreaInsetBottom) {
+  await page.addStyleTag({
+    content: `:root { --safe-area-inset-bottom: ${safeAreaInsetBottom}px !important; }`,
+  });
+  return page.evaluate(() => {
+    const nav = document.querySelector("nav[aria-label]");
+    const buttons = [...document.querySelectorAll("nav[aria-label] button")];
+    const footer = document.querySelector(".site-footer");
+    if (!nav || !footer || buttons.length !== 3) throw new Error("Expected mobile navigation landmarks are missing");
+
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    const navRect = nav.getBoundingClientRect();
+    const footerRect = footer.getBoundingClientRect();
+    const navStyle = getComputedStyle(nav);
+
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      nav: {
+        top: navRect.top,
+        bottom: navRect.bottom,
+        height: navRect.height,
+        paddingBottom: Number.parseFloat(navStyle.paddingBottom),
+      },
+      buttons: buttons.map((button) => {
+        const rect = button.getBoundingClientRect();
+        return {
+          label: button.textContent?.trim(),
+          top: rect.top,
+          bottom: rect.bottom,
+          height: rect.height,
+          width: rect.width,
+          clientHeight: button.clientHeight,
+          scrollHeight: button.scrollHeight,
+          clientWidth: button.clientWidth,
+          scrollWidth: button.scrollWidth,
+        };
+      }),
+      footerBottom: footerRect.bottom,
+    };
+  });
+}
+
+test.before(async () => {
+  if (!process.env.STAYBRIDGE_MOBILE_TEST_URL) {
+    server = spawn(
+      serverCommand,
+      ["exec", "vinext", "start", "--hostname", "127.0.0.1", "--port", String(port)],
+      {
+        cwd: appRoot,
+        env: { ...process.env, WRANGLER_LOG_PATH: ".wrangler/mobile-layout.log" },
+        stdio: "ignore",
+      },
+    );
+  }
+  await waitForServer();
+  browser = await chromium.launch({ headless: true });
+});
+
+test.after(async () => {
+  await browser?.close();
+  if (server) {
+    server.kill("SIGTERM");
+    await Promise.race([once(server, "exit"), new Promise((resolve) => setTimeout(resolve, 2_000))]);
+  }
+});
+
+test("keeps the fixed navigation usable and the page content above it across safe areas", async () => {
+  for (const safeAreaInsetBottom of [0, 20, 34]) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await openRoute(context, "ja");
+    const layout = await measureLayout(page, safeAreaInsetBottom);
+
+    assert.equal(layout.viewport.width, 390);
+    assert.equal(layout.nav.height, 62 + safeAreaInsetBottom);
+    assert.ok(layout.nav.paddingBottom >= safeAreaInsetBottom);
+    for (const button of layout.buttons) {
+      assert.ok(button.height >= 44, `${button.label} hit area is ${button.height}px`);
+      assert.ok(button.top >= layout.nav.top);
+      assert.ok(button.bottom <= layout.nav.bottom - safeAreaInsetBottom);
+    }
+    assert.ok(
+      layout.footerBottom <= layout.nav.top + 1,
+      `footer bottom ${layout.footerBottom}px is covered by nav starting at ${layout.nav.top}px`,
+    );
+    await context.close();
+  }
+});
+
+test("keeps all reviewed navigation labels visible at a 390px physical width with 200% zoom", async () => {
+  // A 200% browser zoom makes a 390px physical viewport equivalent to 195 CSS px.
+  for (const locale of ["ja", "en", "my"]) {
+    const context = await browser.newContext({ viewport: { width: 195, height: 844 } });
+    const page = await openRoute(context, locale);
+    const layout = await measureLayout(page, 34);
+
+    assert.equal(layout.viewport.width, 195, `${locale} effective CSS viewport`);
+    for (const button of layout.buttons) {
+      assert.ok(button.width >= 44, `${locale} ${button.label} width is ${button.width}px`);
+      assert.ok(button.height >= 44, `${locale} ${button.label} height is ${button.height}px`);
+      assert.ok(button.scrollWidth <= button.clientWidth + 1, `${locale} ${button.label} is horizontally clipped`);
+      assert.ok(button.scrollHeight <= button.clientHeight + 1, `${locale} ${button.label} is vertically clipped`);
+    }
+    assert.ok(layout.footerBottom <= layout.nav.top + 1, `${locale} footer is covered by nav`);
+    await context.close();
+  }
+});

@@ -133,7 +133,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
 
   return <section className="support-chat">
     <div className="support-chat-heading">
-      <div className="chat-title-row"><span className="chat-spark" aria-hidden="true">✦</span><div><small>AI SUPPORT</small><h2>{t.title}</h2></div></div>
+      <div className="chat-title-row"><span className="chat-spark" aria-hidden="true">✦</span><div><h2>{t.title}</h2></div></div>
     </div>
     <div className="support-chat-panel" id={panelId}>
       <p className="chat-disclosure">{t.disclosure}</p>
