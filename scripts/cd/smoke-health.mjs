@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 export const DEFAULT_SMOKE_ATTEMPTS = 10;
 export const DEFAULT_SMOKE_DELAY_MS = 6000;
 export const DEFAULT_SMOKE_REQUEST_TIMEOUT_MS = 5000;
+export const MAX_CONFIGURED_SMOKE_DURATION_MS = 3 * 60 * 1000;
 
 function requirePositiveInteger(value, name) {
   if (!Number.isInteger(value) || value <= 0) {
@@ -23,10 +24,28 @@ function requirePositiveFinite(value, name) {
   }
 }
 
+function calculateMaximumSmokeDurationMs({ attempts, delayMs, requestTimeoutMs }) {
+  return attempts * requestTimeoutMs * 2 + (attempts - 1) * delayMs;
+}
+
 function validateSmokeTiming({ attempts, delayMs, requestTimeoutMs }) {
   requirePositiveInteger(attempts, "attempts");
   requireNonNegativeFinite(delayMs, "delayMs");
   requirePositiveFinite(requestTimeoutMs, "requestTimeoutMs");
+
+  const maximumDurationMs = calculateMaximumSmokeDurationMs({
+    attempts,
+    delayMs,
+    requestTimeoutMs,
+  });
+  if (
+    !Number.isFinite(maximumDurationMs) ||
+    maximumDurationMs > MAX_CONFIGURED_SMOKE_DURATION_MS
+  ) {
+    throw new Error(
+      `smoke timing budget must not exceed ${MAX_CONFIGURED_SMOKE_DURATION_MS}ms`,
+    );
+  }
 }
 
 export function maximumSmokeDurationMs({
@@ -35,7 +54,7 @@ export function maximumSmokeDurationMs({
   requestTimeoutMs = DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
 } = {}) {
   validateSmokeTiming({ attempts, delayMs, requestTimeoutMs });
-  return attempts * requestTimeoutMs * 2 + (attempts - 1) * delayMs;
+  return calculateMaximumSmokeDurationMs({ attempts, delayMs, requestTimeoutMs });
 }
 
 export async function assertHealth(response, expectedService, expectedRevision) {
