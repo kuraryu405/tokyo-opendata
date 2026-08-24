@@ -7,6 +7,9 @@ const municipalityCodes: Record<string, string> = {
   Toshima: "13116",
 };
 
+const situationRecordIdPattern = /^sit_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const deletionTokenPattern = /^[A-Za-z0-9_-]{43}$/u;
+
 export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-credentials";
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
 
@@ -50,15 +53,7 @@ export function parseSituationSubmissionSecrets(value: string | null): Situation
 export function parseSavedSituationCredentials(value: string | null): SavedRecordCredentials | null {
   if (!value) return null;
   try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (
-      Object.keys(parsed).length !== 2
-      || typeof parsed.id !== "string"
-      || !/^sit_[0-9a-f-]{36}$/u.test(parsed.id)
-      || typeof parsed.deletionToken !== "string"
-      || !/^[A-Za-z0-9_-]{43}$/u.test(parsed.deletionToken)
-    ) return null;
-    return { id: parsed.id, deletionToken: parsed.deletionToken };
+    return parseSavedSituationCredentialsValue(JSON.parse(value));
   } catch {
     return null;
   }
@@ -88,18 +83,22 @@ export async function saveSituationSubmission(
     }),
   });
   const body = await readSuccessBody(response);
-  if (!body || typeof body.id !== "string" || !body.id.startsWith("sit_")) {
-    throw new Error("SITUATION_PERSISTENCE_FAILED");
-  }
-  return { id: body.id, deletionToken: secrets.deletionToken };
+  const credentials = parseSavedSituationCredentialsValue({
+    id: body?.id,
+    deletionToken: secrets.deletionToken,
+  });
+  if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
+  return credentials;
 }
 
 export async function deleteSituationSubmission(
   credentials: SavedRecordCredentials,
 ): Promise<void> {
-  const response = await fetch(`/api/situation-submissions/${encodeURIComponent(credentials.id)}`, {
+  const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
+  if (!validatedCredentials) throw new Error("SITUATION_DELETION_FAILED");
+  const response = await fetch(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
     method: "DELETE",
-    headers: { authorization: `Bearer ${credentials.deletionToken}` },
+    headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
   });
   // A prior DELETE may have succeeded even if its response was lost. Because
   // this call uses the exact locally-held random ID and token, 404 is a safe
@@ -107,6 +106,19 @@ export async function deleteSituationSubmission(
   if (response.status === 404) return;
   const body = await readSuccessBody(response);
   if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+}
+
+function parseSavedSituationCredentialsValue(value: unknown): SavedRecordCredentials | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const parsed = value as Record<string, unknown>;
+  if (
+    Object.keys(parsed).length !== 2
+    || typeof parsed.id !== "string"
+    || !situationRecordIdPattern.test(parsed.id)
+    || typeof parsed.deletionToken !== "string"
+    || !deletionTokenPattern.test(parsed.deletionToken)
+  ) return null;
+  return { id: parsed.id, deletionToken: parsed.deletionToken };
 }
 
 function createDeletionToken(): string {
