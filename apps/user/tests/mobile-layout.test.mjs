@@ -29,6 +29,7 @@ async function waitForServer() {
 async function openRoute(context, locale) {
   const page = await context.newPage();
   await page.goto(new URL(`/${locale}`, testUrl).toString(), { waitUntil: "domcontentloaded" });
+  await page.locator(".hero-actions .secondary-button").click();
   await page.locator("nav[aria-label] button").first().waitFor();
   return page;
 }
