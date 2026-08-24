@@ -105,13 +105,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const [copyState, setCopyState] = useState<CopyState>("idle");
-  const [isPreparingResults, setIsPreparingResults] = useState(false);
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
   const [isDemoSituation, setIsDemoSituation] = useState(false);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
-  const completionTimer = useRef<number | undefined>(undefined);
   const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
   const t = getUserMessages(locale).ui;
   const hasSavedSituationCredentials = "credentials" in situationPersistence;
@@ -154,19 +152,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
-
-  useEffect(() => {
-    if (screen === "check") return;
-    if (completionTimer.current !== undefined) {
-      window.clearTimeout(completionTimer.current);
-      completionTimer.current = undefined;
-      setIsPreparingResults(false);
-    }
-  }, [screen]);
-
-  useEffect(() => () => {
-    if (completionTimer.current !== undefined) window.clearTimeout(completionTimer.current);
-  }, []);
 
   useEffect(() => {
     if (!pathname) return;
@@ -252,7 +237,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const complete = () => {
-    if (completionTimer.current !== undefined) return;
     if (!assessmentComplete) {
       router.replace(buildStayBridgePath({
         locale,
@@ -261,12 +245,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }));
       return;
     }
-    setIsPreparingResults(true);
-    completionTimer.current = window.setTimeout(() => {
-      completionTimer.current = undefined;
-      setIsPreparingResults(false);
-      go("status");
-    }, 650);
+    go("status");
   };
 
   const loadDemo = () => {
@@ -431,10 +410,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   return (
     <div className={`app-shell locale-${locale}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} disabled={isPreparingResults} />
+      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
-        {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard || isPreparingResults ? <LoadingState message={routeUi[locale].preparing} /> : <>
+        {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
@@ -454,16 +433,16 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   );
 }
 
-function Header({ locale, screen, go, switchLocale, disabled }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; disabled: boolean }) {
+function Header({ locale, screen, go, switchLocale }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void }) {
   const t = getUserMessages(locale).ui;
   return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel} disabled={disabled}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
+    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
     <nav aria-label={t.primaryNavLabel}>
       <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
     </nav>
-    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} disabled={disabled} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
+    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
 }
 
