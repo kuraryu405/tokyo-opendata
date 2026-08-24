@@ -57,6 +57,7 @@ import {
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
+import { formatAssessmentDateForLocale } from "../assessment-date";
 import { resolveMunicipalityAppUrl } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -339,8 +340,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const summaryDate = useMemo(
-    () => new Date().toLocaleDateString(locale === "my" ? "en" : locale),
-    [locale],
+    () => formatAssessmentDateForLocale(assessmentDate, locale),
+    [assessmentDate, locale],
   );
 
   const persistSituation = async () => {

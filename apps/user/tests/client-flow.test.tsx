@@ -1085,6 +1085,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText("I want to check my documents")).toBeTruthy();
     expect(screen.getByText("My spouse is with me")).toBeTruthy();
     expect(screen.queryByText("No")).toBeNull();
+    expect(document.querySelector(".summary-sheet time")?.textContent).toBe("August 23, 2026");
   });
 
   it("keeps spouse and child answers together across roadmap and summary", async () => {
