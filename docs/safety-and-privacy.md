@@ -12,7 +12,7 @@ AIチャットにはSituation Checkの回答を自動送信しない。ユーザ
 
 ## Minimal data
 
-ログイン不要。氏名、連絡先、旅券・在留カード番号、画像、正確な住所、母国住所、政治・宗教・政党、政治活動、迫害内容を求めない。国籍・地域の回答は相談サマリー以外のカード選定に使わない。位置情報は任意で、未許可でも自治体単位で使える。端末内セッション保存とサーバー保存は別物である。POST前に生成したidempotency keyと削除コードはtab限定`sessionStorage`へ保存し、応答不明時もreload後の再試行で同じ値を使う。保存済み・送信結果不明のSituationがある間は、回答変更routeと端末データ消去をサーバー記録の状態が解決するまでblockする。
+ログイン不要。氏名、連絡先、旅券・在留カード番号、画像、正確な住所、母国住所、政治・宗教・政党、政治活動、迫害内容を求めない。国籍・地域の回答は相談サマリー以外のカード選定に使わない。位置情報は任意で、未許可でも自治体単位で使える。端末内セッション保存とサーバー保存は別物である。POST前に、idempotency key・削除コード・初回POSTのallowlist済み最小payloadだけをversion付きsnapshotとしてtab限定`sessionStorage`へ保存する。応答不明時は回答sessionが変更・migration・破損していてもsnapshotをそのまま再送し、未知versionや壊れたsnapshotは上書きも送信もせずfail-closedにする。保存済み・送信結果不明のSituationがある間は、回答変更routeと端末データ消去をサーバー記録の状態が解決するまでblockする。
 
 Situation Check回答とLLM会話は別同意・別version・別テーブルで管理する。Situation側は国籍、正確な滞在期限、自由記述を送らず、自治体コード、選択式回答、粗い時間・年齢区分だけを保存する。公開デモfixtureはsession内provenanceで区別してUI保存を拒否する。ただし公開Situation APIは認証APIではなく、入力が実在利用者本人の回答であることまでは証明しない。会話側は#62のserver生成経路だけから、利用者・モデルのマスキング済み本文、サーバー固定のモデルID、trusted Source Registryで検証済みのsource ID、作成日時を保存する。Situation IDは`sit_`、会話IDは`con_`で始まる別々のサーバー生成random UUIDとし、恒久ユーザーID、アカウント、Cookieによる訪問横断追跡を持たない。
 

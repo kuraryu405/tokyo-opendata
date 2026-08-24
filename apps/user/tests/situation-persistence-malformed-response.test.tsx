@@ -90,7 +90,7 @@ describe("Situation persistence malformed success responses", () => {
     "sit_",
     "sit_AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
     "sit_11111111-1111-4111-8111-111111111111_extra",
-  ])("keeps pending secrets when a success response has malformed Situation ID %s", async (id) => {
+  ])("keeps the pending request snapshot when a success response has malformed Situation ID %s", async (id) => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
@@ -105,8 +105,8 @@ describe("Situation persistence malformed success responses", () => {
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { idempotencyKey: string; deletionToken: string };
     expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual({
-      idempotencyKey: requestBody.idempotencyKey,
-      deletionToken: requestBody.deletionToken,
+      version: 1,
+      request: requestBody,
     });
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
     expect(screen.queryByRole("heading", { name: "削除に必要な情報" })).toBeNull();

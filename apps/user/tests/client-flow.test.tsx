@@ -6,10 +6,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
-import type { VisitPurpose } from "@staybridge/domain/types";
+import type { Situation, VisitPurpose } from "@staybridge/domain/types";
 import { sourceRegistry } from "@staybridge/data";
 import { supportCopy } from "@staybridge/i18n";
 import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client";
+import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
 const navigation = vi.hoisted(() => {
@@ -356,7 +357,9 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText(/このタブのsessionStorageにも保持/)).toBeTruthy();
   });
 
-  it("restores pending secrets after an ambiguous response and retries without a duplicate", async () => {
+  it.each(["altered answers", "migrated session", "malformed session"] as const)(
+    "restores the initial pending payload after response loss with %s",
+    async (sessionChange) => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
@@ -374,8 +377,41 @@ describe("StayBridge client flow", () => {
     const pendingBeforeReload = sessionStorage.getItem("staybridge.pending-situation-submission");
     expect(pendingBeforeReload).toBeTruthy();
     const firstBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    expect(JSON.parse(pendingBeforeReload ?? "null")).toEqual({ version: 1, request: firstBody });
+    expect(pendingBeforeReload).not.toContain(demoSituation.nationality);
+    expect(pendingBeforeReload).not.toContain(demoSituation.knownStayDeadline);
+    expect(pendingBeforeReload).not.toContain("nationality");
+    expect(pendingBeforeReload).not.toContain("knownStayDeadline");
+    expect(pendingBeforeReload).not.toContain("stayDeadlineKnown");
 
     firstRender.unmount();
+    const alteredSituation: Situation = {
+      ...demoSituation,
+      currentMunicipality: "Shinjuku",
+      visitPurpose: "work",
+      nationality: "US",
+      knownStayDeadline: "2030-12-31",
+      needs: ["employment"],
+    };
+    if (sessionChange === "altered answers") {
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({
+        provenance: "user",
+        situation: alteredSituation,
+        stayAnswer: "known",
+        familyAnswers: ["none"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+    } else if (sessionChange === "migrated session") {
+      sessionStorage.setItem("staybridge.session", JSON.stringify({
+        version: 2,
+        situation: alteredSituation,
+        stayAnswer: "known",
+        familyAnswers: ["none"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+    } else {
+      sessionStorage.setItem("staybridge.session", "{malformed");
+    }
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
     await user.click(screen.getByRole("button", { name: "同意して保存" }));
@@ -383,10 +419,50 @@ describe("StayBridge client flow", () => {
 
     const retryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey);
-    expect(retryBody.deletionToken).toBe(firstBody.deletionToken);
+    expect(retryBody).toEqual(firstBody);
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_33333333");
+    },
+  );
+
+  it.each([
+    { idempotencyKey: "legacy_request_key", deletionToken: "A".repeat(43) },
+    { version: 2, request: {} },
+    { version: 1, request: { unexpected: "payload" } },
+    {
+      version: 1,
+      request: {
+        consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
+        idempotencyKey: "request_key_123456",
+        deletionToken: "A".repeat(43),
+        answers: {
+          municipalityCode: "13117",
+          visitPurpose: "tourism",
+          departureWindow: "within_30_days",
+          returnStatus: "difficult",
+          familyAgeGroups: ["6-11"],
+          accommodation: "hotel",
+          needs: ["medical"],
+          japaneseLevel: "beginner",
+          nationality: "MMR",
+        },
+      },
+    },
+  ])("keeps an incompatible pending format without overwriting or sending it: %#", async (pending) => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const storedPending = JSON.stringify(pending);
+    sessionStorage.setItem("staybridge.pending-situation-submission", storedPending);
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
+    await user.click(screen.getByRole("button", { name: "同意して保存" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
   });
 
   it("guards saved records from direct, Back, Home, and demo state-changing routes", async () => {

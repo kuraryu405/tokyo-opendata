@@ -213,6 +213,22 @@ test("persists only allowlisted situation values with hashed tokens and idempote
     ok: true,
     data: { id: firstBody.data.id, created: false },
   });
+
+  const conflictingBody = situationBody();
+  conflictingBody.answers.visitPurpose = "work";
+  const conflict = await handleConsentedPersistenceRequest(
+    jsonRequest("/api/situation-submissions", conflictingBody),
+    env(database),
+  );
+  assert.equal(conflict?.status, 409);
+  assert.deepEqual(await conflict?.json(), {
+    ok: false,
+    error: {
+      code: "DUPLICATE_CONFLICT",
+      message: "The idempotency key was already used for a different request.",
+    },
+  });
+  assert.equal(database.situations.size, 1);
 });
 
 test("masks a bounded server-verified conversation before storing it in separate records", async () => {
