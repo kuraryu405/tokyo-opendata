@@ -167,6 +167,81 @@ describe("support chat worker endpoint", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("rejects passport-number-like input before inference without echoing it", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "回答" });
+    for (const content of ["パスポート番号 TR1234567 を控えています", "TR1234567"]) {
+      const response = await handleSupportChatRequest(
+        chatRequest({ locale: "ja", messages: [{ role: "user", content }] }),
+        { ai: { run }, rateLimiter: availableRateLimiter() },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "HIGH_RISK_IDENTIFIER" });
+    }
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("rejects residence-card-like and assistant-history identifiers before inference", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "回答" });
+    const userShape = await handleSupportChatRequest(
+      chatRequest({ locale: "ja", messages: [{ role: "user", content: "在留カードは TR12345678JP です" }] }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+    expect(userShape.status).toBe(400);
+    await expect(userShape.json()).resolves.toEqual({ error: "HIGH_RISK_IDENTIFIER" });
+
+    const historyShape = await handleSupportChatRequest(
+      chatRequest({
+        locale: "ja",
+        messages: [
+          { role: "user", content: "質問" },
+          { role: "assistant", content: "パスポート番号 TR7654321" },
+          { role: "user", content: "追加の質問" },
+        ],
+      }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+    expect(historyShape.status).toBe(400);
+    expect(await historyShape.text()).not.toContain("TR7654321");
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("masks contact data before serializing the transcript for inference", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "整理しましょう。" });
+    const response = await handleSupportChatRequest(
+      chatRequest({
+        locale: "ja",
+        messages: [{
+          role: "user",
+          content: "連絡先は hanako@example.com / 090-1234-5678 で、東京都北区岸町1丁目2-3の近くです",
+        }],
+      }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+
+    expect(response.status).toBe(200);
+    const transcript = run.mock.calls[0][1].messages[1].content;
+    expect(transcript).toContain("[REDACTED_EMAIL]");
+    expect(transcript).toContain("[REDACTED_PHONE]");
+    expect(transcript).toContain("[REDACTED_ADDRESS]");
+    expect(transcript).not.toContain("hanako@example.com");
+    expect(transcript).not.toContain("090-1234-5678");
+    expect(transcript).not.toContain("岸町");
+  });
+
+  it("leaves ordinary sentences containing non-identifier words unmasked", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "確認してください。" });
+    const response = await handleSupportChatRequest(
+      chatRequest({ locale: "ja", messages: [{ role: "user", content: "返信はメールで届きますか？" }] }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+
+    expect(response.status).toBe(200);
+    const transcript = run.mock.calls[0][1].messages[1].content;
+    expect(transcript).toContain("返信はメールで届きますか");
+    expect(transcript).not.toContain("[REDACTED_");
+  });
+
   it("stops reading a streamed body as soon as the byte limit is exceeded", async () => {
     const chunk = new TextEncoder().encode("x".repeat(1024));
     let pulls = 0;

@@ -1,3 +1,5 @@
+import { containsRejectedIdentifier, maskDetectableContactData } from "@staybridge/worker-runtime";
+
 export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 const MAX_MESSAGES = 7;
@@ -192,11 +194,21 @@ export async function handleSupportChatRequest(
 
   if (!bindings.ai) return json({ error: "AI_UNAVAILABLE" }, 503);
 
+  for (const message of parsed.messages) {
+    if (containsRejectedIdentifier(message.content)) {
+      return json({ error: "HIGH_RISK_IDENTIFIER" }, 400);
+    }
+  }
+  const maskedMessages = parsed.messages.map((message) => ({
+    role: message.role,
+    content: maskDetectableContactData(message.content),
+  }));
+
   try {
     const result = await bindings.ai.run(SUPPORT_CHAT_MODEL, {
       messages: [
         { role: "system", content: systemPrompt(parsed.locale) },
-        { role: "user", content: serializeUntrustedTranscript(parsed.messages) },
+        { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
       ],
       max_tokens: 320,
       temperature: 0.2,
