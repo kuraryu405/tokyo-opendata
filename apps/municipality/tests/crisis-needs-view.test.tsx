@@ -12,6 +12,7 @@ const baseData = {
   availability: "available" as const,
   freshness: "fresh" as const,
   threshold: 5 as const,
+  countBucketSize: 5 as const,
   coverageNote: "同意済みのSituation Check任意回答だけを自治体単位で匿名集計しています。",
   limitations: [] as string[],
 };
@@ -42,7 +43,7 @@ describe("Crisis View suppression rendering", () => {
       return jsonResponse({
         ...baseData,
         view: "needs",
-        respondentCount: 12,
+        respondentCount: 10,
         hasSuppressedCategories: false,
         categories: [{ key: "medical", respondentCount: 5 }],
         lastUpdatedAt: "2026-08-23",
@@ -52,7 +53,7 @@ describe("Crisis View suppression rendering", () => {
     const user = userEvent.setup();
     render(<CrisisView />);
 
-    expect(await screen.findByText("回答者数 12")).toBeTruthy();
+    expect(await screen.findByText("回答者数 10件以上")).toBeTruthy();
 
     await user.selectOptions(screen.getByRole("combobox", { name: "表示軸" }), "accommodation");
 

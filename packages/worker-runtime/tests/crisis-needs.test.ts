@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CRISIS_NEEDS_THRESHOLD, handleCrisisNeedsRequest } from "../src/index";
+import { CRISIS_NEEDS_COUNT_BUCKET, CRISIS_NEEDS_THRESHOLD, handleCrisisNeedsRequest } from "../src/index";
 
 type Totals = { respondent_count: number; last_updated_at: string | null };
 type Category = { category: string; respondent_count: number };
@@ -54,6 +54,7 @@ test("returns the aggregate at five respondents and suppresses categories below 
   assert.equal(body.data.availability, "available");
   assert.equal(body.data.freshness, "fresh");
   assert.equal(body.data.respondentCount, 5);
+  assert.equal(body.data.countBucketSize, CRISIS_NEEDS_COUNT_BUCKET);
   assert.equal(body.data.hasSuppressedCategories, true);
   assert.equal(body.data.lastUpdatedAt, "2026-08-23");
   assert.deepEqual(body.data.categories, [{ key: "medical", respondentCount: 5 }]);
@@ -68,9 +69,22 @@ test("keeps the needs total while withholding small multi-select cells", async (
   );
   const response = await handleCrisisNeedsRequest(request(), database as unknown as D1Database, { now });
   const body = await response?.json() as { ok: true; data: Record<string, unknown> };
-  assert.equal(body.data.respondentCount, 12);
+  assert.equal(body.data.respondentCount, 10);
   assert.equal(body.data.hasSuppressedCategories, true);
   assert.deepEqual(body.data.categories, [{ key: "medical", respondentCount: 10 }]);
+});
+
+test("does not treat zero-count categories as suppressed on an exclusive axis", async () => {
+  const database = new CrisisDatabase(
+    { respondent_count: 5, last_updated_at: "2026-08-23T10:00:00.000Z" },
+    [{ category: "hotel", respondent_count: 5 }, { category: "unstable", respondent_count: 0 }],
+  );
+  const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=accommodation"), database as unknown as D1Database, { now });
+  const body = await response?.json() as { ok: true; data: Record<string, unknown> };
+  assert.equal(body.data.availability, "available");
+  assert.equal(body.data.hasSuppressedCategories, false);
+  assert.equal(body.data.respondentCount, 5);
+  assert.deepEqual(body.data.categories, [{ key: "hotel", respondentCount: 5 }]);
 });
 
 test("withholds total and smallest published cell on an exclusive axis with a suppressed cell", async () => {
@@ -86,10 +100,22 @@ test("withholds total and smallest published cell on an exclusive axis with a su
   assert.equal(body.data.hasSuppressedCategories, true);
 });
 
-test("applies complementary suppression at the exclusive-axis boundary of five respondents", async () => {
+test("applies the same complementary suppression to departure windows", async () => {
+  const database = new CrisisDatabase(
+    { respondent_count: 7, last_updated_at: "2026-08-23T10:00:00.000Z" },
+    [{ category: "within_7_days", respondent_count: 6 }, { category: "within_30_days", respondent_count: 1 }],
+  );
+  const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=departure_window"), database as unknown as D1Database, { now });
+  const body = await response?.json() as { ok: true; data: Record<string, unknown> };
+  assert.deepEqual(body.data.categories, []);
+  assert.equal("respondentCount" in body.data, false);
+  assert.equal(body.data.hasSuppressedCategories, true);
+});
+
+test("applies complementary suppression for positive cells below the threshold", async () => {
   const database = new CrisisDatabase(
     { respondent_count: 5, last_updated_at: "2026-08-23T10:00:00.000Z" },
-    [{ category: "hotel", respondent_count: 5 }],
+    [{ category: "hotel", respondent_count: 5 }, { category: "unstable", respondent_count: 1 }],
   );
   const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=accommodation"), database as unknown as D1Database, { now });
   const body = await response?.json() as { ok: true; data: Record<string, unknown> };
@@ -113,14 +139,26 @@ test("hides every published cell when several cells are suppressed on an exclusi
 
 test("keeps only cells that stay publishable after complementary suppression", async () => {
   const database = new CrisisDatabase(
-    { respondent_count: 20, last_updated_at: "2026-08-23T10:00:00.000Z" },
-    [{ category: "possible", respondent_count: 12 }, { category: "difficult", respondent_count: 8 }],
+    { respondent_count: 24, last_updated_at: "2026-08-23T10:00:00.000Z" },
+    [{ category: "possible", respondent_count: 12 }, { category: "difficult", respondent_count: 8 }, { category: "unknown", respondent_count: 4 }],
   );
   const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=return_status"), database as unknown as D1Database, { now });
   const body = await response?.json() as { ok: true; data: Record<string, unknown> };
-  assert.deepEqual(body.data.categories, [{ key: "possible", respondentCount: 12 }]);
+  assert.deepEqual(body.data.categories, [{ key: "possible", respondentCount: 10 }]);
   assert.equal("respondentCount" in body.data, false);
   assert.equal(body.data.hasSuppressedCategories, true);
+});
+
+test("buckets a six-count published cell instead of exposing the exact count", async () => {
+  const database = new CrisisDatabase(
+    { respondent_count: 6, last_updated_at: "2026-08-23T10:00:00.000Z" },
+    [{ category: "hotel", respondent_count: 6 }],
+  );
+  const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=accommodation"), database as unknown as D1Database, { now });
+  const body = await response?.json() as { ok: true; data: Record<string, unknown> };
+  assert.equal(body.data.hasSuppressedCategories, false);
+  assert.equal(body.data.respondentCount, 5);
+  assert.deepEqual(body.data.categories, [{ key: "hotel", respondentCount: 5 }]);
 });
 
 test("publishes every cell and the total when no exclusive-axis cell is suppressed", async () => {
@@ -137,6 +175,52 @@ test("publishes every cell and the total when no exclusive-axis cell is suppress
   ]);
   assert.equal(body.data.respondentCount, 20);
   assert.equal(body.data.hasSuppressedCategories, false);
+});
+
+test("keeps the 0/1/4/5/6 respondent boundary contract", async () => {
+  const cases = [
+    { count: 0, availability: "no_data", reportableCount: undefined },
+    { count: 1, availability: "below_threshold", reportableCount: undefined },
+    { count: 4, availability: "below_threshold", reportableCount: undefined },
+    { count: 5, availability: "available", reportableCount: 5 },
+    { count: 6, availability: "available", reportableCount: 5 },
+  ] as const;
+
+  for (const { count, availability, reportableCount } of cases) {
+    const database = new CrisisDatabase(
+      { respondent_count: count, last_updated_at: count === 0 ? null : "2026-08-23T10:00:00.000Z" },
+      count >= CRISIS_NEEDS_THRESHOLD ? [{ category: "possible", respondent_count: count }] : [],
+    );
+    const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=return_status"), database as unknown as D1Database, { now });
+    const body = await response?.json() as { ok: true; data: Record<string, unknown> };
+    assert.equal(body.data.availability, availability, `count=${count}`);
+    assert.equal(body.data.respondentCount, reportableCount, `count=${count}`);
+    assert.equal(body.data.countBucketSize, CRISIS_NEEDS_COUNT_BUCKET, `count=${count}`);
+  }
+});
+
+test("uses the same lower-bound bucket across 7d, 30d, and 90d instead of exposing small deltas", async () => {
+  const results = await Promise.all([
+    ["7d", 10],
+    ["30d", 11],
+    ["90d", 14],
+  ].map(async ([period, count]) => {
+    const database = new CrisisDatabase(
+      { respondent_count: count, last_updated_at: "2026-08-23T10:00:00.000Z" },
+      [{ category: "possible", respondent_count: count }],
+    );
+    const response = await handleCrisisNeedsRequest(request(`municipality=13117&period=${period}&view=return_status`), database as unknown as D1Database, { now });
+    return response?.json() as Promise<{ ok: true; data: Record<string, unknown> }>;
+  }));
+
+  for (const result of results) {
+    const body = await result;
+    assert.equal(body.data.countBucketSize, CRISIS_NEEDS_COUNT_BUCKET);
+    assert.equal(body.data.respondentCount, 10);
+    assert.deepEqual(body.data.categories, [{ key: "possible", respondentCount: 10 }]);
+    assert.match(String(body.data.coverageNote), /5件幅の下限バケット/);
+    assert.match(String(body.data.limitations), /7日・30日・90日/);
+  }
 });
 
 test("reports no data without an aggregate count and marks old reportable data stale", async () => {
