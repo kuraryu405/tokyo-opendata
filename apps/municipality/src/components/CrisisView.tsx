@@ -156,8 +156,6 @@ export function CrisisView() {
         <div className="crisis-section-title"><span>05</span><div><small>PREPARATION CHECKLIST</small><h2>対応検討項目</h2></div><p>自動判断や命令ではなく、担当者が確認するための一覧です。</p></div>
         <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3>{group.items.map((item) => <label key={item}><input type="checkbox" /><span>{item}</span></label>)}</article>)}</div>
       </section>
-
-      <section className="feedback-loop"><div><span className="section-label">FUTURE FEEDBACK LOOP</span><h2>Open Dataを、次の支援準備へ。</h2><p>将来は個人を特定しない利用傾向から、実際の困りごとと不足データを把握し、データ整備へ還元します。</p></div><div className="loop-flow">{["Public Open Data", "StayBridge", "Anonymous needs", "Public preparation"].map((item, i) => <div key={item}><span>{String(i + 1).padStart(2, "0")}</span><strong>{item}</strong>{i < 3 && <b>→</b>}</div>)}</div></section>
     </main>
     <footer className="crisis-footer"><span>StayBridge Tokyo · Preparedness View</span><span>個人追跡・住所レベル表示・法的判断を行いません</span></footer>
   </div>;
