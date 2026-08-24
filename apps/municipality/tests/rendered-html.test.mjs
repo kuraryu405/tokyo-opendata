@@ -65,6 +65,7 @@ test("serves the built municipality Worker crisis aggregate route before app ren
   assert.equal(body.ok, true);
   assert.equal(body.data.availability, "available");
   assert.equal(body.data.respondentCount, 5);
+  assert.equal(body.data.hasSuppressedCategories, true);
   assert.deepEqual(body.data.categories, [{ key: "medical", respondentCount: 5 }]);
   assert.ok(queries.every((query) => !/conversation/i.test(query)));
 });

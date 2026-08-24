@@ -46,6 +46,8 @@ export type CrisisNeedsData = {
   coverageNote: string;
   limitations: string[];
   categories: Array<{ key: string; respondentCount: number }>;
+  /** True when at least one category cell was withheld from the returned view. Never reveals which or how many. */
+  hasSuppressedCategories?: boolean;
   respondentCount?: number;
   /** Tokyo calendar date, deliberately coarsened from the most recent submission timestamp. */
   lastUpdatedAt?: string;
@@ -55,10 +57,11 @@ export type CrisisNeedsOptions = {
   now?: Date;
 };
 
-const coverageNote = "同意済みのSituation Check任意回答だけを自治体単位で匿名集計しています。Open Dataではありません。";
+const coverageNote = "同意済みのSituation Check任意回答だけを自治体単位で匿名集計しています。総数と一部の区分は、件数が少ない場合に表示を控えています。";
 const limitations = [
   "母集団ではなく、人口・不足・優先度・サービス提供能力を示しません。",
-  "5件未満の全体・カテゴリは表示しません。",
+  "件数が少ない区分は表示を控え、該当する区分がある場合は総数も表示しません。",
+  "期間をまたいだ差分から小さな変化が推測される場合があります。",
   "会話、個票、住所、位置情報、国籍は集計・表示しません。",
 ];
 
@@ -107,9 +110,10 @@ export async function handleCrisisNeedsRequest(
       : undefined;
     const freshness = lastUpdatedAt && isFresh(total?.last_updated_at, now) ? "fresh" : "stale";
 
-    const categories = availability === "available"
-      ? await querySafeCategories(db, parsed.view, periodStart)
+    const fullCategories = availability === "available"
+      ? await queryFullCategories(db, parsed.view, periodStart)
       : [];
+    const shaped = shapeCategories(parsed.view, fullCategories);
 
     const data: CrisisNeedsData = {
       municipality: municipalityCode,
@@ -120,10 +124,11 @@ export async function handleCrisisNeedsRequest(
       threshold: CRISIS_NEEDS_THRESHOLD,
       coverageNote,
       limitations,
-      categories,
+      categories: shaped.categories,
     };
     if (availability === "available") {
-      data.respondentCount = respondentCount;
+      data.hasSuppressedCategories = shaped.hasSuppressedCategories;
+      if (!shaped.withholdTotal) data.respondentCount = respondentCount;
       if (lastUpdatedAt) data.lastUpdatedAt = lastUpdatedAt;
     }
     return createApiSuccessResponse(data);
@@ -155,7 +160,34 @@ function parseRequest(searchParams: URLSearchParams): { period: CrisisPeriod; vi
   return { period: period as CrisisPeriod, view: view as CrisisView };
 }
 
-async function querySafeCategories(
+type ShapedCategories = {
+  categories: Array<{ key: string; respondentCount: number }>;
+  hasSuppressedCategories: boolean;
+  withholdTotal: boolean;
+};
+
+/**
+ * Cells under the threshold are always omitted. Exclusive single-choice axes
+ * partition the respondents, so a published total plus published cells would
+ * reveal suppressed sums by subtraction: when any cell on such an axis is
+ * withheld, the smallest published cell is withheld as well and the total is
+ * omitted. The needs view keeps its total because multi-select counts are not
+ * additive across respondents.
+ */
+function shapeCategories(view: CrisisView, full: Array<{ key: string; respondentCount: number }>): ShapedCategories {
+  const published = full.filter((category) => category.respondentCount >= CRISIS_NEEDS_THRESHOLD);
+  const hasSuppressedCategories = published.length < full.length;
+  if (view === "needs" || !hasSuppressedCategories) {
+    return { categories: published, hasSuppressedCategories, withholdTotal: false };
+  }
+  return {
+    categories: published.slice(0, published.length - 1),
+    hasSuppressedCategories: true,
+    withholdTotal: true,
+  };
+}
+
+async function queryFullCategories(
   db: D1Database,
   view: CrisisView,
   periodStart: string,
@@ -167,15 +199,18 @@ async function querySafeCategories(
        CROSS JOIN json_each(situation_submissions.needs_json)
        WHERE situation_submissions.municipality_code = ? AND situation_submissions.created_at >= ?
        GROUP BY json_each.value
-       HAVING COUNT(DISTINCT situation_submissions.id) >= ?
        ORDER BY respondent_count DESC, category ASC`,
     )
     : db.prepare(categoryQueryFor(view));
-  const result = await statement.bind(municipalityCode, periodStart, CRISIS_NEEDS_THRESHOLD).all<AggregateCategory>();
+  const result = await statement.bind(municipalityCode, periodStart).all<AggregateCategory>();
   const allowed = new Set<string>(categoryValues[view]);
-  return (result.results ?? [])
-    .filter((row) => allowed.has(row.category) && Number(row.respondent_count) >= CRISIS_NEEDS_THRESHOLD)
-    .map((row) => ({ key: row.category, respondentCount: Number(row.respondent_count) }));
+  const counts = new Map<string, number>();
+  for (const row of result.results ?? []) {
+    if (allowed.has(row.category)) counts.set(row.category, Number(row.respondent_count));
+  }
+  return categoryValues[view]
+    .map((key) => ({ key, respondentCount: counts.get(key) ?? 0 }))
+    .sort((a, b) => b.respondentCount - a.respondentCount || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
 function categoryQueryFor(view: Exclude<CrisisView, "needs">): string {
@@ -190,7 +225,6 @@ function categoryQueryFor(view: Exclude<CrisisView, "needs">): string {
     FROM situation_submissions
     WHERE municipality_code = ? AND created_at >= ?
     GROUP BY ${column}
-    HAVING COUNT(DISTINCT id) >= ?
     ORDER BY respondent_count DESC, category ASC`;
 }
 

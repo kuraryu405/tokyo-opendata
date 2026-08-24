@@ -92,8 +92,9 @@ function CrisisNeedsResult({ data }: { data: CrisisNeedsData }) {
     return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>匿名性の基準を満たさないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は表示しません。</p><Coverage data={data} /></div>;
   }
   return <div data-testid="crisis-needs-available" className="crisis-needs-available">
-    <div className="crisis-needs-meta"><strong>回答者数 {data.respondentCount}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
-    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}</strong></li>)}</ul> : <p className="crisis-needs-empty">表示基準を満たすカテゴリはありません。カテゴリ別の小さな数は表示しません。</p>}
+    <div className="crisis-needs-meta"><strong>{typeof data.respondentCount === "number" ? `回答者数 ${data.respondentCount}` : "回答者数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
+    {data.hasSuppressedCategories && <p className="crisis-needs-note">件数が少ない区分は表示を控えています。</p>}
+    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
     <Coverage data={data} />
   </div>;
 }
