@@ -6,7 +6,7 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev --port 3000",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start --port 3000",
-    "test": "vitest run --config vitest.config.ts && pnpm run test:rendered && pnpm run test:mobile-layout",
+    "test": "node --test tests/static-assets.test.mjs && vitest run --config vitest.config.ts && pnpm run test:rendered && pnpm run test:mobile-layout",
     "test:rendered": "pnpm run build && node --test tests/rendered-html.test.mjs",
     "test:mobile-layout": "node --test tests/mobile-layout.test.mjs",
     "typecheck": "tsc --noEmit",

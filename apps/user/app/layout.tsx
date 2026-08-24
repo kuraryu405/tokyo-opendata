@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { selectableUserLocales, type SelectableUserLocale } from "@staybridge/i18n";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 function resolveSiteUrl(requestHeaders: Pick<Headers, "get">): URL | undefined {
   const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -64,9 +53,7 @@ export default async function RootLayout({
   const locale = resolveRouteLocale(await headers());
   return (
     <html lang={locale}>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         {children}
       </body>
     </html>
