@@ -177,6 +177,36 @@ describe("StayBridge client flow", () => {
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_11111111");
   });
 
+  it.each([
+    "sit_invalid",
+    "sit_",
+    "sit_AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+    "sit_11111111-1111-4111-8111-111111111111_extra",
+  ])("keeps pending secrets when a success response has malformed Situation ID %s", async (id) => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      data: { id, created: true },
+    }), { status: 201, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "同意して保存" }));
+    expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      idempotencyKey: string;
+      deletionToken: string;
+    };
+    expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual({
+      idempotencyKey: requestBody.idempotencyKey,
+      deletionToken: requestBody.deletionToken,
+    });
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "削除に必要な情報" })).toBeNull();
+  });
+
   it("never saves the public demo fixture as support-need input", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
