@@ -124,6 +124,32 @@ build uses production URLs for canonical metadata and cross-application links
 so that the exact same artifact can be promoted through staging. Staging
 therefore tests production-link configuration as part of the release candidate.
 
+### main branch protection
+
+`main` has classic branch protection with a required CI check and history
+controls. This documents the settings that are actually enabled; it does not
+claim that GitHub enforces human review or a pull-request-only path:
+
+- Required status check: the CI workflow's `Validate monorepo` context, with
+  "require branches to be up to date before merging" enabled (`strict`).
+- Enforcement applies to administrators (`enforce_admins` enabled), so the
+  required check is not exempted for the repository owner.
+- Linear history is required; force pushes and branch deletions are denied.
+- Required pull-request reviews are not configured. GitHub therefore does not
+  enforce an approval count or a PR-only path for this solo-maintainer setup;
+  PR review remains an operating practice, not a protected-branch guarantee.
+
+Applied on 2026-08-24 via the branches/protection API. Requiring review
+approvals is deliberately avoided for this solo-maintainer repository because
+it would deadlock merges. In an emergency, temporarily relax these settings in
+GitHub repository settings only, then record here what changed, why, and why
+the affected release had to re-run before restoring full protection.
+
+Release SHA provenance: **Release Workers** triggers through `workflow_run`
+only on a successful CI run for a push to `main`, and deploys exactly that
+run's recorded SHA. It therefore promotes only commits reachable from
+protected `main`; pull-request or fork code can never reach production.
+
 ## External Playwright contract
 
 External E2E dispatch is a post-production gate. It is not started after CI or

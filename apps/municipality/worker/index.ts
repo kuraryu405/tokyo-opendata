@@ -44,7 +44,7 @@ const worker = {
     }
 
     if (request.method === "GET" && url.pathname === "/readyz") {
-      return createReadinessResponse(env);
+      return createReadinessResponse(env, "municipality");
     }
 
     if (url.pathname === "/readyz") {

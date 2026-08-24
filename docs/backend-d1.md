@@ -54,7 +54,7 @@ production は `production` と production ID で一時設定を作りますが�
 ## API と health contract
 
 - `GET /healthz`: Worker 自体の liveness。D1 へ問い合わせません。
-- `GET /readyz`: `SELECT 1` で D1 readiness を確認します。
+- `GET /readyz`: D1の各service契約について、必要テーブルごとに副作用のない `PRAGMA table_info(...)`、`PRAGMA index_list/index_info`、`PRAGMA foreign_key_list(...)` を実行し、migrationが要求する必須column・UNIQUE・FKまで検査してreadinessを判定します。利用者 Worker は `backend_metadata`・`situation_submissions`・`conversations`・`conversation_messages` と各migrationの全columnに加え、idempotency keyのUNIQUE、conversation messageの複合UNIQUE、conversation FKを要求します。自治体 Worker は `backend_metadata`・`situation_submissions` と各migrationの全columnに加え、idempotency keyのUNIQUEを要求します。新しいmigrationでruntime必須columnまたはconstraintが増えた場合は、このコード側の契約とテストも更新します。migration前の空DBや一部だけ適用されたDBはreadinessにならず、Binding欠落も同様に未準備として扱います。`seed_version`は判定に含めません（seed未適用でもruntimeは動作するため）。不足時は次項のD1一時障害と同じ503 `SERVICE_UNAVAILABLE`を返し、テーブル名・column名・constraint名・SQLなどの内部詳細は返しません。
 - API 成功: `{ "ok": true, "data": ... }`
 - 入力・method エラー: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。
