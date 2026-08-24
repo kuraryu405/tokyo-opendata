@@ -77,6 +77,9 @@ importers:
       '@staybridge/data':
         specifier: workspace:*
         version: link:../../packages/data
+      '@staybridge/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@staybridge/worker-runtime':
         specifier: workspace:*
         version: link:../../packages/worker-runtime
@@ -156,6 +159,9 @@ importers:
       '@staybridge/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@staybridge/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@staybridge/worker-runtime':
         specifier: workspace:*
         version: link:../../packages/worker-runtime
@@ -291,6 +297,8 @@ importers:
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@22.19.19)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)
+
+  packages/ui: {}
 
   packages/worker-runtime:
     devDependencies:

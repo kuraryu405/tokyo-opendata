@@ -87,6 +87,28 @@ test("does not treat zero-count categories as suppressed on an exclusive axis", 
   assert.deepEqual(body.data.categories, [{ key: "hotel", respondentCount: 5 }]);
 });
 
+test("distinguishes zero cells from positive suppressed cells at every threshold boundary", async () => {
+  const cases = [
+    { smallCell: 0, total: 10, suppressed: false, respondentCount: 10, categories: [{ key: "hotel", respondentCount: 10 }] },
+    { smallCell: 1, total: 11, suppressed: true, respondentCount: undefined, categories: [] },
+    { smallCell: 4, total: 14, suppressed: true, respondentCount: undefined, categories: [] },
+    { smallCell: 5, total: 15, suppressed: false, respondentCount: 15, categories: [{ key: "hotel", respondentCount: 10 }, { key: "unstable", respondentCount: 5 }] },
+    { smallCell: 6, total: 16, suppressed: false, respondentCount: 15, categories: [{ key: "hotel", respondentCount: 10 }, { key: "unstable", respondentCount: 5 }] },
+  ] as const;
+
+  for (const expected of cases) {
+    const database = new CrisisDatabase(
+      { respondent_count: expected.total, last_updated_at: "2026-08-23T10:00:00.000Z" },
+      [{ category: "hotel", respondent_count: 10 }, { category: "unstable", respondent_count: expected.smallCell }],
+    );
+    const response = await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=accommodation"), database as unknown as D1Database, { now });
+    const body = await response?.json() as { ok: true; data: Record<string, unknown> };
+    assert.equal(body.data.hasSuppressedCategories, expected.suppressed, `smallCell=${expected.smallCell}`);
+    assert.equal(body.data.respondentCount, expected.respondentCount, `smallCell=${expected.smallCell}`);
+    assert.deepEqual(body.data.categories, expected.categories, `smallCell=${expected.smallCell}`);
+  }
+});
+
 test("withholds total and smallest published cell on an exclusive axis with a suppressed cell", async () => {
   const database = new CrisisDatabase(
     { respondent_count: 6, last_updated_at: "2026-08-23T10:00:00.000Z" },
@@ -220,6 +242,53 @@ test("uses the same lower-bound bucket across 7d, 30d, and 90d instead of exposi
     assert.deepEqual(body.data.categories, [{ key: "possible", respondentCount: 10 }]);
     assert.match(String(body.data.coverageNote), /5件幅の下限バケット/);
     assert.match(String(body.data.limitations), /7日・30日・90日/);
+  }
+});
+
+test("keeps period comparisons non-exact for every view, including needs as a multi-select axis", async () => {
+  const scenarios = [
+    { view: "needs", category: "medical", totals: [12, 13, 14], categoryCounts: [10, 11, 14] },
+    { view: "return_status", category: "possible", totals: [10, 11, 14], categoryCounts: [10, 11, 14] },
+    { view: "departure_window", category: "within_7_days", totals: [10, 11, 14], categoryCounts: [10, 11, 14] },
+    { view: "accommodation", category: "hotel", totals: [10, 11, 14], categoryCounts: [10, 11, 14] },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    const outputs = await Promise.all(([
+      ["7d", 0],
+      ["30d", 1],
+      ["90d", 2],
+    ] as const).map(async ([period, index]) => {
+      const database = new CrisisDatabase(
+        { respondent_count: scenario.totals[index], last_updated_at: "2026-08-23T10:00:00.000Z" },
+        [{ category: scenario.category, respondent_count: scenario.categoryCounts[index] }],
+      );
+      const response = await handleCrisisNeedsRequest(
+        request(`municipality=13117&period=${period}&view=${scenario.view}`),
+        database as unknown as D1Database,
+        { now },
+      );
+      return response?.json() as Promise<{ ok: true; data: Record<string, unknown> }>;
+    }));
+
+    for (const output of outputs) {
+      const body = await output;
+      assert.equal(body.data.respondentCount, 10, scenario.view);
+      assert.deepEqual(body.data.categories, [{ key: scenario.category, respondentCount: 10 }], scenario.view);
+      assert.match(String(body.data.coverageNote), /期間ごとの件数は5件幅の下限バケット/);
+    }
+
+    const beforeBoundary = new CrisisDatabase(
+      { respondent_count: scenario.totals[2], last_updated_at: "2026-08-23T10:00:00.000Z" },
+      [{ category: scenario.category, respondent_count: scenario.categoryCounts[2] }],
+    );
+    const afterBoundary = new CrisisDatabase(
+      { respondent_count: scenario.totals[2] + 1, last_updated_at: "2026-08-23T10:00:00.000Z" },
+      [{ category: scenario.category, respondent_count: scenario.categoryCounts[2] + 1 }],
+    );
+    const beforeBody = await (await handleCrisisNeedsRequest(request(`municipality=13117&period=30d&view=${scenario.view}`), beforeBoundary as unknown as D1Database, { now })).json() as { data: Record<string, unknown> };
+    const afterBody = await (await handleCrisisNeedsRequest(request(`municipality=13117&period=30d&view=${scenario.view}`), afterBoundary as unknown as D1Database, { now })).json() as { data: Record<string, unknown> };
+    assert.equal(Number(afterBody.data.respondentCount) - Number(beforeBody.data.respondentCount), 5, `${scenario.view} boundary delta`);
   }
 });
 

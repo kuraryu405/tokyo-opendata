@@ -17,6 +17,7 @@
     "@staybridge/data": "workspace:*",
     "@staybridge/domain": "workspace:*",
     "@staybridge/i18n": "workspace:*",
+    "@staybridge/ui": "workspace:*",
     "@staybridge/worker-runtime": "workspace:*",
     "next": "^16.3.1",
     "react": "19.2.8",

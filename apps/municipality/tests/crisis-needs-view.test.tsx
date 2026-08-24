@@ -13,7 +13,7 @@ const baseData = {
   freshness: "fresh" as const,
   threshold: 5 as const,
   countBucketSize: 5 as const,
-  coverageNote: "同意済みのSituation Check任意回答だけを自治体単位で匿名集計しています。",
+  coverageNote: "同意済みの任意回答だけを自治体単位で匿名集計しています。",
   limitations: [] as string[],
 };
 

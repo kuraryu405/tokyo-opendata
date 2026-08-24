@@ -1,0 +1,36 @@
+:root {
+  --ink: #142c38;
+  --muted: #62757e;
+  --accessible-text: #4f6269;
+  --brand-on-dark: #65c6df;
+  --paper: #f7f8f3;
+  --white: #ffffff;
+  --blue: #126b86;
+  --blue-dark: #0b526a;
+  --blue-soft: #dceef2;
+  --mint: #b9e4d0;
+  --mint-dark: #22745d;
+  --line: #d7e0de;
+  --sun: #f1c778;
+  --shadow: 0 18px 50px rgba(24, 59, 69, .09);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: Arial, "Noto Sans JP", "Noto Sans Myanmar", sans-serif; }
+button, select, input { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; }
+button { color: inherit; }
+button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #ffbf47; outline-offset: 3px; }
+
+.app-shell, .crisis-shell { min-height: 100vh; }
+.brand { display: inline-flex; align-items: center; gap: 11px; border: 0; background: none; font-size: 17px; font-weight: 700; letter-spacing: -.02em; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.brand b { color: var(--blue); }
+.brand-mark { width: 34px; height: 34px; display: inline-grid; place-items: center; border-radius: 50% 50% 50% 13px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 900; letter-spacing: .04em; flex: 0 0 auto; }
+.section-label { color: var(--blue); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.coverage-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--blue); color: white; font-weight: 900; font-family: serif; flex: 0 0 auto; }
+.count-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 10px; background: var(--blue-soft); color: var(--blue); font-size: 18px; font-weight: 900; }
+.count-icon.medical { background: #e8f4ec; color: var(--mint-dark); }
+.count-icon.child { background: #fff1d5; color: #87601a; }
+.count-icon.public { background: #ece9f7; color: #665a94; }
