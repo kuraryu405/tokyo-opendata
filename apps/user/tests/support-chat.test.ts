@@ -261,6 +261,20 @@ describe("support chat worker endpoint", () => {
     await expect(response.json()).resolves.toEqual({ error: "AI_REQUEST_FAILED" });
   });
 
+  it("returns a generic gateway error when the AI binding throws synchronously", async () => {
+    const run = vi.fn<SupportChatAi["run"]>().mockImplementation(() => {
+      throw new Error("binding failure details");
+    });
+    const response = await handleSupportChatRequest(
+      chatRequest({ locale: "en", messages: [{ role: "user", content: "What should I ask?" }] }),
+      { ai: { run }, rateLimiter: availableRateLimiter() },
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: "AI_REQUEST_FAILED" });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("does not adopt a late AI result that resolves after the timeout", async () => {
     vi.useFakeTimers();
     let releaseRun: ((value: { response: string }) => void) | undefined;

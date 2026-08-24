@@ -194,7 +194,8 @@ export async function handleSupportChatRequest(
   const parsed = parsePayload(payload);
   if (!parsed) return json({ error: "INVALID_MESSAGES" }, 400);
 
-  if (!bindings.ai) return json({ error: "AI_UNAVAILABLE" }, 503);
+  const ai = bindings.ai;
+  if (!ai) return json({ error: "AI_UNAVAILABLE" }, 503);
 
   for (const message of parsed.messages) {
     if (containsRejectedIdentifier(message.content)) {
@@ -206,17 +207,18 @@ export async function handleSupportChatRequest(
     content: maskDetectableContactData(message.content),
   }));
 
-  const runPromise = bindings.ai.run(SUPPORT_CHAT_MODEL, {
-    messages: [
-      { role: "system", content: systemPrompt(parsed.locale) },
-      { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
-    ],
-    max_tokens: 320,
-    temperature: 0.2,
-  });
   let timer: ReturnType<typeof setTimeout> | undefined;
-  runPromise.catch(() => {});
   try {
+    // Normalise both a rejected Promise and a binding that throws before returning one.
+    const runPromise = Promise.resolve().then(() => ai.run(SUPPORT_CHAT_MODEL, {
+      messages: [
+        { role: "system", content: systemPrompt(parsed.locale) },
+        { role: "user", content: serializeUntrustedTranscript(maskedMessages) },
+      ],
+      max_tokens: 320,
+      temperature: 0.2,
+    }));
+    runPromise.catch(() => {});
     const result = await Promise.race([
       runPromise,
       new Promise<never>((_, reject) => {
