@@ -154,7 +154,7 @@ export function CrisisView() {
 
       <section className="crisis-section checklist-section">
         <div className="crisis-section-title"><span>05</span><div><small>PREPARATION CHECKLIST</small><h2>対応検討項目</h2></div><p>自動判断や命令ではなく、担当者が確認するための一覧です。</p></div>
-        <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3>{group.items.map((item) => <label key={item}><input type="checkbox" /><span>{item}</span></label>)}</article>)}</div>
+        <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3><ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
       </section>
     </main>
     <footer className="crisis-footer"><span>StayBridge Tokyo · Preparedness View</span><span>個人追跡・住所レベル表示・法的判断を行いません</span></footer>
