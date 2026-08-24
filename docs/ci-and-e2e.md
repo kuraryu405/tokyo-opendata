@@ -126,20 +126,22 @@ therefore tests production-link configuration as part of the release candidate.
 
 ### main branch protection
 
-`main` is protected with classic branch protection so that every release
-promotes reviewed, CI-green code only:
+`main` has classic branch protection with a required CI check and history
+controls. This documents the settings that are actually enabled; it does not
+claim that GitHub enforces human review or a pull-request-only path:
 
 - Required status check: the CI workflow's `Validate monorepo` context, with
   "require branches to be up to date before merging" enabled (`strict`).
-- Merges into `main` are pull-request only; direct pushes fail.
 - Enforcement applies to administrators (`enforce_admins` enabled), so the
-  owner cannot bypass checks; no bypass actors are configured.
+  required check is not exempted for the repository owner.
 - Linear history is required; force pushes and branch deletions are denied.
+- Required pull-request reviews are not configured. GitHub therefore does not
+  enforce an approval count or a PR-only path for this solo-maintainer setup;
+  PR review remains an operating practice, not a protected-branch guarantee.
 
 Applied on 2026-08-24 via the branches/protection API. Requiring review
 approvals is deliberately avoided for this solo-maintainer repository because
-it would deadlock merges; PR-only merging plus the required check still gates
-what lands on `main`. In an emergency, temporarily relax these settings in
+it would deadlock merges. In an emergency, temporarily relax these settings in
 GitHub repository settings only, then record here what changed, why, and why
 the affected release had to re-run before restoring full protection.
 

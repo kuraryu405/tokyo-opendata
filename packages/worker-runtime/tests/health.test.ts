@@ -60,25 +60,43 @@ test("uses one envelope for input and method errors", async () => {
   });
 });
 
-function readinessDatabase(results: Array<{ name: string }>) {
+function readinessDatabase(schema: Record<string, readonly string[]>) {
   return {
     prepare: (query: string) => {
-      assert.equal(query, "SELECT name FROM sqlite_master WHERE type='table'");
-      return { all: async () => ({ results }) };
+      const match = /^PRAGMA table_info\('([^']+)'\)$/.exec(query);
+      assert.ok(match, `unexpected readiness query: ${query}`);
+      const table = match[1];
+      return {
+        all: async () => ({ results: (schema[table] ?? []).map((name) => ({ name })) }),
+      };
     },
   } as unknown as D1Database;
 }
 
+const municipalitySchema = {
+  backend_metadata: ["key", "value", "updated_at"],
+  situation_submissions: [
+    "id", "consent_version", "consented_at", "municipality_code", "visit_purpose",
+    "departure_window", "return_status", "family_age_groups_json", "accommodation",
+    "needs_json", "japanese_level", "deletion_token_hash", "idempotency_key_hash",
+    "payload_hash", "created_at",
+  ],
+} as const;
+
+const userSchema = {
+  ...municipalitySchema,
+  conversations: [
+    "id", "consent_version", "consented_at", "model_id", "deletion_token_hash",
+    "idempotency_key_hash", "payload_hash", "created_at",
+  ],
+  conversation_messages: [
+    "id", "conversation_id", "message_index", "role", "masked_content", "source_ids_json", "created_at",
+  ],
+} as const;
+
 test("reports schema-complete user readiness through the success envelope", async () => {
   const response = await createReadinessResponse(
-    {
-      STAYBRIDGE_DB: readinessDatabase([
-        { name: "backend_metadata" },
-        { name: "situation_submissions" },
-        { name: "conversations" },
-        { name: "conversation_messages" },
-      ]),
-    },
+    { STAYBRIDGE_DB: readinessDatabase(userSchema) },
     "user",
   );
 
@@ -91,7 +109,7 @@ test("reports schema-complete user readiness through the success envelope", asyn
 
 test("reports an empty database as not ready", async () => {
   const response = await createReadinessResponse(
-    { STAYBRIDGE_DB: readinessDatabase([]) },
+    { STAYBRIDGE_DB: readinessDatabase({}) },
     "user",
   );
 
@@ -99,10 +117,7 @@ test("reports an empty database as not ready", async () => {
 });
 
 test("requires only the crisis-needs tables for the municipality service", async () => {
-  const database = readinessDatabase([
-    { name: "backend_metadata" },
-    { name: "situation_submissions" },
-  ]);
+  const database = readinessDatabase(municipalitySchema);
   const userResponse = await createReadinessResponse(
     { STAYBRIDGE_DB: database },
     "user",
@@ -118,6 +133,29 @@ test("requires only the crisis-needs tables for the municipality service", async
     ok: true,
     data: { status: "ready" },
   });
+});
+
+test("rejects a partially migrated table with a missing required column", async () => {
+  const response = await createReadinessResponse(
+    {
+      STAYBRIDGE_DB: readinessDatabase({
+        backend_metadata: municipalitySchema.backend_metadata,
+        situation_submissions: ["id"],
+      }),
+    },
+    "municipality",
+  );
+  const body = await response.text();
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(JSON.parse(body), {
+    ok: false,
+    error: {
+      code: "SERVICE_UNAVAILABLE",
+      message: "The service is temporarily unavailable.",
+    },
+  });
+  assert.doesNotMatch(body, /situation_submissions|created_at|PRAGMA/);
 });
 
 test("reports a missing D1 binding as not ready", async () => {

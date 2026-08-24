@@ -54,7 +54,7 @@ production は `production` と production ID で一時設定を作りますが�
 ## API と health contract
 
 - `GET /healthz`: Worker 自体の liveness。D1 へ問い合わせません。
-- `GET /readyz`: D1 へ `SELECT name FROM sqlite_master WHERE type='table'` の 1 回だけの読み取りを発行し、service ごとに必要なテーブルがすべて存在するかで readiness を判定します。利用者 Worker は `backend_metadata`・`situation_submissions`・`conversations`・`conversation_messages`、自治体 Worker は `backend_metadata`・`situation_submissions` を要求します。migration 前の空 DB や一部のみ適用された DB は readiness にならず、Binding 欠落も同様に未準備として扱います。`seed_version` は判定に含めません（seed 未適用でも runtime は動作するため）。不足時は次項の D1 一時障害と同じ 503 `SERVICE_UNAVAILABLE` を返し、テーブル名や SQL などの内部詳細は返しません。
+- `GET /readyz`: D1の各service契約について、必要テーブルごとに副作用のない `PRAGMA table_info(...)` を実行し、migrationが要求する必須columnまで検査してreadinessを判定します。利用者 Worker は `backend_metadata`・`situation_submissions`・`conversations`・`conversation_messages` と各migrationの全column、自治体 Worker は `backend_metadata`・`situation_submissions` と各migrationの全columnを要求します。新しいmigrationでruntime必須columnが増えた場合は、このコード側の契約も更新します。migration前の空DBや一部だけ適用されたDBはreadinessにならず、Binding欠落も同様に未準備として扱います。`seed_version`は判定に含めません（seed未適用でもruntimeは動作するため）。不足時は次項のD1一時障害と同じ503 `SERVICE_UNAVAILABLE`を返し、テーブル名・column名・SQLなどの内部詳細は返しません。
 - API 成功: `{ "ok": true, "data": ... }`
 - 入力・method エラー: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。
