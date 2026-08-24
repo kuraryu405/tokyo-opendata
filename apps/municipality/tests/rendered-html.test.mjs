@@ -49,6 +49,10 @@ test("server-renders the Japanese support-preparation view at the municipality r
   assert.match(html, /施設データの出典とライセンス/);
   assert.match(html, /Creative Commons Attribution 4.0 International/);
   assert.match(html, /https:\/\/creativecommons\.org\/licenses\/by\/4\.0\//);
+  assert.match(html, /東京都北区Open DataをStayBridge用に一部選定・正規化しています/);
+  assert.match(html, /東京都北区/);
+  assert.match(html, /https:\/\/www\.city\.kita\.lg\.jp\/city-information\/disclosure\/1014461\.html/);
+  assert.match(html, /取得日\s*(?:<!-- -->\s*)*2026-08-23/);
   assert.match(html, /crisis-official-data/);
   assert.match(html, /crisis-voluntary-needs/);
   assert.match(html, /匿名集計を確認しています/);

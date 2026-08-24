@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry } from "@staybridge/data";
+import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry, type DataSource } from "@staybridge/data";
 import type { CrisisNeedsData } from "@staybridge/worker-runtime";
+
+export const municipalityChangesMadeCopy = "東京都北区Open DataをStayBridge用に一部選定・正規化しています";
+
+export function getMunicipalityChangesMade(adaptation: DataSource["adaptation"]): string | undefined {
+  return adaptation === "selected_and_normalized" ? municipalityChangesMadeCopy : undefined;
+}
 
 const userAppUrl =
   process.env.NEXT_PUBLIC_USER_APP_URL?.replace(/\/+$/, "") ||
@@ -161,7 +167,7 @@ export function CrisisView() {
         <div className="crisis-section-title"><span>02</span><div><h2>確認できた地域資源</h2></div><p>掲載情報は各提供元の公開情報をもとに整理しています。最新の内容は公式情報をご確認ください。</p></div>
         <div className="resource-counts">{availableCounts.map(([label, count, kind]) => <article key={label}><span className={`count-icon ${kind}`}>{kind === "school" ? "学" : kind === "medical" ? "+" : kind === "child" ? "こ" : "公"}</span><strong>{count}</strong><p>{label}</p><small>要確認</small></article>)}</div>
         <details className="dataset-details"><summary>収録した施設を見る（{resources.length}件）</summary><ul>{resources.map((resource) => <li key={resource.id}><span>{resource.name}</span><small>{resource.category} · {resource.address}</small></li>)}</ul></details>
-        <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
+        <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}{getMunicipalityChangesMade(source.adaptation) && <small>{getMunicipalityChangesMade(source.adaptation)}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
       </section>
 
       <CrisisNeedsPanel />

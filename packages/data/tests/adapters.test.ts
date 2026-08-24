@@ -22,25 +22,29 @@ describe("open-data adapters", () => {
   });
 
   it("fails closed when a selected record disappears or its current address drifts", () => {
+    const toyokawa = schoolSelection.find((selection) => selection.name === "豊川小学校");
+    const ukima = schoolSelection.find((selection) => selection.name === "浮間小学校");
     const jujo = schoolSelection.find((selection) => selection.name === "十条小学校");
     const nishigaoka = schoolSelection.find((selection) => selection.name === "西が丘小学校");
+    expect(toyokawa).toBeTruthy();
+    expect(ukima).toBeTruthy();
     expect(jujo).toBeTruthy();
     expect(nishigaoka).toBeTruthy();
     expect(() => selectResources([{ "施設名": "十条台小学校", "住所": "東京都北区中十条1丁目5番6号" }], [jujo!])).toThrow("十条小学校 was not found");
+    expect(() => selectResources([{ "施設名": "豊川小学校", "住所": "東京都北区豊島3丁目10番99号" }], [toyokawa!])).toThrow(/identity\/address check/);
+    expect(() => selectResources([{ "施設名": "浮間小学校", "住所": "東京都北区浮間3丁目4番99号" }], [ukima!])).toThrow(/identity\/address check/);
     expect(() => selectResources([{ "施設名": "西が丘小学校", "住所": "東京都北区十条仲原4丁目5番17号" }], [nishigaoka!])).toThrow(/identity\/address check/);
   });
 
   it("uses current school identity checks only to validate source rows, never to fabricate them", () => {
-    const jujo = schoolSelection.find((selection) => selection.name === "十条小学校");
-    const nishigaoka = schoolSelection.find((selection) => selection.name === "西が丘小学校");
-    const resources = selectResources([
-      { "施設名": "十条小学校", "住所": "東京都北区中十条3-1-6" },
-      { "施設名": "西が丘小学校", "住所": "東京都北区西が丘1-12-14" },
-    ], [jujo!, nishigaoka!]);
-    expect(resources).toMatchObject([
-      { name: "十条小学校", address: "東京都北区中十条3-1-6" },
-      { name: "西が丘小学校", address: "東京都北区西が丘1-12-14" },
-    ]);
+    const currentRows = [
+      { "施設名": "豊川小学校", "住所": "東京都北区豊島3丁目10番23号" },
+      { "施設名": "浮間小学校", "住所": "東京都北区浮間3丁目4番27号" },
+      { "施設名": "十条小学校", "住所": "東京都北区中十条3丁目1番6号" },
+      { "施設名": "西が丘小学校", "住所": "東京都北区西が丘1丁目12番14号" },
+    ];
+    const resources = selectResources(currentRows, schoolSelection);
+    expect(resources.map(({ name, address }) => ({ name, address }))).toEqual(currentRows.map(({ "施設名": name, "住所": address }) => ({ name, address })));
   });
 
   it("keeps a numeric Myanmar resident-population value", () => {

@@ -4,7 +4,7 @@ import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CrisisView } from "../src/components/CrisisView";
+import { CrisisView, getMunicipalityChangesMade, municipalityChangesMadeCopy } from "../src/components/CrisisView";
 
 const baseData = {
   municipality: "13117" as const,
@@ -62,5 +62,10 @@ describe("Crisis View suppression rendering", () => {
     expect(screen.getByText("件数が少ない区分は表示を控えています。")).toBeTruthy();
     expect(screen.getByText("表示できる区分はありません。件数が少ない数値は表示を控えています。")).toBeTruthy();
     expect(screen.queryByText("0")).toBeNull();
+  });
+
+  it("marks only adapted sources with the municipality changes-made copy", () => {
+    expect(getMunicipalityChangesMade("selected_and_normalized")).toBe(municipalityChangesMadeCopy);
+    expect(getMunicipalityChangesMade(undefined)).toBeUndefined();
   });
 });
