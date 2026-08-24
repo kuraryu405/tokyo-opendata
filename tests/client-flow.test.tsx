@@ -5,6 +5,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
+import { sourceRegistry } from "../src/data";
 import { demoSituation } from "../src/domain/demo";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 
@@ -427,7 +428,8 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByRole("button", { name: /相談先へ進む/ })).toBeNull();
     const schoolCard = screen.getByRole("heading", { name: "豊川小学校" }).closest("article");
     expect(within(schoolCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
-    expect(within(schoolCard!).getByText("確認日: 2026-08-14")).toBeTruthy();
+    expect(within(schoolCard!).getByText(`確認日: ${sourceRegistry.KITA_ELEMENTARY_SCHOOLS_OPEN_DATA.fetchedAt}`)).toBeTruthy();
+    expect(within(schoolCard!).getByText("LICENSE: Creative Commons Attribution 4.0 International (CC BY 4.0)")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();

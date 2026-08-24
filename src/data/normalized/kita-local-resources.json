@@ -1,0 +1,141 @@
+{
+  "fetchedAt": "2026-08-24",
+  "resources": [
+    {
+      "id": "kita-school-toyokawa",
+      "name": "豊川小学校",
+      "category": "school",
+      "municipality": "Kita",
+      "address": "東京都北区豊島3丁目10番23号",
+      "latitude": 35.7609590228,
+      "longitude": 139.74278228,
+      "phone": "(03)3913-4111",
+      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
+    },
+    {
+      "id": "kita-school-ukima",
+      "name": "浮間小学校",
+      "category": "school",
+      "municipality": "Kita",
+      "address": "東京都北区浮間3丁目4番27号",
+      "latitude": 35.7858416507,
+      "longitude": 139.700528812,
+      "phone": "(03)3969-0491",
+      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
+    },
+    {
+      "id": "kita-school-jujodai",
+      "name": "十条台小学校",
+      "category": "school",
+      "municipality": "Kita",
+      "address": "東京都北区中十条1丁目5番6号",
+      "latitude": 35.7586649505,
+      "longitude": 139.73054084,
+      "phone": "(03)3908-3300",
+      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
+    },
+    {
+      "id": "kita-school-nishigaoka",
+      "name": "西が丘小学校",
+      "category": "school",
+      "municipality": "Kita",
+      "address": "東京都北区十条仲原4丁目5番17号",
+      "latitude": 35.7699183746,
+      "longitude": 139.721294622,
+      "phone": "(03)3900-8866",
+      "sourceId": "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
+    },
+    {
+      "id": "kita-medical-oji-kids",
+      "name": "おうじキッズクリニック",
+      "category": "medical",
+      "municipality": "Kita",
+      "address": "東京都北区王子五丁目1-40サミットストア王子桜田通り店2階12室",
+      "latitude": 35.765617,
+      "longitude": 139.731799,
+      "phone": "(03)3914-1511",
+      "sourceId": "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA"
+    },
+    {
+      "id": "kita-medical-kominato",
+      "name": "医療法人社団リボン会小湊小児科医院",
+      "category": "medical",
+      "municipality": "Kita",
+      "address": "東京都北区王子五丁目2-2-108",
+      "latitude": 35.765276,
+      "longitude": 139.735023,
+      "phone": "(03)3927-2272",
+      "sourceId": "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA"
+    },
+    {
+      "id": "kita-medical-shikada",
+      "name": "しかだこどもクリニック",
+      "category": "medical",
+      "municipality": "Kita",
+      "address": "東京都北区堀船三丁目38-3",
+      "latitude": 35.752501,
+      "longitude": 139.749161,
+      "phone": "(03)3911-5228",
+      "sourceId": "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA"
+    },
+    {
+      "id": "kita-child-akabane-kita",
+      "name": "赤羽北児童館",
+      "category": "child_support",
+      "municipality": "Kita",
+      "address": "東京都北区赤羽北1-5-5",
+      "latitude": 35.78577,
+      "longitude": 139.715194,
+      "phone": "(03)3906-1149",
+      "sourceId": "KITA_CHILDCARE_FACILITIES_OPEN_DATA"
+    },
+    {
+      "id": "kita-child-kamiya",
+      "name": "神谷子どもセンター",
+      "category": "child_support",
+      "municipality": "Kita",
+      "address": "東京都北区神谷3-35-17",
+      "latitude": 35.771357,
+      "longitude": 139.731078,
+      "phone": "(03)3902-3306",
+      "sourceId": "KITA_CHILDCARE_FACILITIES_OPEN_DATA"
+    },
+    {
+      "id": "kita-child-jujodai",
+      "name": "十条台子どもセンター",
+      "category": "child_support",
+      "municipality": "Kita",
+      "address": "東京都北区中十条1-2-18",
+      "latitude": 35.75734,
+      "longitude": 139.729632,
+      "phone": "(03)3905-7120",
+      "sourceId": "KITA_CHILDCARE_FACILITIES_OPEN_DATA"
+    },
+    {
+      "id": "kita-public-akabane-hall",
+      "name": "赤羽会館",
+      "category": "public_facility",
+      "municipality": "Kita",
+      "address": "東京都北区赤羽南1-13-1",
+      "latitude": 35.777493,
+      "longitude": 139.723923,
+      "phone": "(03)3901-8121",
+      "sourceId": "KITA_PUBLIC_FACILITIES_OPEN_DATA"
+    },
+    {
+      "id": "kita-public-hokutopia",
+      "name": "北とぴあ",
+      "category": "public_facility",
+      "municipality": "Kita",
+      "address": "東京都北区王子1-11-1",
+      "latitude": 35.754681,
+      "longitude": 139.736511,
+      "phone": "(03)5390-1100",
+      "sourceId": "KITA_PUBLIC_FACILITIES_OPEN_DATA"
+    }
+  ],
+  "coverageNotes": [
+    "Selected from https://www.city.kita.lg.jp/city-information/disclosure/1014461.html; facility rows are cached for a stable MVP and are not a complete inventory.",
+    "A listed facility does not establish eligibility, capacity, language support, appointment availability, or service availability."
+  ]
+}

@@ -1,11 +1,11 @@
 {
   "sourceId": "TOKYO_FOREIGN_POPULATION_2026_01",
-  "fetchedAt": "2026-08-14",
+  "fetchedAt": "2026-08-24",
   "dataUpdatedAt": "2026-01-01",
   "records": [
     {
       "municipalityCode": "13117",
-      "municipalityName": "Kita",
+      "municipalityName": "北区",
       "targetNationality": "Myanmar",
       "residentPopulation": 3540,
       "raw": {

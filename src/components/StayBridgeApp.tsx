@@ -112,7 +112,7 @@ const copy = {
     navHelp: "相談先",
     crisis: "行政・支援者向け Preparedness View",
     eyebrow: "東京で、予定外に生活を続けることになった方へ",
-    hero: "国には帰れない。\nでも、東京での次の一歩は見つけられる。",
+    hero: "見つけよう。\n東京での第一歩を。",
     intro: "帰国する予定だったのに、母国の状況が変わって帰ることが難しくなった方へ。今の状況に合わせて、東京で当面生活するために確認したいことを整理します。",
     start: "今の状況を確認する",
     demo: "デモの状況を読み込む",
@@ -696,9 +696,21 @@ function LoadingState({ t }: { t: typeof copy[Locale] }) {
 }
 
 function Landing({ t, showStart, start }: { t: typeof copy[Locale]; showStart: boolean; start: () => void }) {
-  return <section className={`landing-start${showStart ? "" : " landing-complete"}`}>
-    <h1 className="sr-only">StayBridge Tokyo</h1>
-    {showStart && <button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button>}
+  const previewTimes = ["NOW", "THIS WEEK", "NEXT 30 DAYS"];
+  return <section className="hero">
+    <div className="hero-copy">
+      <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
+      <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
+      <p className="lede">{t.intro}</p>
+      {showStart && <div className="hero-actions"><button className="primary-button" onClick={start}>{t.start}<span aria-hidden>→</span></button></div>}
+      <div className="trust-row"><span>✓ {t.noLogin}</span><span>✓ {t.noAddress}</span><span>✓ {t.official}</span></div>
+    </div>
+    <div className="roadmap-preview" aria-label="東京での次の一歩">
+      <div className="preview-top"><span>YOUR NEXT STEP</span><span className="safe-chip">{t.noLogin}</span></div>
+      <div className="timeline-line" />
+      {t.principleTitles.map((title, index) => <div className="preview-step" key={title}><span className={`time-dot dot-${index}`} /><div><small>{previewTimes[index]}</small><strong>{title}</strong><p>{t.principleBodies[index]}</p></div><span className="step-number">0{index + 1}</span></div>)}
+      <div className="preview-note"><span>i</span>{t.notDecision}</div>
+    </div>
   </section>;
 }
 
@@ -786,7 +798,7 @@ function Roadmap({ locale, t, actions, restart, openAction }: { locale: Locale; 
 function ActionCard({ locale, t, action, number, openAction }: { locale: Locale; t: typeof copy[Locale]; action: Action; number: number; openAction: (actionId: string) => void }) {
   const ui = actionCopy[locale][action.id] || { title: action.title, desc: action.shortDescription, cta: locale === "en" ? "View details" : "詳しく見る" };
   const sources = action.sourceIds.flatMap((id) => sourceRegistry[id] ? [sourceRegistry[id]] : []);
-  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>PRIORITY {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{reasonCopy[locale][action.reasonCode] || action.reasonText}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? "OPEN DATA" : "OFFICIAL"}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a><small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
+  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><div className="action-meta"><span className={`priority priority-${action.priority}`}>PRIORITY {action.priority}</span>{action.humanReviewRequired && <span className="review-chip">◎ {t.human}</span>}</div><h3>{ui.title}</h3><p>{ui.desc}</p><details><summary>{t.why}</summary><p>{reasonCopy[locale][action.reasonCode] || action.reasonText}</p></details><div className="action-footer">{sources.length > 0 && <div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? "OPEN DATA" : "OFFICIAL"}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>{t.verified}: {source.fetchedAt}</small></div>)}</div>}<button onClick={() => openAction(action.id)}>{ui.cta} →</button></div></div></article>;
 }
 
 function LocalAction({ t, resources, filter, setFilter }: { t: typeof copy[Locale]; resources: LocalResource[]; filter: LocalFilter; setFilter: (s: LocalFilter) => void }) {
@@ -797,7 +809,7 @@ function LocalAction({ t, resources, filter, setFilter }: { t: typeof copy[Local
 function ResourceCard({ resource, t }: { resource: LocalResource; t: typeof copy[Locale] }) {
   const source = sourceRegistry[resource.sourceId];
   const updatedAt = resource.dataUpdatedAt ?? source?.dataUpdatedAt;
-  return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{resource.category === "school" ? "学" : resource.category === "medical" ? "+" : resource.category === "child_support" ? "こ" : "公"}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof typeof t] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2>{resource.description && <p>{resource.description}</p>}<dl><div><dt>ADDRESS</dt><dd>{resource.address || "—"}</dd></div>{resource.phone && <div><dt>PHONE</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.publisher || "Public data"}</a><small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
+  return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{resource.category === "school" ? "学" : resource.category === "medical" ? "+" : resource.category === "child_support" ? "こ" : "公"}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof typeof t] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2>{resource.description && <p>{resource.description}</p>}<dl><div><dt>ADDRESS</dt><dd>{resource.address || "—"}</dd></div>{resource.phone && <div><dt>PHONE</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<div className="resource-source"><span>{t.sourceLabel}</span><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.title || "Public data"}</a><small>{source?.publisher ?? t.unavailable}</small>{source?.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.verified}: {source?.fetchedAt ?? t.unavailable}</small></div>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
 }
 
 function HumanSupport({ t, locale, summary }: { t: typeof copy[Locale]; locale: Locale; summary: () => void }) {

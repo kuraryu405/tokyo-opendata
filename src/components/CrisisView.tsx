@@ -20,6 +20,8 @@ export function CrisisView() {
   const profile = kitaMyanmarProfile;
   const populationSource = sourceRegistry.TOKYO_FOREIGN_POPULATION_2026_01;
   const resources = localResources.filter((item) => item.municipality === profile.municipalityName);
+  const facilitySources = [...new Set(resources.map((resource) => resource.sourceId))]
+    .flatMap((sourceId) => sourceRegistry[sourceId] ? [sourceRegistry[sourceId]] : []);
   const counts = [
     ["学校", profile.resourceCounts.school ?? 0, "school"],
     ["医療機関", profile.resourceCounts.medical ?? 0, "medical"],
@@ -53,6 +55,7 @@ export function CrisisView() {
         <div className="crisis-section-title"><span>02</span><div><small>EXISTING RESOURCES</small><h2>確認できた地域資源</h2></div><p>件数はMVPに収録した出典確認済みキャッシュです。</p></div>
         <div className="resource-counts">{counts.map(([label, count, kind]) => <article key={label}><span className={`count-icon ${kind}`}>{kind === "school" ? "学" : kind === "medical" ? "+" : kind === "child" ? "こ" : "公"}</span><strong>{count}</strong><p>{label}</p><small>要確認</small></article>)}</div>
         <details className="dataset-details"><summary>収録した施設を見る（{resources.length}件）</summary><ul>{resources.map((resource) => <li key={resource.id}><span>{resource.name}</span><small>{resource.category} · {resource.address}</small></li>)}</ul></details>
+        <details className="dataset-details"><summary>施設データの出典とライセンス</summary><ul className="dataset-sources">{facilitySources.map((source) => <li key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a><small>{source.publisher}</small>{source.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}<small>取得日 {source.fetchedAt}</small></li>)}</ul></details>
       </section>
 
       <section className="crisis-section">

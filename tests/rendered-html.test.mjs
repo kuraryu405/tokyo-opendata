@@ -36,6 +36,7 @@ test("server-renders a neutral shell before client session restoration", async (
   const html = await response.text();
   assert.match(html, /<title>StayBridge Tokyo<\/title>/i);
   assert.match(html, /StayBridge/);
+  assert.match(html, /見つけよう。東京での第一歩を。/);
   assert.doesNotMatch(html, /今の状況を確認する/);
   assert.match(html, /Official information/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/);
@@ -51,6 +52,9 @@ test("server-renders the Preparedness View and its coverage warning", async () =
   assert.doesNotMatch(html, /aria-label="対象国籍"/);
   assert.match(html, /短期滞在中の旅行者/);
   assert.match(html, /対応検討項目/);
+  assert.match(html, /施設データの出典とライセンス/);
+  assert.match(html, /Creative Commons Attribution 4\.0 International/);
+  assert.match(html, /https:\/\/creativecommons\.org\/licenses\/by\/4\.0\//);
 });
 
 test("derives absolute social image URLs from the incoming production host", async () => {

@@ -44,7 +44,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。
 
-人口・施設は、公的な公開データ/公式一覧から確認した北区の一部レコードをデモ安定性のためローカルへキャッシュしています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
+人口・施設は、ライセンスを確認したOpen Dataの一部レコードをデモ安定性のためローカルへキャッシュしています。北区の施設は、区立小学校一覧CSVと自治体標準オープンデータセット（医療機関一覧・子育て施設一覧・公共施設一覧）から生成し、いずれも北区Open DataページでCC BY 4.0として公開されています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
 ## 安全性
 
