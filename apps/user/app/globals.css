@@ -175,3 +175,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
 .review-chip { color: var(--accessible-text); }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .progress-track span { transition: none; } .chat-pending span { animation: none; } }
+
+.option-input { position: absolute; opacity: 0; pointer-events: none; }
+.option-button:has(.option-input:focus-visible), .age-chip:has(.option-input:focus-visible) { outline: 3px solid #ffbf47; outline-offset: 3px; }

@@ -216,7 +216,7 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: "回答を見直す" }));
     expect(navigation.path()).toBe("/ja/check?step=0");
-    expect(screen.getByRole("radio", { name: "北区" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "北区" }) as HTMLInputElement).checked).toBe(false);
     expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -253,7 +253,7 @@ describe("StayBridge client flow", () => {
     await user.click(await screen.findByRole("button", { name: "回答を見直す" }));
     expect(navigation.path()).toBe("/ja/check?step=0");
     expect(sessionStorage.getItem("staybridge.session")).toBeNull();
-    expect(screen.getByRole("radio", { name: "北区" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "北区" }) as HTMLInputElement).checked).toBe(false);
     expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(true);
 
     await user.click(screen.getByRole("radio", { name: "新宿区" }));
@@ -466,7 +466,7 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: "最初からやり直す" }));
     expect(screen.getByRole("heading", { name: "今、東京のどの地域に滞在していますか？" })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: "北区" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "北区" }) as HTMLInputElement).checked).toBe(false);
   });
 
   it("does not render internal defaults as selected before each single-answer step is answered", async () => {
@@ -481,30 +481,30 @@ describe("StayBridge client flow", () => {
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect((await screen.findByRole("radio", { name: "分からない / 答えたくない" })).getAttribute("aria-checked")).toBe("false");
+    expect((await screen.findByRole("radio", { name: "分からない / 答えたくない" }) as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByRole("radio", { name: "旅行" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "分からない" }) as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByRole("radio", { name: "7日以内" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "分からない" }) as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByRole("radio", { name: "帰国できる" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByRole("radio", { name: "分からない" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "分からない" }) as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByRole("radio", { name: "書類を確認したい" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
     const noFamily = screen.getByRole("checkbox", { name: "いない" });
     await user.click(noFamily);
-    expect(noFamily.getAttribute("aria-checked")).toBe("true");
+    expect((noFamily as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByRole("radio", { name: "答えたくない" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "答えたくない" }) as HTMLInputElement).checked).toBe(false);
     await user.click(screen.getByRole("radio", { name: "家族・知人の家" }));
     await user.click(screen.getByRole("button", { name: "次へ" }));
     const consultationNeed = screen.getByRole("checkbox", { name: "相談先" });
     await user.click(consultationNeed);
-    expect(consultationNeed.getAttribute("aria-checked")).toBe("true");
+    expect((consultationNeed as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByRole("radio", { name: "ほとんど話せない" }).getAttribute("aria-checked")).toBe("false");
+    expect((screen.getByRole("radio", { name: "ほとんど話せない" }) as HTMLInputElement).checked).toBe(false);
   });
 
   it("keeps completed answers navigable without a landing start button", async () => {
@@ -636,13 +636,13 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await screen.findByRole("button", { name: "My steps" });
-    expect(screen.getByRole("radio", { name: /Kita City/ }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("radio", { name: /Kita City/ }) as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole("button", { name: /Next/ }));
-    expect(screen.getByRole("radio", { name: /Myanmar/ }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("radio", { name: /Myanmar/ }) as HTMLInputElement).checked).toBe(true);
     for (let index = 0; index < 4; index += 1) await user.click(screen.getByRole("button", { name: /Next/ }));
-    expect(screen.getByRole("radio", { name: /I want to check my documents/ }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("radio", { name: /I want to check my documents/ }) as HTMLInputElement).checked).toBe(true);
     await user.click(screen.getByRole("button", { name: /Next/ }));
-    expect(screen.getByRole("checkbox", { name: /A child is with me/ }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByRole("checkbox", { name: /A child is with me/ }) as HTMLInputElement).checked).toBe(true);
   });
 
   it("requires an explicit child age instead of assuming school age", async () => {
@@ -665,6 +665,23 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "3-5" }));
     expect(screen.getByRole("button", { name: /次へ/ }).hasAttribute("disabled")).toBe(false);
     expect(screen.getByRole("button", { name: "3-5" }).classList.contains("selected")).toBe(true);
+  });
+
+  it("moves radio selection with keyboard arrows inside the native radiogroup", async () => {
+    navigation.reset("/ja/check?step=0");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const firstOption = await screen.findByRole("radio", { name: "北区" });
+    await user.click(firstOption);
+    expect((firstOption as HTMLInputElement).checked).toBe(true);
+
+    (screen.getByRole("radio", { name: "北区" }) as HTMLInputElement).focus();
+    await user.keyboard("{ArrowRight}");
+    const secondOption = screen.getByRole("radio", { name: "新宿区" }) as HTMLInputElement;
+    expect(secondOption.checked).toBe(true);
+    expect(document.activeElement).toBe(secondOption);
+    expect((screen.getByRole("radio", { name: "北区" }) as HTMLInputElement).checked).toBe(false);
   });
 
   it("accepts a past stay deadline and shows the urgent deadline rules", async () => {
@@ -990,14 +1007,14 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
     const schoolAction = screen.getByRole("heading", { name: "子どもの教育について相談する" }).closest("article");
     await user.click(within(schoolAction!).getByRole("button", { name: /近くの学校を見る/ }));
-    expect(screen.getByRole("tab", { name: "学校・教育" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "学校・教育", pressed: true })).toBeTruthy();
     expect(screen.getByText("豊川小学校")).toBeTruthy();
     expect(screen.queryByText("おうじキッズクリニック")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
     const medicalAction = screen.getByRole("heading", { name: "医療を受けられる場所を確認する" }).closest("article");
     await user.click(within(medicalAction!).getByRole("button", { name: /近くの医療機関を見る/ }));
-    expect(screen.getByRole("tab", { name: "医療" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "医療", pressed: true })).toBeTruthy();
     expect(screen.getByText("おうじキッズクリニック")).toBeTruthy();
     expect(screen.queryByText("豊川小学校")).toBeNull();
   });
@@ -1133,7 +1150,7 @@ describe("StayBridge client flow", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: getUserMessages("my").ui.summaryTitle })).toBeTruthy());
     navigation.reset("/en/local?filter=medical");
     await waitFor(() => expect(screen.getByRole("heading", { name: getUserMessages("en").ui.localTitle })).toBeTruthy());
-    expect(screen.getByRole("tab", { name: getUserMessages("en").ui.medical }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: getUserMessages("en").ui.medical, pressed: true })).toBeTruthy();
     unmount();
   });
 
