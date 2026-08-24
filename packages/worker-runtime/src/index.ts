@@ -84,7 +84,19 @@ export function createHealthResponse(
 
 export type ReadinessService = StayBridgeService;
 
-type ReadinessSchema = Readonly<Record<string, readonly string[]>>;
+type ReadinessForeignKey = {
+  column: string;
+  referencedTable: string;
+  referencedColumn: string;
+};
+
+type ReadinessTableContract = {
+  columns: readonly string[];
+  uniqueConstraints?: readonly (readonly string[])[];
+  foreignKeys?: readonly ReadinessForeignKey[];
+};
+
+type ReadinessSchema = Readonly<Record<string, ReadinessTableContract>>;
 
 const BACKEND_METADATA_COLUMNS = ["key", "value", "updated_at"] as const;
 const SITUATION_SUBMISSIONS_COLUMNS = [
@@ -124,16 +136,29 @@ const CONVERSATION_MESSAGES_COLUMNS = [
   "created_at",
 ] as const;
 
-const READINESS_REQUIRED_COLUMNS: Record<ReadinessService, ReadinessSchema> = {
+const READINESS_REQUIRED_SCHEMA: Record<ReadinessService, ReadinessSchema> = {
   user: {
-    backend_metadata: BACKEND_METADATA_COLUMNS,
-    situation_submissions: SITUATION_SUBMISSIONS_COLUMNS,
-    conversations: CONVERSATIONS_COLUMNS,
-    conversation_messages: CONVERSATION_MESSAGES_COLUMNS,
+    backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
+    situation_submissions: {
+      columns: SITUATION_SUBMISSIONS_COLUMNS,
+      uniqueConstraints: [["idempotency_key_hash"]],
+    },
+    conversations: {
+      columns: CONVERSATIONS_COLUMNS,
+      uniqueConstraints: [["idempotency_key_hash"]],
+    },
+    conversation_messages: {
+      columns: CONVERSATION_MESSAGES_COLUMNS,
+      uniqueConstraints: [["conversation_id", "message_index"]],
+      foreignKeys: [{ column: "conversation_id", referencedTable: "conversations", referencedColumn: "id" }],
+    },
   },
   municipality: {
-    backend_metadata: BACKEND_METADATA_COLUMNS,
-    situation_submissions: SITUATION_SUBMISSIONS_COLUMNS,
+    backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
+    situation_submissions: {
+      columns: SITUATION_SUBMISSIONS_COLUMNS,
+      uniqueConstraints: [["idempotency_key_hash"]],
+    },
   },
 };
 
@@ -147,7 +172,7 @@ export async function createReadinessResponse(
       throw new Error("D1 binding is unavailable");
     }
 
-    for (const [table, requiredColumns] of Object.entries(READINESS_REQUIRED_COLUMNS[service])) {
+    for (const [table, contract] of Object.entries(READINESS_REQUIRED_SCHEMA[service])) {
       // Table names come only from the closed, code-owned readiness contract.
       // PRAGMA table_info is read-only and detects partial migrations as well as missing tables.
       const { results } = await binding
@@ -158,8 +183,19 @@ export async function createReadinessResponse(
           .map((row) => row.name)
           .filter((name): name is string => typeof name === "string"),
       );
-      if (requiredColumns.some((column) => !foundColumns.has(column))) {
+      if (contract.columns.some((column) => !foundColumns.has(column))) {
         throw new Error("required D1 schema is missing");
+      }
+
+      for (const requiredColumns of contract.uniqueConstraints ?? []) {
+        if (!(await hasUniqueConstraint(binding, table, requiredColumns))) {
+          throw new Error("required D1 uniqueness constraint is missing");
+        }
+      }
+      for (const requiredForeignKey of contract.foreignKeys ?? []) {
+        if (!(await hasForeignKey(binding, table, requiredForeignKey))) {
+          throw new Error("required D1 foreign key is missing");
+        }
       }
     }
 
@@ -173,6 +209,49 @@ export async function createReadinessResponse(
       503,
     );
   }
+}
+
+async function hasUniqueConstraint(
+  binding: D1Database,
+  table: string,
+  requiredColumns: readonly string[],
+): Promise<boolean> {
+  const { results } = await binding
+    .prepare(`PRAGMA index_list('${escapePragmaString(table)}')`)
+    .all<{ name: string | null; unique: number | string | null }>();
+  for (const index of results ?? []) {
+    if (Number(index.unique) !== 1 || typeof index.name !== "string") continue;
+    const indexInfo = await binding
+      .prepare(`PRAGMA index_info('${escapePragmaString(index.name)}')`)
+      .all<{ seqno: number | string | null; name: string | null }>();
+    const columns = (indexInfo.results ?? [])
+      .filter((row): row is { seqno: number | string; name: string } => row.name !== null && row.seqno !== null)
+      .toSorted((a, b) => Number(a.seqno) - Number(b.seqno))
+      .map((row) => row.name);
+    if (columns.length === requiredColumns.length && columns.every((column, index) => column === requiredColumns[index])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasForeignKey(
+  binding: D1Database,
+  table: string,
+  requiredForeignKey: ReadinessForeignKey,
+): Promise<boolean> {
+  const { results } = await binding
+    .prepare(`PRAGMA foreign_key_list('${escapePragmaString(table)}')`)
+    .all<{ table: string | null; from: string | null; to: string | null }>();
+  return (results ?? []).some((foreignKey) =>
+    foreignKey.table === requiredForeignKey.referencedTable &&
+    foreignKey.from === requiredForeignKey.column &&
+    foreignKey.to === requiredForeignKey.referencedColumn,
+  );
+}
+
+function escapePragmaString(value: string): string {
+  return value.replaceAll("'", "''");
 }
 
 function withApiHeaders(init: ResponseInit): ResponseInit {

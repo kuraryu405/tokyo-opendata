@@ -60,38 +60,96 @@ test("uses one envelope for input and method errors", async () => {
   });
 });
 
-function readinessDatabase(schema: Record<string, readonly string[]>) {
+type ReadinessTable = {
+  columns: readonly string[];
+  uniqueIndexes?: readonly (readonly string[])[];
+  foreignKeys?: readonly { column: string; referencedTable: string; referencedColumn: string }[];
+};
+
+function readinessDatabase(schema: Record<string, ReadinessTable>) {
+  const indexes = new Map<string, readonly string[]>();
+  for (const [table, contract] of Object.entries(schema)) {
+    for (const [index, columns] of (contract.uniqueIndexes ?? []).entries()) {
+      indexes.set(`fixture_${table}_${index}`, columns);
+    }
+  }
   return {
     prepare: (query: string) => {
-      const match = /^PRAGMA table_info\('([^']+)'\)$/.exec(query);
-      assert.ok(match, `unexpected readiness query: ${query}`);
-      const table = match[1];
-      return {
-        all: async () => ({ results: (schema[table] ?? []).map((name) => ({ name })) }),
-      };
+      const tableInfo = /^PRAGMA table_info\('([^']+)'\)$/.exec(query);
+      if (tableInfo) {
+        const table = tableInfo[1];
+        return {
+          all: async () => ({ results: (schema[table]?.columns ?? []).map((name) => ({ name })) }),
+        };
+      }
+      const indexList = /^PRAGMA index_list\('([^']+)'\)$/.exec(query);
+      if (indexList) {
+        const table = indexList[1];
+        return {
+          all: async () => ({
+            results: (schema[table]?.uniqueIndexes ?? []).map((_, index) => ({
+              name: `fixture_${table}_${index}`,
+              unique: 1,
+            })),
+          }),
+        };
+      }
+      const indexInfo = /^PRAGMA index_info\('([^']+)'\)$/.exec(query);
+      if (indexInfo) {
+        const columns = indexes.get(indexInfo[1]) ?? [];
+        return {
+          all: async () => ({ results: columns.map((name, seqno) => ({ name, seqno })) }),
+        };
+      }
+      const foreignKeyList = /^PRAGMA foreign_key_list\('([^']+)'\)$/.exec(query);
+      if (foreignKeyList) {
+        const table = foreignKeyList[1];
+        return {
+          all: async () => ({
+            results: (schema[table]?.foreignKeys ?? []).map((foreignKey, id) => ({
+              id,
+              seq: 0,
+              table: foreignKey.referencedTable,
+              from: foreignKey.column,
+              to: foreignKey.referencedColumn,
+            })),
+          }),
+        };
+      }
+      throw new Error(`unexpected readiness query: ${query}`);
     },
   } as unknown as D1Database;
 }
 
 const municipalitySchema = {
-  backend_metadata: ["key", "value", "updated_at"],
-  situation_submissions: [
-    "id", "consent_version", "consented_at", "municipality_code", "visit_purpose",
-    "departure_window", "return_status", "family_age_groups_json", "accommodation",
-    "needs_json", "japanese_level", "deletion_token_hash", "idempotency_key_hash",
-    "payload_hash", "created_at",
-  ],
+  backend_metadata: { columns: ["key", "value", "updated_at"] },
+  situation_submissions: {
+    columns: [
+      "id", "consent_version", "consented_at", "municipality_code", "visit_purpose",
+      "departure_window", "return_status", "family_age_groups_json", "accommodation",
+      "needs_json", "japanese_level", "deletion_token_hash", "idempotency_key_hash",
+      "payload_hash", "created_at",
+    ],
+    uniqueIndexes: [["idempotency_key_hash"]],
+  },
 } as const;
 
 const userSchema = {
   ...municipalitySchema,
-  conversations: [
-    "id", "consent_version", "consented_at", "model_id", "deletion_token_hash",
-    "idempotency_key_hash", "payload_hash", "created_at",
-  ],
-  conversation_messages: [
-    "id", "conversation_id", "message_index", "role", "masked_content", "source_ids_json", "created_at",
-  ],
+  conversations: {
+    columns: [
+      "id", "consent_version", "consented_at", "model_id", "deletion_token_hash",
+      "idempotency_key_hash", "payload_hash", "created_at",
+    ],
+    uniqueIndexes: [["idempotency_key_hash"]],
+  },
+  conversation_messages: {
+    columns: [
+      "id", "conversation_id", "message_index", "role", "masked_content", "source_ids_json", "created_at",
+    ],
+    uniqueIndexes: [["conversation_id", "message_index"]],
+    foreignKeys: [{ column: "conversation_id", referencedTable: "conversations", referencedColumn: "id" }],
+  },
 } as const;
 
 test("reports schema-complete user readiness through the success envelope", async () => {
@@ -140,7 +198,7 @@ test("rejects a partially migrated table with a missing required column", async 
     {
       STAYBRIDGE_DB: readinessDatabase({
         backend_metadata: municipalitySchema.backend_metadata,
-        situation_submissions: ["id"],
+        situation_submissions: { columns: ["id"] },
       }),
     },
     "municipality",
@@ -156,6 +214,34 @@ test("rejects a partially migrated table with a missing required column", async 
     },
   });
   assert.doesNotMatch(body, /situation_submissions|created_at|PRAGMA/);
+});
+
+test("rejects a schema without the migration's unique or foreign-key constraints", async () => {
+  const withoutSubmissionUnique = {
+    ...municipalitySchema,
+    situation_submissions: { ...municipalitySchema.situation_submissions, uniqueIndexes: [] },
+  };
+  const withoutMessageUnique = {
+    ...userSchema,
+    conversation_messages: { ...userSchema.conversation_messages, uniqueIndexes: [] },
+  };
+  const withoutMessageForeignKey = {
+    ...userSchema,
+    conversation_messages: { ...userSchema.conversation_messages, foreignKeys: [] },
+  };
+
+  for (const [schema, service] of [
+    [withoutSubmissionUnique, "municipality"],
+    [withoutMessageUnique, "user"],
+    [withoutMessageForeignKey, "user"],
+  ] as const) {
+    const response = await createReadinessResponse(
+      { STAYBRIDGE_DB: readinessDatabase(schema) },
+      service,
+    );
+    assert.equal(response.status, 503, service);
+    assert.doesNotMatch(await response.text(), /UNIQUE|foreign|conversation|idempotency|PRAGMA/i);
+  }
 });
 
 test("reports a missing D1 binding as not ready", async () => {
