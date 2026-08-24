@@ -280,9 +280,11 @@ test("keeps mobile navigation viewport-fixed outside the filtered header context
 
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header \{[^}]*background: var\(--paper\);[^}]*backdrop-filter: none;/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*position: fixed;[^}]*inset: auto 0 0;/);
-  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*min-height: calc\(62px \+ env\(safe-area-inset-bottom\)\);/);
+  assert.match(css, /:root \{[^}]*--safe-area-inset-bottom: env\(safe-area-inset-bottom, 0px\);/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*height: calc\(62px \+ var\(--safe-area-inset-bottom\)\);/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*min-height: calc\(62px \+ var\(--safe-area-inset-bottom\)\);/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav button \{[^}]*min-height: 48px;/);
-  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.app-shell \{ padding-bottom: calc\(62px \+ env\(safe-area-inset-bottom\)\); \}/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.app-shell \{ padding-bottom: calc\(62px \+ var\(--safe-area-inset-bottom\)\); \}/);
   assert.doesNotMatch(css, /@media \(max-width: 900px\) \{[^@]*\.site-header nav \{[^}]*height: 62px;/);
   assert.doesNotMatch(css, /\.trust-row span::first-letter/);
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*?\.brand-home-label \{ display: inline; \}/);
