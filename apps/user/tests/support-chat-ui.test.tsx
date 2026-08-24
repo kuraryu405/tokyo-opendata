@@ -66,7 +66,7 @@ describe("SupportChat conversation log autoscroll", () => {
     await user.click(screen.getByRole("button", { name: "送る" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("個人情報");
+    expect(alert.textContent).toContain("旅券番号");
     expect(screen.queryByText("窓口で確認してください。")).toBeNull();
     expect(document.querySelector(".chat-log")).toBeNull();
   });

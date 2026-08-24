@@ -20,7 +20,7 @@ const chatCopy = {
     assistant: "AI案内",
     pending: "回答を整理しています",
     error: "AI案内を利用できません。時間をおいて再試行するか、この画面の公式相談先を利用してください。",
-    identifierError: "個人情報（旅券・在留カード番号、連絡先、正確な住所）が含まれているため送信できません。該当部分を消して再度送信してください。",
+    identifierError: "旅券番号・在留カード番号が含まれているため送信できません。該当部分を消して再度送信してください。連絡先や住所は自動的に伏せ字で送られます。",
   },
   en: {
     title: "AI consultation assistant",
@@ -34,7 +34,7 @@ const chatCopy = {
     assistant: "AI guide",
     pending: "Organizing a response",
     error: "The AI guide is unavailable. Try again later or use an official support link on this page.",
-    identifierError: "This message cannot be sent because it contains personal information (a passport or residence card number, contact details, or an exact address). Please remove that part and send it again.",
+    identifierError: "This message cannot be sent because it contains a passport or residence card number. Please remove that part and send it again. Contact details and addresses are automatically masked.",
   },
   my: {
     title: "AI တိုင်ပင်ရေး အကူ",
@@ -48,7 +48,7 @@ const chatCopy = {
     assistant: "AI လမ်းညွှန်",
     pending: "အဖြေကို စီစဉ်နေသည်",
     error: "AI လမ်းညွှန်ကို ယခုမသုံးနိုင်ပါ။ နောက်မှ ထပ်ကြိုးစားပါ သို့မဟုတ် ဤစာမျက်နှာရှိ တရားဝင်တိုင်ပင်ရာကို အသုံးပြုပါ။",
-    identifierError: "ကိုယ်ရေးအချက်အလက် (နိုင်ငံကူးလက်မှတ် သို့မဟုတ် နေထိုင်ခွင့်ကတ်နံပါတ်၊ ဆက်သွယ်ရန် အချက်အလက်၊ လိပ်စာအတိအကျ) ပါဝင်နေသောကြောင့် ပို့၍မရပါ။ ထိုအပိုင်းကို ဖျက်ပြီး ထပ်မံပို့ပါ။",
+    identifierError: "နိုင်ငံကူးလက်မှတ် သို့မဟုတ် နေထိုင်ခွင့်ကတ်နံပါတ် ပါဝင်နေသောကြောင့် ပို့၍မရပါ။ ထိုအပိုင်းကို ဖျက်ပြီး ထပ်မံပို့ပါ။ ဆက်သွယ်ရန်အချက်အလက်နှင့် လိပ်စာများကို အလိုအလျောက် ဖုံးကွယ်ပေးပါသည်။",
   },
 } as const;
 

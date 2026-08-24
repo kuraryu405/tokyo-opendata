@@ -215,6 +215,7 @@ export async function handleSupportChatRequest(
     temperature: 0.2,
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
+  runPromise.catch(() => {});
   try {
     const result = await Promise.race([
       runPromise,
