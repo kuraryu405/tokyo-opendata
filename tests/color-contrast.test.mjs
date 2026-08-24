@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
+const sharedCss = await readFile(new URL("packages/ui/styles.css", root), "utf8");
 const userCss = await readFile(new URL("apps/user/app/globals.css", root), "utf8");
 const municipalityCss = await readFile(new URL("apps/municipality/app/globals.css", root), "utf8");
 
@@ -26,9 +27,9 @@ function cssVariable(css, name) {
 }
 
 test("Issue #14 critical color pairs meet WCAG 2 AA normal-text contrast", () => {
-  const accessibleText = cssVariable(userCss, "--accessible-text");
-  const municipalityAccessibleText = cssVariable(municipalityCss, "--accessible-text");
-  const brandOnDark = cssVariable(municipalityCss, "--brand-on-dark");
+  const accessibleText = cssVariable(sharedCss, "--accessible-text");
+  const municipalityAccessibleText = cssVariable(sharedCss, "--accessible-text");
+  const brandOnDark = cssVariable(sharedCss, "--brand-on-dark");
   const pairs = [
     ["landing roadmap preview step number", accessibleText, "#ffffff"],
     ["roadmap action number", accessibleText, "#f0f5f3"],
