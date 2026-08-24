@@ -33,6 +33,7 @@ test("server-renders the Japanese Preparedness View at the municipality root", a
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Preparedness View/);
+  assert.match(html, /admin-label"><span><\/span> Preparedness View/);
   assert.match(html, /Data coverage note/);
   assert.match(html, /MVPで確認できる固定対象/);
   assert.doesNotMatch(html, /aria-label="対象国籍"/);
