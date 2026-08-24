@@ -82,16 +82,40 @@ export function createHealthResponse(
   );
 }
 
+export type ReadinessService = StayBridgeService;
+
+const READINESS_REQUIRED_TABLES: Record<ReadinessService, readonly string[]> = {
+  user: [
+    "backend_metadata",
+    "situation_submissions",
+    "conversations",
+    "conversation_messages",
+  ],
+  municipality: ["backend_metadata", "situation_submissions"],
+};
+
 export async function createReadinessResponse(
   env: Pick<BackendEnv, "STAYBRIDGE_DB"> | undefined,
+  service: ReadinessService,
 ): Promise<Response> {
   try {
-    const ready = await env?.STAYBRIDGE_DB.prepare("SELECT 1 AS ready").first<
-      number
-    >("ready");
+    const binding = env?.STAYBRIDGE_DB;
+    if (!binding) {
+      throw new Error("D1 binding is unavailable");
+    }
 
-    if (ready !== 1) {
-      throw new Error("D1 readiness query returned an unexpected result");
+    const { results } = await binding
+      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+      .all<{ name: string | null }>();
+    const found = new Set(
+      results
+        .map((row) => row.name)
+        .filter((name): name is string => typeof name === "string"),
+    );
+    for (const table of READINESS_REQUIRED_TABLES[service]) {
+      if (!found.has(table)) {
+        throw new Error("required D1 schema is missing");
+      }
     }
 
     return createApiSuccessResponse({ status: "ready" as const });

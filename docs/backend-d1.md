@@ -54,7 +54,7 @@ production は `production` と production ID で一時設定を作りますが�
 ## API と health contract
 
 - `GET /healthz`: Worker 自体の liveness。D1 へ問い合わせません。
-- `GET /readyz`: `SELECT 1` で D1 readiness を確認します。
+- `GET /readyz`: D1 へ `SELECT name FROM sqlite_master WHERE type='table'` の 1 回だけの読み取りを発行し、service ごとに必要なテーブルがすべて存在するかで readiness を判定します。利用者 Worker は `backend_metadata`・`situation_submissions`・`conversations`・`conversation_messages`、自治体 Worker は `backend_metadata`・`situation_submissions` を要求します。migration 前の空 DB や一部のみ適用された DB は readiness にならず、Binding 欠落も同様に未準備として扱います。`seed_version` は判定に含めません（seed 未適用でも runtime は動作するため）。不足時は次項の D1 一時障害と同じ 503 `SERVICE_UNAVAILABLE` を返し、テーブル名や SQL などの内部詳細は返しません。
 - API 成功: `{ "ok": true, "data": ... }`
 - 入力・method エラー: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。

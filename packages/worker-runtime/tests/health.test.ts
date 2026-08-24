@@ -60,21 +60,70 @@ test("uses one envelope for input and method errors", async () => {
   });
 });
 
-test("reports D1 readiness through the success envelope", async () => {
-  const response = await createReadinessResponse({
-    STAYBRIDGE_DB: {
-      prepare: (query: string) => {
-        assert.equal(query, "SELECT 1 AS ready");
-        return { first: async () => 1 };
-      },
-    } as unknown as D1Database,
-  });
+function readinessDatabase(results: Array<{ name: string }>) {
+  return {
+    prepare: (query: string) => {
+      assert.equal(query, "SELECT name FROM sqlite_master WHERE type='table'");
+      return { all: async () => ({ results }) };
+    },
+  } as unknown as D1Database;
+}
+
+test("reports schema-complete user readiness through the success envelope", async () => {
+  const response = await createReadinessResponse(
+    {
+      STAYBRIDGE_DB: readinessDatabase([
+        { name: "backend_metadata" },
+        { name: "situation_submissions" },
+        { name: "conversations" },
+        { name: "conversation_messages" },
+      ]),
+    },
+    "user",
+  );
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
     data: { status: "ready" },
   });
+});
+
+test("reports an empty database as not ready", async () => {
+  const response = await createReadinessResponse(
+    { STAYBRIDGE_DB: readinessDatabase([]) },
+    "user",
+  );
+
+  assert.equal(response.status, 503);
+});
+
+test("requires only the crisis-needs tables for the municipality service", async () => {
+  const database = readinessDatabase([
+    { name: "backend_metadata" },
+    { name: "situation_submissions" },
+  ]);
+  const userResponse = await createReadinessResponse(
+    { STAYBRIDGE_DB: database },
+    "user",
+  );
+  const municipalityResponse = await createReadinessResponse(
+    { STAYBRIDGE_DB: database },
+    "municipality",
+  );
+
+  assert.equal(userResponse.status, 503);
+  assert.equal(municipalityResponse.status, 200);
+  assert.deepEqual(await municipalityResponse.json(), {
+    ok: true,
+    data: { status: "ready" },
+  });
+});
+
+test("reports a missing D1 binding as not ready", async () => {
+  const response = await createReadinessResponse(undefined, "user");
+
+  assert.equal(response.status, 503);
 });
 
 test("does not expose D1 errors or binding identifiers", async () => {

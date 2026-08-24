@@ -56,7 +56,7 @@ const worker = {
     }
 
     if (request.method === "GET" && url.pathname === "/readyz") {
-      return createReadinessResponse(env);
+      return createReadinessResponse(env, "user");
     }
 
     if (url.pathname === "/readyz") {
