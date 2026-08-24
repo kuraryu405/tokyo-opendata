@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { SupportChatMessage } from "../ai/support-chat";
+import { prefersReducedMotion } from "../motion";
 import type { Locale } from "./staybridge-session";
 
 const SUPPORT_CHAT_TIMEOUT_MS = 15_000;
@@ -74,12 +75,21 @@ export function SupportChat({ locale }: { locale: Locale }) {
   const nextMessageId = useRef(0);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => () => activeRequest.current?.abort(), []);
+
+  useEffect(() => {
+    const log = chatLogRef.current;
+    if (!log) return;
+    const behavior = prefersReducedMotion() ? "auto" as const : "smooth" as const;
+    if (typeof log.scrollTo === "function") log.scrollTo({ top: log.scrollHeight, behavior });
+    else log.scrollTop = log.scrollHeight;
+  }, [messages.length, pending]);
 
   const createEntry = (role: SupportChatMessage["role"], content: string): ChatEntry => ({
     id: `${role}-${nextMessageId.current++}`,
@@ -156,7 +166,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
     <div className="support-chat-panel" id={panelId}>
       <p className="chat-disclosure">{t.disclosure}</p>
       {messages.length === 0 && !pending && <div className="chat-suggestions">{t.suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void sendMessage(undefined, suggestion)}>{suggestion}<span aria-hidden="true">→</span></button>)}</div>}
-      {messages.length > 0 && <div className="chat-log" aria-live="polite">{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p></article>)}</div>}
+      {messages.length > 0 && <div className="chat-log" aria-live="polite" ref={chatLogRef}>{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p></article>)}</div>}
       {pending && <output className="chat-pending" aria-live="polite"><span aria-hidden="true" />{t.pending}</output>}
       {error && <p className="chat-error" role="alert">{error === "HIGH_RISK_IDENTIFIER" ? t.identifierError : t.error}</p>}
       <form className="chat-form" onSubmit={sendMessage}>
