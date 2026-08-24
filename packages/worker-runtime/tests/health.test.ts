@@ -135,7 +135,7 @@ test("does not expose D1 errors or binding identifiers", async () => {
         );
       },
     } as unknown as D1Database,
-  });
+  }, "user");
   const body = await response.text();
 
   assert.equal(response.status, 503);
