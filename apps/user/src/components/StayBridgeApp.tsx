@@ -58,7 +58,7 @@ import {
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
 import { formatAssessmentDateForLocale } from "../assessment-date";
-import { resolveMunicipalityAppUrl } from "../municipality-url";
+import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
@@ -100,7 +100,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const { locale, screen, query } = parsedRoute.route;
   const step = query.step ?? 0;
   const localFilter = query.filter ?? "all";
-  const municipalityAppUrl = resolveMunicipalityAppUrl();
   const [situation, setSituation] = useState<Situation>(createInitialSituation);
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
@@ -474,7 +473,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}

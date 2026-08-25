@@ -8,8 +8,10 @@ import {
   createReadinessResponse,
   type BackendEnv,
 } from "@staybridge/worker-runtime";
+import { createUserAppRedirect, userAppRoute } from "../src/user-url";
 
 interface Env extends BackendEnv {
+  COUNTERPART_APP_URL?: string;
   ASSETS: Fetcher;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -34,6 +36,10 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === userAppRoute) {
+      return createUserAppRedirect(env?.COUNTERPART_APP_URL, request.url);
+    }
 
     if (request.method === "GET" && url.pathname === "/healthz") {
       return createHealthResponse(env, "municipality");

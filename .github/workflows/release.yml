@@ -87,7 +87,8 @@ jobs:
       production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
-      counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      staging_counterpart_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
+      production_counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -108,7 +109,8 @@ jobs:
       production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
       staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
       production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
-      counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      staging_counterpart_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      production_counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -3,14 +3,13 @@ import { headers } from "next/headers";
 import "./globals.css";
 
 function resolveSiteUrl(requestHeaders: Pick<Headers, "get">): URL | undefined {
-  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const forwardedHost = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || requestHeaders.get("host")?.split(",")[0]?.trim();
   const forwardedProtocol = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const protocol = forwardedProtocol || (host?.startsWith("localhost") || host?.startsWith("127.0.0.1") ? "http" : "https");
 
   try {
-    return configuredUrl ? new URL(configuredUrl) : host ? new URL(`${protocol}://${host}`) : undefined;
+    return host ? new URL(`${protocol}://${host}`) : undefined;
   } catch {
     return undefined;
   }
