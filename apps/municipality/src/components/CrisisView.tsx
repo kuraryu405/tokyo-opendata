@@ -61,6 +61,8 @@ type Period = keyof typeof periodLabels;
 type View = keyof typeof viewLabels;
 type NeedsState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; data: CrisisNeedsData };
 
+export const CRISIS_NEEDS_REQUEST_TIMEOUT_MS = 10_000;
+
 function CrisisNeedsPanel() {
   const [period, setPeriod] = useState<Period>("30d");
   const [view, setView] = useState<View>("needs");
@@ -72,17 +74,31 @@ function CrisisNeedsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const timeoutId = window.setTimeout(() => {
+      if (!active) return;
+      controller.abort();
+      setState({ requestKey, value: { kind: "error" } });
+    }, CRISIS_NEEDS_REQUEST_TIMEOUT_MS);
     const params = new URLSearchParams({ municipality: "13117", period, view });
     fetch(`/api/crisis/needs?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as { ok?: boolean; data?: CrisisNeedsData };
         if (!response.ok || !body.ok || !body.data) throw new Error("Crisis needs request failed");
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
         setState({ requestKey, value: { kind: "ready", data: body.data } });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ requestKey, value: { kind: "error" } });
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
+        setState({ requestKey, value: { kind: "error" } });
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
