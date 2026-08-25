@@ -188,12 +188,14 @@ describe("Situation persistence request timeouts", () => {
       await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
     });
 
-    expect((fetchMock.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true);
+    const streamingSignal = fetchMock.mock.calls[0][1]?.signal;
+    expect(streamingSignal).toBeInstanceOf(AbortSignal);
+    expect((streamingSignal as AbortSignal).aborted).toBe(true);
     expect(screen.getByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).not.toBeNull();
   });
 
-  it("allows the caller to abort a submission request when its owning component unmounts", async () => {
+  it("allows an owning request controller to abort a submission", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(hangUntilAborted);
     vi.stubGlobal("fetch", fetchMock);
     const ownerController = new AbortController();
