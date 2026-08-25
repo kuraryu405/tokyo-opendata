@@ -48,7 +48,7 @@ import {
   createInitialSituation,
   isAssessmentComplete,
   firstUnansweredStep,
-  parseStoredSession,
+  readStoredSession,
   serializeStoredSession,
   type FamilyAnswer,
   type FamilyAnswers,
@@ -109,6 +109,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
+  const [hasUnreadableSession, setHasUnreadableSession] = useState(false);
   const [isDemoSituation, setIsDemoSituation] = useState(false);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
@@ -122,7 +123,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   useEffect(() => {
     try {
-      const storedSession = parseStoredSession(sessionStorage.getItem("staybridge.session"));
+      const storedSessionResult = readStoredSession(sessionStorage.getItem("staybridge.session"));
+      const storedSession = storedSessionResult.status === "valid" ? storedSessionResult.session : null;
       if (storedSession) {
         // oxlint-disable-next-line react/set-state-in-effect -- Initializes browser-only persisted state after hydration.
         setSituation(storedSession.situation);
@@ -130,6 +132,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         setFamilyAnswers(storedSession.familyAnswers);
         setAnsweredSteps(storedSession.answeredSteps);
         setIsDemoSituation(storedSession.provenance === "demo");
+      } else if (storedSessionResult.status !== "absent") {
+        // Corrupt or newer-than-this-build session data may still hold answers.
+        // Keep the raw value untouched and suspend session writes until the
+        // person explicitly starts over.
+        setHasUnreadableSession(true);
       }
       const savedCredentialsResult = parseSavedSituationCredentials(
         sessionStorage.getItem(SAVED_SITUATION_CREDENTIALS_KEY),
@@ -217,7 +224,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   }, [demoSituationRouteGuard, locale, router]);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || hasUnreadableSession) return;
     if (skipNextSessionWrite.current) {
       skipNextSessionWrite.current = false;
       return;
@@ -227,7 +234,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     } catch {
       window.setTimeout(() => setStorageError(true), 0);
     }
-  }, [answeredSteps, familyAnswers, isDemoSituation, situation, stayAnswer, storageReady]);
+  }, [answeredSteps, familyAnswers, hasUnreadableSession, isDemoSituation, situation, stayAnswer, storageReady]);
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
@@ -271,8 +278,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const loadDemo = () => {
-    if (hasProtectedSituationSubmission) {
-      focusSituationPersistence();
+    if (hasUnreadableSession || hasProtectedSituationSubmission) {
+      focusSessionNotice();
       return;
     }
     setSituation(demoSituation);
@@ -303,6 +310,29 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     window.setTimeout(() => document.getElementById(targetId)?.focus(), 0);
   };
 
+  const focusSessionNotice = () => {
+    if (screen !== "landing") router.replace(buildStayBridgePath({ locale, screen: "landing" }));
+    window.setTimeout(() => document.getElementById("unreadable-session-notice")?.focus(), 0);
+  };
+
+  const startFreshSession = () => {
+    try {
+      sessionStorage.removeItem("staybridge.session");
+    } catch {
+      setStorageError(true);
+      return;
+    }
+    skipNextSessionWrite.current = true;
+    setSituation(createInitialSituation());
+    setStayAnswer("unknown");
+    setFamilyAnswers([]);
+    setAnsweredSteps([]);
+    setCopyState("idle");
+    setIsDemoSituation(false);
+    setHasUnreadableSession(false);
+    router.replace(buildStayBridgePath({ locale, screen: "landing" }));
+  };
+
   const clearData = () => {
     if (!storageReady) return;
     if (hasProtectedSituationSubmission) {
@@ -322,6 +352,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
+    setHasUnreadableSession(false);
     situationSubmissionSecrets.current = null;
     try {
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
@@ -350,6 +381,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
+    setHasUnreadableSession(false);
     situationSubmissionSecrets.current = null;
     try {
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
@@ -471,9 +503,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       <a className="skip-link" href="#main">{t.skip}</a>
       <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} navVisible={navVisible} showStepsNav={showStepsNav} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
+      {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady || hasUnreadableSession} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
@@ -503,6 +536,11 @@ function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: 
     </nav>}
     <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
+}
+
+function UnreadableSessionNotice({ locale, onStart }: { locale: Locale; onStart: () => void }) {
+  const copy = getPersistenceCopy(locale);
+  return <section id="unreadable-session-notice" className="consent-card unreadable-session" aria-labelledby="unreadable-session-title" tabIndex={-1}><h2 id="unreadable-session-title">{copy.sessionUnreadableTitle}</h2><p>{copy.sessionUnreadableBody}</p><div className="consent-actions"><button className="secondary-button" onClick={onStart}>{copy.startFreshSession}</button></div></section>;
 }
 
 function LoadingState({ message }: { message: string }) {
