@@ -13,6 +13,8 @@ const deletionTokenPattern = /^[A-Za-z0-9_-]{43}$/u;
 export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-credentials";
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
 export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
+/** Matches the Crisis View request budget so no consented persistence call can stay busy forever. */
+export const SITUATION_SUBMISSION_TIMEOUT_MS = 10_000;
 
 export type SavedRecordCredentials = {
   id: string;
@@ -95,7 +97,7 @@ export async function saveSituationSubmission(
   situation: Situation,
   secrets: SituationSubmissionSecrets,
 ): Promise<SavedRecordCredentials> {
-  const response = await fetch("/api/situation-submissions", {
+  const response = await fetchWithSubmissionTimeout("/api/situation-submissions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -128,7 +130,7 @@ export async function deleteSituationSubmission(
 ): Promise<void> {
   const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
   if (!validatedCredentials) throw new Error("SITUATION_DELETION_FAILED");
-  const response = await fetch(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
+  const response = await fetchWithSubmissionTimeout(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
     method: "DELETE",
     headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
   });
@@ -138,6 +140,26 @@ export async function deleteSituationSubmission(
   if (response.status === 404) return;
   const body = await readSuccessBody(response);
   if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+}
+
+/**
+ * A save or delete whose response never settles must not leave the consent UI
+ * busy forever. The request is aborted after the timeout so the caller's error
+ * path runs while the pending secrets / deletion credentials stay stored: a
+ * timed-out save may still have been persisted server-side, so retrying with
+ * the same idempotency key remains the only safe recovery.
+ */
+async function fetchWithSubmissionTimeout(
+  input: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SITUATION_SUBMISSION_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function parseSavedSituationCredentialsValue(value: unknown): SavedRecordCredentials | null {
