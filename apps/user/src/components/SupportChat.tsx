@@ -151,6 +151,7 @@ export function useSupportChatConversation(locale: Locale): SupportChatConversat
     activeRequest.current = null;
     activeRequestId.current += 1;
     setMessages([]);
+    setInput("");
     setPending(false);
     setError("");
   };
