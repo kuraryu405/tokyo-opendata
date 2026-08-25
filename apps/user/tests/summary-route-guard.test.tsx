@@ -59,6 +59,16 @@ function memoryStorage(): Storage {
   };
 }
 
+function partialUserSession() {
+  return serializeStoredSession({
+    provenance: "user",
+    situation: demoSituation,
+    stayAnswer: "unknown",
+    familyAnswers: ["children"],
+    answeredSteps: [0, 1, 2, 3, 4],
+  });
+}
+
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -85,18 +95,24 @@ describe("Consultation summary route guard", () => {
   });
 
   it("returns a partially answered direct visit to /summary to the first unanswered step", async () => {
-    sessionStorage.setItem("staybridge.session", serializeStoredSession({
-      provenance: "user",
-      situation: demoSituation,
-      stayAnswer: "unknown",
-      familyAnswers: ["children"],
-      answeredSteps: [0, 1, 2, 3, 4],
-    }));
+    sessionStorage.setItem("staybridge.session", partialUserSession());
     navigation.reset("/en/summary");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await waitFor(() => expect(navigation.path()).toBe("/en/check?step=5"));
     expect(screen.queryByRole("heading", { name: getUserMessages("en").ui.summaryTitle })).toBeNull();
+  });
+
+  it("re-applies the guard when browser history changes an already-mounted partial session to /summary", async () => {
+    sessionStorage.setItem("staybridge.session", partialUserSession());
+    navigation.reset("/ja/help");
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    expect(screen.getByRole("heading", { name: getUserMessages("ja").ui.helpTitle })).toBeTruthy();
+
+    navigation.reset("/ja/summary");
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=5"));
+    expect(screen.queryByRole("heading", { name: getUserMessages("ja").ui.summaryTitle })).toBeNull();
   });
 
   it("keeps the consultation summary reachable for a completed answer session", async () => {
