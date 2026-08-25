@@ -308,7 +308,7 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: "保存しない" }));
     expect(screen.getByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "子どもの教育について相談する" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
   });
 
   it("deletes a saved Situation record only with its in-memory deletion code", async () => {
@@ -782,7 +782,8 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
 
     expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "子どもの教育について相談する" })).toBeTruthy();
+    // The education card stays fail-closed while the school source publishes zero rows.
+    expect(screen.queryByRole("heading", { name: "子どもの教育について相談する" })).toBeNull();
     await waitFor(() => expect(sessionStorage.getItem("staybridge.session")).toContain('"children":[{"ageGroup":"3-5"},{"ageGroup":"6-11"}]'));
 
     navigation.reset("/ja/summary");
@@ -1163,12 +1164,12 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
-    const schoolAction = screen.getByRole("heading", { name: "子どもの教育について相談する" }).closest("article");
-    await user.click(within(schoolAction!).getByRole("button", { name: /近くの学校を見る/ }));
-    expect(screen.getByRole("button", { name: "学校・教育", pressed: true })).toBeTruthy();
-    expect(screen.getByText("この地域の支援情報はまだ掲載がありません。相談窓口の一覧をご利用ください。")).toBeTruthy();
-    expect(screen.queryByText("豊川小学校")).toBeNull();
-    expect(screen.queryByText("おうじキッズクリニック")).toBeNull();
+    // The school card is fail-closed while the school source publishes zero rows.
+    expect(screen.queryByRole("heading", { name: "子どもの教育について相談する" })).toBeNull();
+    const childSupportAction = screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" }).closest("article");
+    await user.click(within(childSupportAction!).getByRole("button", { name: /子どもの居場所を見る/ }));
+    expect(screen.getByRole("button", { name: "子どもの居場所", pressed: true })).toBeTruthy();
+    expect(screen.getByText("赤羽北児童館")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
     const medicalAction = screen.getByRole("heading", { name: "医療を受けられる場所を確認する" }).closest("article");
@@ -1212,7 +1213,7 @@ describe("StayBridge client flow", () => {
     await screen.findByRole("button", { name: "My steps" });
 
     await user.click(screen.getByRole("button", { name: "My steps" }));
-    expect(screen.getByRole("heading", { name: "Ask about your child’s education" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Find local places for your child" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Get help" }));
     await user.click(screen.getByRole("button", { name: /Create consultation summary/ }));
     expect(screen.getByText(/A child is with me · age: 6-11 \/ My spouse is with me/)).toBeTruthy();
