@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { serializeStoredSession } from "../src/components/staybridge-session";
-import { SITUATION_SUBMISSION_TIMEOUT_MS } from "../src/consented-persistence";
+import {
+  createSituationSubmissionSecrets,
+  saveSituationSubmission,
+  SITUATION_SUBMISSION_TIMEOUT_MS,
+} from "../src/consented-persistence";
 
 const navigation = vi.hoisted(() => {
   let currentPath = "/ja/";
@@ -77,6 +81,22 @@ function hangUntilAborted(_input: RequestInfo | URL, init?: RequestInit): Promis
     }
     signal.addEventListener("abort", () => reject(new DOMException("This operation was aborted", "AbortError")), { once: true });
   });
+}
+
+function headersThenHangUntilAborted(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const signal = init?.signal;
+  if (!(signal instanceof AbortSignal)) return Promise.reject(new Error("submission fetch must carry an abort signal"));
+  let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+      controller.enqueue(new TextEncoder().encode('{"ok":true,"data":{"id":"sit_11111111-1111-4111-8111-111111111111"'));
+    },
+  });
+  signal.addEventListener("abort", () => {
+    streamController?.error(new DOMException("This operation was aborted", "AbortError"));
+  }, { once: true });
+  return Promise.resolve(new Response(stream, { status: 201, headers: { "content-type": "application/json" } }));
 }
 
 function savedCredentialsValue(): string {
@@ -150,6 +170,41 @@ describe("Situation persistence request timeouts", () => {
     const retryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as { idempotencyKey: string };
     expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey);
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
+  });
+
+  it("keeps the timeout active while a successful response body is still streaming", async () => {
+    vi.useFakeTimers();
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(headersThenHangUntilAborted);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "同意して保存" }));
+    await flushSubmissions();
+    expect(screen.getByText("保存しています…")).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
+    });
+
+    expect((fetchMock.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true);
+    expect(screen.getByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).not.toBeNull();
+  });
+
+  it("allows the caller to abort a submission request when its owning component unmounts", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(hangUntilAborted);
+    vi.stubGlobal("fetch", fetchMock);
+    const ownerController = new AbortController();
+    const request = saveSituationSubmission(demoSituation, createSituationSubmissionSecrets(), ownerController.signal);
+    await Promise.resolve();
+    const internalSignal = fetchMock.mock.calls[0][1]?.signal as AbortSignal;
+
+    ownerController.abort();
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(internalSignal.aborted).toBe(true);
   });
 
   it("keeps the deletion credentials usable when the delete request never settles", async () => {
