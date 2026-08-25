@@ -138,7 +138,7 @@ describe("AI consultation transcript lifetime", () => {
     await user.type(input, "What should I bring?");
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getAllByText("公式相談先で確認してください.")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText("公式相談先で確認してください。")).toHaveLength(2));
     const requestBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)) as { locale: string };
     expect(requestBody.locale).toBe("en");
   });
