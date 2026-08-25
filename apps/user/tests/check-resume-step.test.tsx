@@ -102,4 +102,23 @@ describe("Assessment resume entry point", () => {
     await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=5"));
     expect(screen.getByText(getUserMessages("ja").ui.questionLabel + " 06")).toBeTruthy();
   });
+
+  it("uses the first actual gap after reload and preserves that progress in another locale", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1, 3, 4],
+    }));
+    navigation.reset("/en/");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const startButton = await screen.findByRole("button", { name: getUserMessages("en").ui.start });
+    await user.click(startButton);
+
+    await waitFor(() => expect(navigation.path()).toBe("/en/check?step=2"));
+    expect(screen.getByText(getUserMessages("en").ui.questionLabel + " 03")).toBeTruthy();
+  });
 });
