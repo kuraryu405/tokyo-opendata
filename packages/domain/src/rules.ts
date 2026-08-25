@@ -16,7 +16,7 @@ export const ruleIds = [
   "R-STAY-NEED", "R-CONSULT-NEED", "R-HOUSING-UNSTABLE", "R-HOUSING-HOTEL", "R-HOUSING-NEED",
   "R-EDUCATION-SCHOOL-AGE-RETURN", "R-EDUCATION-NEED", "R-CHILD-SCHOOL-AGE-RETURN",
   "R-CHILDCARE-NEED", "R-MEDICAL-NEED", "R-WORK-EMPLOYMENT-NEED",
-  "R-WORK-LIVING-COST-NEED", "R-LIVING-COST-NEED", "R-LANGUAGE-LEVEL", "R-LANGUAGE-NEED",
+  "R-LIVING-COST-NEED", "R-LANGUAGE-LEVEL", "R-LANGUAGE-NEED",
 ] as const;
 
 export type RuleId = (typeof ruleIds)[number];
@@ -49,7 +49,7 @@ const reasonText: Record<string, string> = {
   UNSTABLE_ACCOMMODATION: "Your current accommodation is unstable while your return is difficult.",
   CHILDCARE_NEED: "You indicated childcare needs for a child; local child support can be checked.",
   MEDICAL_NEED: "You indicated that medical support may be needed.",
-  EMPLOYMENT_NEED: "You indicated concern about work or living costs; eligibility must be checked first.",
+  EMPLOYMENT_NEED: "You indicated concern about work; eligibility must be checked first.",
   LIVING_COST_NEED: "You indicated concern about meeting immediate living costs.",
   LANGUAGE_BARRIER: "Language support may make official and local consultations easier.",
   KNOWN_STAY_DEADLINE: "You entered a stay deadline, so an official check should be planned by that date.",
@@ -110,7 +110,6 @@ export const actionRules: readonly ActionRule[] = [
   } }),
   rule({ id: "R-MEDICAL-NEED", conditions: "medical selected", exclusions: "none", actionId: "CHECK_MEDICAL_OPTIONS", priority: 70, reasonCode: "MEDICAL_NEED", safety: "resource_listing_only", match: (s) => hasNeed(s, "medical") && ["needs=medical"] }),
   rule({ id: "R-WORK-EMPLOYMENT-NEED", conditions: "employment selected", exclusions: "none", actionId: "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH", priority: 65, reasonCode: "EMPLOYMENT_NEED", safety: "check_only", match: (s) => hasNeed(s, "employment") && ["needs=employment"] }),
-  rule({ id: "R-WORK-LIVING-COST-NEED", conditions: "living cost selected", exclusions: "none", actionId: "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH", priority: 65, reasonCode: "EMPLOYMENT_NEED", safety: "check_only", match: (s) => hasNeed(s, "living_cost") && ["needs=living_cost"] }),
   rule({ id: "R-LIVING-COST-NEED", conditions: "living cost selected", exclusions: "none", actionId: "CHECK_LIVING_COST_SUPPORT", priority: 78, reasonCode: "LIVING_COST_NEED", safety: "consult_only", match: (s) => hasNeed(s, "living_cost") && ["needs=living_cost"] }),
   rule({ id: "R-LANGUAGE-LEVEL", conditions: "Japanese none/beginner", exclusions: "daily/advanced", actionId: "FIND_LANGUAGE_SUPPORT", priority: 60, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => (s.japaneseLevel === "none" || s.japaneseLevel === "beginner") && [`japaneseLevel=${s.japaneseLevel}`] }),
   rule({ id: "R-LANGUAGE-NEED", conditions: "language selected", exclusions: "none", actionId: "FIND_LANGUAGE_SUPPORT", priority: 65, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => hasNeed(s, "language") && ["needs=language"] }),

@@ -60,7 +60,7 @@ export const selectionCoverage: readonly SelectionCoverage[] = [
   entry("needs", "stay", "rule_input", "Adds a check-only stay card.", ["R-STAY-NEED"]),
   entry("needs", "consultation", "rule_input", "Adds an official consultation card.", ["R-CONSULT-NEED"]),
   entry("needs", "accommodation", "rule_input", "Adds temporary-living consultation without asserting availability.", ["R-HOUSING-NEED"]),
-  entry("needs", "living_cost", "rule_input", "Adds living-cost consultation and requires checking work eligibility before job search.", ["R-LIVING-COST-NEED", "R-WORK-LIVING-COST-NEED"]),
+  entry("needs", "living_cost", "rule_input", "Adds living-cost consultation without inferring a desire or eligibility to work.", ["R-LIVING-COST-NEED"]),
   entry("needs", "employment", "rule_input", "Adds only a work-eligibility check; it never decides permission to work.", ["R-WORK-EMPLOYMENT-NEED"]),
   entry("needs", "education", "rule_input", "Adds education resources only with a school-age child.", ["R-EDUCATION-NEED"]),
   entry("needs", "childcare", "rule_input", "Adds child support only with a child under 18.", ["R-CHILDCARE-NEED"]),
