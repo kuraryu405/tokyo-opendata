@@ -98,6 +98,38 @@ describe("Tokyo date rollover for catalog publication", () => {
     expect(screen.queryByRole("heading", { name: "通訳・やさしい日本語の支援を確認する" })).toBeNull();
   });
 
+  it("keeps answer-dependent deadline evaluation pinned to the assessment date across Tokyo midnight", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: {
+        ...demoSituation,
+        returnStatus: "possible",
+        accommodation: "rental",
+        knownStayDeadline: "2026-08-24",
+        stayDeadlineKnown: true,
+        japaneseLevel: "advanced",
+        familyMembers: { children: [] },
+        needs: ["medical"],
+      },
+      stayAnswer: "known",
+      familyAnswers: ["none"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-23T14:30:00Z"));
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const beforeDeadline = "期限までに書類と相談予定を確認する";
+    expect(screen.getByRole("heading", { name: beforeDeadline })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90 * 60 * 1000);
+    });
+
+    expect(screen.getByRole("heading", { name: beforeDeadline })).toBeTruthy();
+    expect(screen.queryByText("入力した滞在期限を過ぎているため、すぐに公式窓口へ状況を確認する案内を表示しています。")).toBeNull();
+  });
+
   it("keeps publishable cards while the Tokyo calendar day is unchanged", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-23T14:30:00Z"));
