@@ -78,9 +78,9 @@ beforeEach(() => {
   restoreCompleteDemoSession();
   vi.stubGlobal("scrollTo", vi.fn());
   vi.stubGlobal("print", vi.fn());
-  vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+  vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
     reply: "公式相談先で確認してください。",
-  }), { status: 200, headers: { "content-type": "application/json" } })));
+  }), { status: 200, headers: { "content-type": "application/json" } }))));
 });
 
 afterEach(() => {
