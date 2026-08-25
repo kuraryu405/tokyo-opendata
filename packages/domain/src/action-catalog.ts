@@ -11,6 +11,7 @@ export const actionIds = [
   "CHECK_BEFORE_STAY_DEADLINE",
   "CHECK_CHILD_LOCAL_SUPPORT",
   "CHECK_LIVING_COST_SUPPORT",
+  "FIND_DAILY_LIFE_GUIDANCE",
 ] as const;
 
 export type ActionId = (typeof actionIds)[number];
@@ -232,6 +233,23 @@ export const actionCatalog = {
     riskLevel: "high",
     destination: { screen: "help" },
     review: highRiskReview,
+  },
+  FIND_DAILY_LIFE_GUIDANCE: {
+    id: "FIND_DAILY_LIFE_GUIDANCE",
+    purpose: "Point a person with daily-life concerns to official living guides and procedures for settling into Tokyo.",
+    category: "daily_life",
+    timing: "this_week",
+    fallback: {
+      title: "Check official daily-life guidance",
+      description: "Use official living guides to organize the procedures and habits of daily life in Tokyo.",
+      cta: "View official support",
+      notice: "Official guides describe general procedures. Rules and required documents depend on your individual situation, so confirm them with a support service.",
+    },
+    sourceIds: ["TIPS_LIVING_GUIDE", "TIPS_PROCEDURES", "TIPS_LIFE_GUIDE_JP", "KEISHICHO_FOREIGN_RESIDENT_MANUAL"],
+    humanReviewRequired: false,
+    riskLevel: "standard",
+    destination: { screen: "help" },
+    review: standardReview,
   },
 } as const satisfies ActionCatalog;
 

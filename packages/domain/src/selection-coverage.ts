@@ -65,9 +65,9 @@ export const selectionCoverage: readonly SelectionCoverage[] = [
   entry("needs", "education", "rule_input", "Adds education resources only with a school-age child.", ["R-EDUCATION-NEED"]),
   entry("needs", "childcare", "rule_input", "Adds child support only with a child under 18.", ["R-CHILDCARE-NEED"]),
   entry("needs", "medical", "rule_input", "Adds a medical resource listing without asserting service availability.", ["R-MEDICAL-NEED"]),
-  entry("needs", "daily_life", "resource_filter", "Filters official handoff information without generating or prioritizing roadmap cards."),
-  entry("needs", "none", "explicit_no_card", "Lets people finish honestly without inventing a need; exclusive with every other category."),
+  entry("needs", "daily_life", "rule_input", "Adds official daily-life guidance so the answer is not silently ignored by the roadmap.", ["R-DAILY-LIFE-NEED"]),
   entry("needs", "language", "rule_input", "Adds language-support consultation regardless of self-rated Japanese level.", ["R-LANGUAGE-NEED"]),
+  entry("needs", "none", "explicit_no_card", "Lets people finish honestly without inventing a need; exclusive with every other category."),
   ...(["none", "beginner"] as const).map((code) => entry("japaneseLevel", code, "rule_input", "Adds language-support consultation.", ["R-LANGUAGE-LEVEL"])),
   ...(["daily", "advanced"] as const).map((code) => entry("japaneseLevel", code, "explicit_no_card", "No language barrier is inferred; an explicit language concern can still match.")),
 ];
