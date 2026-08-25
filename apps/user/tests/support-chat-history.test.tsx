@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 describe("AI consultation transcript lifetime", () => {
-  it("keeps the conversation when leaving the roadmap and returning", async () => {
+  it("keeps the conversation when leaving the roadmap for help and returning", async () => {
     const user = userEvent.setup();
     const view = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -104,6 +104,56 @@ describe("AI consultation transcript lifetime", () => {
     expect(screen.getByText("相談窓口で何を聞けばいい？")).toBeTruthy();
     expect(screen.getByText("公式相談先で確認してください。")).toBeTruthy();
     view.unmount();
+  });
+
+  it("keeps the conversation when leaving the roadmap for local support and returning", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "相談窓口で何を聞けばいい？" }));
+    expect(await screen.findByText("公式相談先で確認してください。")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /近くの支援/ }));
+    expect(navigation.path()).toContain("/local");
+    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
+
+    expect(screen.getByText("相談窓口で何を聞けばいい？")).toBeTruthy();
+    expect(screen.getByText("公式相談先で確認してください。")).toBeTruthy();
+  });
+
+  it("keeps the transcript across locale changes while subsequent requests use the selected locale", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "相談窓口で何を聞けばいい？" }));
+    expect(await screen.findByText("公式相談先で確認してください。")).toBeTruthy();
+
+    await user.selectOptions(screen.getByRole("combobox"), "en");
+    expect(navigation.path()).toBe("/en/roadmap");
+    expect(screen.getByText("相談窓口で何を聞けばいい？")).toBeTruthy();
+    expect(screen.getByText("公式相談先で確認してください。")).toBeTruthy();
+
+    const input = screen.getByRole("textbox", { name: "What do you want to ask?" });
+    await user.type(input, "What should I bring?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findAllByText("公式相談先で確認してください。")).toHaveLength(2);
+    const requestBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)) as { locale: string };
+    expect(requestBody.locale).toBe("en");
+  });
+
+  it("clears both transcript and unsent draft when the user clears the conversation", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "相談窓口で何を聞けばいい？" }));
+    expect(await screen.findByText("公式相談先で確認してください。")).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "まだ送らない下書き");
+
+    await user.click(screen.getByRole("button", { name: "会話を消去" }));
+    expect(screen.queryByText("公式相談先で確認してください。")).toBeNull();
+    expect((input as HTMLTextAreaElement).value).toBe("");
   });
 
   it("discards the conversation on a full remount (reload) as documented", () => {
@@ -121,6 +171,8 @@ describe("AI consultation transcript lifetime", () => {
 
     await user.click(await screen.findByRole("button", { name: "相談窓口で何を聞けばいい？" }));
     expect(await screen.findByText("公式相談先で確認してください。")).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "消去される下書き");
 
     await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
     expect(navigation.path()).toBe("/ja");
@@ -131,5 +183,6 @@ describe("AI consultation transcript lifetime", () => {
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.queryByText("公式相談先で確認してください。")).toBeNull();
     expect(document.querySelector(".chat-log")).toBeNull();
+    expect((screen.getByRole("textbox", { name: "相談したいこと" }) as HTMLTextAreaElement).value).toBe("");
   });
 });
