@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
 import { getUserMessages } from "@staybridge/i18n/client";
@@ -58,6 +59,16 @@ function memoryStorage(): Storage {
   };
 }
 
+function completeUserSession() {
+  return serializeStoredSession({
+    provenance: "user",
+    situation: demoSituation,
+    stayAnswer: "unknown",
+    familyAnswers: ["children"],
+    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+  });
+}
+
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -96,7 +107,33 @@ describe("Landing demo entry protection", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     expect(screen.queryByRole("button", { name: demoLabel })).toBeNull();
-    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(sessionStorage.getItem("staybridge.session")).toContain('"provenance":"user"');
+  });
+
+  it("keeps the demo hidden after the user explicitly declines server persistence", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("staybridge.session", completeUserSession());
+    navigation.reset("/ja/status");
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "保存しない" }));
+    await user.click(screen.getByRole("button", { name: getUserMessages("ja").ui.homeLabel }));
+
+    expect(screen.queryByRole("button", { name: demoLabel })).toBeNull();
+    expect(sessionStorage.getItem("staybridge.session")).toContain('"provenance":"user"');
+  });
+
+  it("keeps saved real answers behind the protected-state guard instead of exposing the demo loader", async () => {
+    sessionStorage.setItem("staybridge.session", completeUserSession());
+    sessionStorage.setItem("staybridge.saved-situation-credentials", JSON.stringify({
+      id: "sit_11111111-1111-4111-8111-111111111111",
+      deletionToken: "A".repeat(43),
+    }));
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("heading", { name: "削除に必要な情報" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: demoLabel })).toBeNull();
+    expect(sessionStorage.getItem("staybridge.session")).toContain('"provenance":"user"');
   });
 
   it("keeps the demo available while a demo session itself is loaded", () => {
