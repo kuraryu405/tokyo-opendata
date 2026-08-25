@@ -209,6 +209,23 @@ describe("Situation persistence request timeouts", () => {
     expect(internalSignal.aborted).toBe(true);
   });
 
+  it("aborts the app-owned save request when StayBridgeApp unmounts", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(hangUntilAborted);
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "同意して保存" }));
+    const signal = fetchMock.mock.calls[0][1]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+
+    view.unmount();
+    await Promise.resolve();
+
+    expect((signal as AbortSignal).aborted).toBe(true);
+  });
+
   it("keeps the deletion credentials usable when the delete request never settles", async () => {
     vi.useFakeTimers();
     navigation.reset("/ja/status");
