@@ -38,6 +38,10 @@ export type PersistenceCopy = {
   corruptCredentialsPendingWarning: string;
   discardCorruptLocalData: string;
   discardOnlyCorruptCredentials: string;
+  pendingCorruptTitle: string;
+  pendingCorruptBody: string;
+  pendingCorruptWarning: string;
+  discardCorruptPending: string;
 };
 
 const copy = {
@@ -79,6 +83,10 @@ const copy = {
     corruptCredentialsPendingWarning: "別の未完了の保存情報も残っています。下の操作は壊れた削除情報だけを破棄し、回答と未完了の保存情報は保持します。",
     discardCorruptLocalData: "サーバー記録を残して端末データだけ破棄",
     discardOnlyCorruptCredentials: "壊れた削除情報だけ破棄",
+    pendingCorruptTitle: "未完了の保存情報を確認できません",
+    pendingCorruptBody: "前回の保存がサーバーで完了している可能性があります。この端末では未完了の保存情報を読み取れないため、回答の変更・やり直し・端末データ消去を停止しました。",
+    pendingCorruptWarning: "下の操作は未完了の保存情報を破棄します。破棄すると、サーバーに保存済みの可能性がある記録を削除できなくなります。この操作は取り消せません。",
+    discardCorruptPending: "読み取れない保存情報を破棄",
   },
   en: {
     situationTitle: "Save Situation Check answers",
@@ -118,6 +126,10 @@ const copy = {
     corruptCredentialsPendingWarning: "Another unfinished save is still recoverable. The action below discards only the corrupt deletion information and keeps the answers and pending save information.",
     discardCorruptLocalData: "Discard device data and leave server record",
     discardOnlyCorruptCredentials: "Discard only corrupt deletion information",
+    pendingCorruptTitle: "Unfinished save information cannot be verified",
+    pendingCorruptBody: "A previous save may have reached the server. This device cannot read the unfinished save information, so answer changes, restarts, and device-data clearing are blocked.",
+    pendingCorruptWarning: "The action below discards the unfinished save information. After discarding it, a record that may already exist on the server can no longer be deleted. This cannot be undone.",
+    discardCorruptPending: "Discard unreadable save information",
   },
   my: {
     situationTitle: "Situation Check အဖြေများကို သိမ်းရန်",
@@ -157,6 +169,10 @@ const copy = {
     corruptCredentialsPendingWarning: "မပြီးသေးသော အခြားသိမ်းဆည်းမှုအချက်အလက်ကို ပြန်လည်အသုံးပြုနိုင်ပါသေးသည်။ အောက်ပါလုပ်ဆောင်ချက်သည် ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ပြီး အဖြေနှင့် မပြီးသေးသောသိမ်းဆည်းမှုအချက်အလက်ကို ထိန်းထားပါမည်။",
     discardCorruptLocalData: "server record ကိုထားပြီး စက်ဒေတာသာ စွန့်ပစ်ရန်",
     discardOnlyCorruptCredentials: "ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ရန်",
+    pendingCorruptTitle: "မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို အတည်မပြုနိုင်ပါ",
+    pendingCorruptBody: "ယခင်သိမ်းဆည်းမှုသည် server တွင် ပြီးဆုံးနေနိုင်ပါသည်။ ဤစက်တွင် မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို ဖတ်မရသောကြောင့် အဖြေပြင်ခြင်း၊ အစမှပြန်စခြင်းနှင့် စက်ဒေတာဖျက်ခြင်းကို ပိတ်ထားပါသည်။",
+    pendingCorruptWarning: "အောက်ပါလုပ်ဆောင်ချက်သည် မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို စွန့်ပစ်ပါမည်။ စွန့်ပစ်ပြီးပါက server တွင် ရှိနေနိုင်သော record ကို မဖျက်နိုင်တော့ပါ။ ဤလုပ်ဆောင်ချက်ကို ပြန်ရုံးလို့မရပါ။",
+    discardCorruptPending: "ဖတ်မရသော သိမ်းဆည်းမှုအချက်အလက်ကို စွန့်ပစ်ရန်",
   },
 } satisfies Record<Locale, PersistenceCopy>;
 

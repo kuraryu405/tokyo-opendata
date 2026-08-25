@@ -56,6 +56,23 @@ export function parseSituationSubmissionSecrets(value: string | null): Situation
   }
 }
 
+export type PendingSituationSubmissionParseResult =
+  | { status: "absent" }
+  | { status: "valid"; secrets: SituationSubmissionSecrets }
+  | { status: "corrupt" };
+
+/**
+ * Distinguishes an absent pending key from one that exists but cannot be
+ * parsed. A present-but-unreadable value may hold the only deletion token for
+ * a record the server already persisted, so callers must treat it as
+ * protected state instead of silently starting over.
+ */
+export function readPendingSituationSubmission(value: string | null): PendingSituationSubmissionParseResult {
+  if (value === null) return { status: "absent" };
+  const secrets = parseSituationSubmissionSecrets(value);
+  return secrets ? { status: "valid", secrets } : { status: "corrupt" };
+}
+
 export function parseSavedSituationCredentials(value: string | null): SavedSituationCredentialsParseResult {
   if (value === null) return { status: "absent" };
   try {
