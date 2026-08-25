@@ -73,20 +73,64 @@ describe("Crisis View suppression rendering", () => {
     expect(screen.queryByText("0")).toBeNull();
   });
 
-  it("moves a never-resolving request from loading to error after the timeout", async () => {
+  it("moves a never-resolving request from loading to error and aborts it after the timeout", async () => {
     vi.useFakeTimers();
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    let signal: AbortSignal | undefined;
+    vi.stubGlobal("fetch", vi.fn((_input: string | URL, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    }));
 
     render(<CrisisView />);
 
     expect(screen.getByText("匿名集計を確認しています…")).toBeTruthy();
+    expect(signal?.aborted).toBe(false);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(CRISIS_NEEDS_REQUEST_TIMEOUT_MS);
     });
 
+    expect(signal?.aborted).toBe(true);
     expect(screen.getByTestId("crisis-needs-error")).toBeTruthy();
     expect(screen.queryByText("匿名集計を確認しています…")).toBeNull();
+  });
+
+  it("times out while response.json is still pending without allowing the late body to overwrite error", async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    let resolveBody: ((value: unknown) => void) | undefined;
+    const response = jsonResponse(availableData());
+    const jsonSpy = vi.spyOn(response, "json").mockImplementation(() => new Promise((resolve) => {
+      resolveBody = resolve;
+    }));
+    vi.stubGlobal("fetch", vi.fn((_input: string | URL, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return Promise.resolve(response);
+    }));
+
+    render(<CrisisView />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(jsonSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CRISIS_NEEDS_REQUEST_TIMEOUT_MS);
+    });
+
+    expect(signal?.aborted).toBe(true);
+    expect(screen.getByTestId("crisis-needs-error")).toBeTruthy();
+
+    await act(async () => {
+      resolveBody?.({ ok: true, data: availableData() });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("crisis-needs-error")).toBeTruthy();
+    expect(screen.queryByTestId("crisis-needs-available")).toBeNull();
   });
 
   it("can retry with new conditions after a timed-out request", async () => {
@@ -152,6 +196,17 @@ describe("Crisis View suppression rendering", () => {
   it("renders the existing error state for a 503 response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: false }), {
       status: 503,
+      headers: { "content-type": "application/json" },
+    })));
+
+    render(<CrisisView />);
+
+    expect(await screen.findByTestId("crisis-needs-error")).toBeTruthy();
+  });
+
+  it("renders the existing error state for malformed JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{", {
+      status: 200,
       headers: { "content-type": "application/json" },
     })));
 
