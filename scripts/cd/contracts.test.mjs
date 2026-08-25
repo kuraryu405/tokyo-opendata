@@ -172,6 +172,23 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.match(release, /production_verification_url:/);
   assert.match(
     release,
+    /staging_counterpart_url: \$\{\{ needs\.detect\.outputs\.municipality_staging_verification_url \}\}/,
+  );
+  assert.match(
+    release,
+    /production_counterpart_url: \$\{\{ needs\.detect\.outputs\.municipality_production_verification_url \}\}/,
+  );
+  assert.match(
+    release,
+    /staging_counterpart_url: \$\{\{ needs\.detect\.outputs\.user_staging_verification_url \}\}/,
+  );
+  assert.match(
+    release,
+    /production_counterpart_url: \$\{\{ needs\.detect\.outputs\.user_production_verification_url \}\}/,
+  );
+  assert.doesNotMatch(release, /^\s+counterpart_url:/m);
+  assert.match(
+    release,
     /kuraryu405\/StayBridgeTokyo-e2e\/\.github\/workflows\/acceptance\.yml@[0-9a-f]{40} # main@[0-9a-f]{7,40}/,
   );
   assert.doesNotMatch(release, /E2E_REPOSITORY_DISPATCH_TOKEN/);
@@ -179,6 +196,19 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   assert.doesNotMatch(release, /MUNICIPALITY_(?:STAGING|PRODUCTION)_URL/);
   assert.match(deploy, /actions\/upload-artifact@[0-9a-f]{40} # v4\.\d+\.\d+/);
   assert.match(deploy, /sha256sum --check/);
+  assert.doesNotMatch(deploy, /NEXT_PUBLIC_(?:SITE|MUNICIPALITY_APP|USER_APP)_URL/);
+  assert.match(
+    deploy,
+    /COUNTERPART_URL: \$\{\{ needs\.configuration\.outputs\.staging_counterpart_url \}\}/,
+  );
+  assert.match(
+    deploy,
+    /COUNTERPART_URL: \$\{\{ needs\.configuration\.outputs\.production_counterpart_url \}\}/,
+  );
+  assert.equal(
+    deploy.match(/--var "COUNTERPART_APP_URL:\$\{COUNTERPART_URL\}"/g)?.length,
+    2,
+  );
   assert.match(deploy, /d1_identity:\n    needs: configuration/);
   assert.match(deploy, /build:\n    needs: \[configuration, d1_identity\]/);
   assert.match(deploy, /wrangler@4\.92\.0 d1 list --json/);

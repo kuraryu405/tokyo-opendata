@@ -36,8 +36,11 @@ on:
       production_verification_url:
         required: true
         type: string
-      counterpart_url:
-        required: false
+      staging_counterpart_url:
+        required: true
+        type: string
+      production_counterpart_url:
+        required: true
         type: string
     outputs:
       production_url:
@@ -65,6 +68,8 @@ jobs:
       production_worker: ${{ steps.resolve.outputs.production_worker }}
       staging_verification_url: ${{ steps.resolve.outputs.staging_verification_url }}
       production_verification_url: ${{ steps.resolve.outputs.production_verification_url }}
+      staging_counterpart_url: ${{ steps.resolve.outputs.staging_counterpart_url }}
+      production_counterpart_url: ${{ steps.resolve.outputs.production_counterpart_url }}
     steps:
       - id: resolve
         name: Resolve and validate release configuration
@@ -81,6 +86,8 @@ jobs:
           PRODUCTION_DATABASE_ID: ${{ inputs.production_database_id }}
           STAGING_VERIFICATION_URL: ${{ inputs.staging_verification_url }}
           PRODUCTION_VERIFICATION_URL: ${{ inputs.production_verification_url }}
+          STAGING_COUNTERPART_URL: ${{ inputs.staging_counterpart_url }}
+          PRODUCTION_COUNTERPART_URL: ${{ inputs.production_counterpart_url }}
         run: |
           set -euo pipefail
           case "$SERVICE:$APP_DIRECTORY" in
@@ -125,16 +132,28 @@ jobs:
               exit 1
             }
           done
-          [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* ]] || {
-            echo "Verification URLs must use HTTPS." >&2
+          [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* && \
+            "$STAGING_COUNTERPART_URL" == https://* && "$PRODUCTION_COUNTERPART_URL" == https://* ]] || {
+            echo "Site and counterpart URLs must use HTTPS." >&2
+            exit 1
+          }
+          staging_verification_url="${STAGING_VERIFICATION_URL%/}"
+          production_verification_url="${PRODUCTION_VERIFICATION_URL%/}"
+          staging_counterpart_url="${STAGING_COUNTERPART_URL%/}"
+          production_counterpart_url="${PRODUCTION_COUNTERPART_URL%/}"
+          [ "$staging_verification_url" != "$production_verification_url" ] && \
+            [ "$staging_counterpart_url" != "$production_counterpart_url" ] || {
+            echo "Staging and production URLs must be environment-specific." >&2
             exit 1
           }
 
           {
             echo "staging_worker=$staging_worker"
             echo "production_worker=$production_worker"
-            echo "staging_verification_url=${STAGING_VERIFICATION_URL%/}"
-            echo "production_verification_url=${PRODUCTION_VERIFICATION_URL%/}"
+            echo "staging_verification_url=$staging_verification_url"
+            echo "production_verification_url=$production_verification_url"
+            echo "staging_counterpart_url=$staging_counterpart_url"
+            echo "production_counterpart_url=$production_counterpart_url"
           } >> "$GITHUB_OUTPUT"
 
   d1_identity:
@@ -174,9 +193,6 @@ jobs:
     env:
       APP_DIRECTORY: ${{ inputs.app_directory }}
       APP_REVISION: ${{ inputs.revision }}
-      NEXT_PUBLIC_SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
-      NEXT_PUBLIC_MUNICIPALITY_APP_URL: ${{ inputs.service == 'user' && inputs.counterpart_url || '' }}
-      NEXT_PUBLIC_USER_APP_URL: ${{ inputs.service == 'municipality' && inputs.counterpart_url || '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -222,6 +238,7 @@ jobs:
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.staging_worker }}
       SITE_URL: ${{ needs.configuration.outputs.staging_verification_url }}
+      COUNTERPART_URL: ${{ needs.configuration.outputs.staging_counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -278,7 +295,8 @@ jobs:
             --name "$WORKER_NAME" \
             --tag "$REVISION" \
             --message "${SERVICE} staging ${REVISION}" \
-            --var "APP_REVISION:${REVISION}"
+            --var "APP_REVISION:${REVISION}" \
+            --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
           pnpm dlx wrangler@4.92.0 versions list \
             --config "$config" --name "$WORKER_NAME" --json > staging-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded staging-versions.json "$REVISION")
@@ -306,6 +324,7 @@ jobs:
       REVISION: ${{ inputs.revision }}
       WORKER_NAME: ${{ needs.configuration.outputs.production_worker }}
       SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
+      COUNTERPART_URL: ${{ needs.configuration.outputs.production_counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -377,7 +396,8 @@ jobs:
             --name "$WORKER_NAME" \
             --tag "$REVISION" \
             --message "${SERVICE} production ${REVISION}" \
-            --var "APP_REVISION:${REVISION}"
+            --var "APP_REVISION:${REVISION}" \
+            --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
           pnpm dlx wrangler@4.92.0 versions list \
             --config "$config" --name "$WORKER_NAME" --json > production-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded production-versions.json "$REVISION")

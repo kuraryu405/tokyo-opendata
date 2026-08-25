@@ -1,15 +1,15 @@
-export const municipalityAppRoute = "/crisis";
+export const userAppRoute = "/user";
 
-export function resolveMunicipalityAppUrl(configuredUrl?: string): string {
-  return normalizeAppUrl(configuredUrl) ?? "http://localhost:3001";
+export function resolveUserAppUrl(configuredUrl?: string): string {
+  return normalizeAppUrl(configuredUrl) ?? "http://localhost:3000";
 }
 
-export function createMunicipalityAppRedirect(configuredUrl: string | undefined, requestUrl: string): Response {
+export function createUserAppRedirect(configuredUrl: string | undefined, requestUrl: string): Response {
   const localRequest = isLocalRequest(requestUrl);
   const target = normalizeAppUrl(configuredUrl, !localRequest) ??
-    (localRequest ? "http://localhost:3001" : undefined);
+    (localRequest ? "http://localhost:3000" : undefined);
   if (!target) {
-    return new Response("Municipality application URL is unavailable.", {
+    return new Response("User application URL is unavailable.", {
       status: 503,
       headers: { "cache-control": "no-store" },
     });
