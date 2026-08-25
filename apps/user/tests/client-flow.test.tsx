@@ -678,15 +678,14 @@ describe("StayBridge client flow", () => {
     expect((input as HTMLTextAreaElement).value).toBe("在留資格について");
   });
 
-  it("does not invent location, nationality, or needs when Help is opened directly", async () => {
+  it("sends unanswered Help visitors to the first question instead of an empty consultation summary", async () => {
     const user = userEvent.setup();
     navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
-
-    expect(screen.getByText("まだ入力された情報はありません。")).toBeTruthy();
-    expect(screen.getByText("まだ確認したいことは選択されていません。")).toBeTruthy();
+    expect(navigation.path()).toBe("/ja/check?step=0");
+    expect(screen.queryByRole("heading", { name: "相談サマリー" })).toBeNull();
     expect(screen.queryByText(/地域: 北区/)).toBeNull();
     expect(screen.queryByText(/国籍・地域: ミャンマー/)).toBeNull();
   });
@@ -989,6 +988,7 @@ describe("StayBridge client flow", () => {
       configurable: true,
       value: { writeText: vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error("denied")) },
     });
+    restoreCompleteUserSession();
     navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -1186,7 +1186,7 @@ describe("StayBridge client flow", () => {
       situation: { ...demoSituation, knownStayDeadline: undefined, stayDeadlineKnown: false, familyMembers: { children: [] } },
       stayAnswer: "documents",
       familyAnswers: ["spouse"],
-      answeredSteps: [5, 6],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -1308,6 +1308,13 @@ describe("StayBridge client flow", () => {
   });
 
   it("re-renders direct back and forward URL changes instead of keeping screen state", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
     const { unmount } = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     navigation.reset("/my/summary");
