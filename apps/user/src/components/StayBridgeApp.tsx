@@ -57,7 +57,7 @@ import {
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
-import { formatAssessmentDateForLocale } from "../assessment-date";
+import { formatAssessmentDateForLocale, getTokyoAssessmentDate } from "../assessment-date";
 import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -110,6 +110,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
   const [isDemoSituation, setIsDemoSituation] = useState(false);
+  // The server pins one Tokyo calendar date per request. A tab that stays open
+  // across Tokyo midnight must re-evaluate catalog publication with the new
+  // date instead of showing expired cards from the stale one.
+  const [assessmentToday, setAssessmentToday] = useState(assessmentDate);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
   const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
@@ -174,6 +178,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   }, [locale]);
 
   useEffect(() => {
+    const refresh = () => {
+      const today = getTokyoAssessmentDate();
+      setAssessmentToday((previous) => (previous === today ? previous : today));
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!pathname) return;
     const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
     if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
@@ -231,10 +248,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
-    return generateActions(situation, { asOfDate: assessmentDate, stayAnswer }).filter((action) =>
+    return generateActions(situation, { asOfDate: assessmentToday, stayAnswer }).filter((action) =>
       action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
     );
-  }, [assessmentComplete, assessmentDate, situation, stayAnswer]);
+  }, [assessmentComplete, assessmentToday, situation, stayAnswer]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -397,8 +414,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const summaryDate = useMemo(
-    () => formatAssessmentDateForLocale(assessmentDate, locale),
-    [assessmentDate, locale],
+    () => formatAssessmentDateForLocale(assessmentToday, locale),
+    [assessmentToday, locale],
   );
 
   const persistSituation = async () => {
