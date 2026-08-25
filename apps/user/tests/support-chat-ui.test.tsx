@@ -4,7 +4,8 @@ import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SupportChat } from "../src/components/SupportChat";
+import { SupportChat, useSupportChatConversation } from "../src/components/SupportChat";
+import type { Locale } from "../src/components/staybridge-session";
 
 describe("SupportChat conversation log autoscroll", () => {
   let scrollToSpy: ReturnType<typeof vi.fn>;
@@ -26,7 +27,7 @@ describe("SupportChat conversation log autoscroll", () => {
 
   it("scrolls the log toward the latest entry after sending and after the reply", async () => {
     const user = userEvent.setup();
-    render(<SupportChat locale="ja" />);
+    render(<SupportChatHarness locale="ja" />);
 
     const input = screen.getByRole("textbox", { name: "相談したいこと" });
     await user.type(input, "窓口で何を聞けばいいですか？");
@@ -43,7 +44,7 @@ describe("SupportChat conversation log autoscroll", () => {
   it("scrolls instantly when the user prefers reduced motion", async () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
     const user = userEvent.setup();
-    render(<SupportChat locale="ja" />);
+    render(<SupportChatHarness locale="ja" />);
 
     const input = screen.getByRole("textbox", { name: "相談したいこと" });
     await user.type(input, "持っていくものは？");
@@ -59,7 +60,7 @@ describe("SupportChat conversation log autoscroll", () => {
       error: "HIGH_RISK_IDENTIFIER",
     }), { status: 400, headers: { "content-type": "application/json" } })));
     const user = userEvent.setup();
-    render(<SupportChat locale="ja" />);
+    render(<SupportChatHarness locale="ja" />);
 
     const input = screen.getByRole("textbox", { name: "相談したいこと" });
     await user.type(input, "パスポート番号 TR1234567");
@@ -71,3 +72,8 @@ describe("SupportChat conversation log autoscroll", () => {
     expect(document.querySelector(".chat-log")).toBeNull();
   });
 });
+
+function SupportChatHarness({ locale }: { locale: Locale }) {
+  const chat = useSupportChatConversation(locale);
+  return <SupportChat locale={locale} chat={chat} />;
+}

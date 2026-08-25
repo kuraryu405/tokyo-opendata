@@ -52,7 +52,7 @@ const chatCopy = {
   },
 } as const;
 
-type ChatEntry = SupportChatMessage & { id: string };
+export type ChatEntry = SupportChatMessage & { id: string };
 
 class ChatRequestError extends Error {
   constructor(readonly code: string) {
@@ -69,27 +69,31 @@ const readErrorCode = async (response: Response): Promise<string> => {
   }
 };
 
-export function SupportChat({ locale }: { locale: Locale }) {
-  const t = chatCopy[locale];
-  const panelId = useId();
+export type SupportChatConversation = {
+  messages: ChatEntry[];
+  input: string;
+  pending: boolean;
+  error: string;
+  setInput: (value: string) => void;
+  sendMessage: (event?: FormEvent, suggestedQuestion?: string) => void;
+  clearConversation: () => void;
+};
+
+/**
+ * Conversation state lives above the screen tree so moving between Roadmap and
+ * the official-support screens keeps the transcript. It intentionally stays in
+ * React state only: reloading the page or pressing 会話を消去 still discards it.
+ */
+export function useSupportChatConversation(locale: Locale): SupportChatConversation {
   const nextMessageId = useRef(0);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
-  const chatLogRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => () => activeRequest.current?.abort(), []);
-
-  useEffect(() => {
-    const log = chatLogRef.current;
-    if (!log) return;
-    const behavior = prefersReducedMotion() ? "auto" as const : "smooth" as const;
-    if (typeof log.scrollTo === "function") log.scrollTo({ top: log.scrollHeight, behavior });
-    else log.scrollTop = log.scrollHeight;
-  }, [messages.length, pending]);
 
   const createEntry = (role: SupportChatMessage["role"], content: string): ChatEntry => ({
     id: `${role}-${nextMessageId.current++}`,
@@ -150,6 +154,23 @@ export function SupportChat({ locale }: { locale: Locale }) {
     setPending(false);
     setError("");
   };
+
+  return { messages, input, pending, error, setInput, sendMessage, clearConversation };
+}
+
+export function SupportChat({ locale, chat }: { locale: Locale; chat: SupportChatConversation }) {
+  const t = chatCopy[locale];
+  const panelId = useId();
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
+  const { messages, input, pending, error, setInput, sendMessage, clearConversation } = chat;
+
+  useEffect(() => {
+    const log = chatLogRef.current;
+    if (!log) return;
+    const behavior = prefersReducedMotion() ? "auto" as const : "smooth" as const;
+    if (typeof log.scrollTo === "function") log.scrollTo({ top: log.scrollHeight, behavior });
+    else log.scrollTop = log.scrollHeight;
+  }, [messages.length, pending]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
