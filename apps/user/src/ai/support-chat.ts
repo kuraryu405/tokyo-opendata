@@ -1,4 +1,10 @@
-import { containsRejectedIdentifier, maskDetectableContactData } from "@staybridge/worker-runtime";
+import {
+  CONVERSATION_CONSENT_VERSION,
+  containsRejectedIdentifier,
+  maskDetectableContactData,
+  persistVerifiedConversation,
+  recoverVerifiedConversation,
+} from "@staybridge/worker-runtime";
 
 export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
@@ -35,7 +41,21 @@ export interface SupportChatRateLimiter {
 
 export type SupportChatBindings = {
   ai?: SupportChatAi;
+  db?: D1Database;
   rateLimiter?: SupportChatRateLimiter;
+};
+
+type SupportChatPersistence = {
+  consent: { accepted: true; version: typeof CONVERSATION_CONSENT_VERSION };
+  idempotencyKey: string;
+  deletionToken: string;
+};
+
+type ParsedSupportChatPayload = {
+  locale: SupportChatLocale;
+  messages: SupportChatMessage[];
+  persistenceRequested: boolean;
+  persistence: SupportChatPersistence | null;
 };
 
 const responseLanguage: Record<SupportChatLocale, string> = {
@@ -85,9 +105,10 @@ function json(body: Record<string, unknown>, status = 200, extraHeaders?: Header
   });
 }
 
-function parsePayload(value: unknown): { locale: SupportChatLocale; messages: SupportChatMessage[] } | null {
+function parsePayload(value: unknown): ParsedSupportChatPayload | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
+  if (Object.keys(record).some((key) => key !== "locale" && key !== "messages" && key !== "persistence")) return null;
   if (record.locale !== "ja" && record.locale !== "en" && record.locale !== "my") return null;
   if (!Array.isArray(record.messages) || record.messages.length < 1 || record.messages.length > MAX_MESSAGES) return null;
 
@@ -107,7 +128,39 @@ function parsePayload(value: unknown): { locale: SupportChatLocale; messages: Su
     const expectedRole = index % 2 === 1 ? "assistant" : "user";
     if (messages[index].role !== expectedRole) return null;
   }
-  return { locale: record.locale, messages };
+  const persistenceRequested = Object.hasOwn(record, "persistence");
+  return {
+    locale: record.locale,
+    messages,
+    persistenceRequested,
+    persistence: persistenceRequested ? parsePersistence(record.persistence) : null,
+  };
+}
+
+function parsePersistence(value: unknown): SupportChatPersistence | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (
+    Object.keys(record).length !== 3
+    || !record.consent
+    || typeof record.consent !== "object"
+    || Array.isArray(record.consent)
+    || Object.keys(record.consent).length !== 2
+  ) return null;
+  const consent = record.consent as Record<string, unknown>;
+  if (
+    consent.accepted !== true
+    || consent.version !== CONVERSATION_CONSENT_VERSION
+    || typeof record.idempotencyKey !== "string"
+    || !/^[A-Za-z0-9_-]{16,128}$/u.test(record.idempotencyKey)
+    || typeof record.deletionToken !== "string"
+    || !/^[A-Za-z0-9_-]{43}$/u.test(record.deletionToken)
+  ) return null;
+  return {
+    consent: { accepted: true, version: CONVERSATION_CONSENT_VERSION },
+    idempotencyKey: record.idempotencyKey,
+    deletionToken: record.deletionToken,
+  };
 }
 
 async function readLimitedBody(request: Request): Promise<string | null> {
@@ -206,6 +259,21 @@ export async function handleSupportChatRequest(
     role: message.role,
     content: maskDetectableContactData(message.content),
   }));
+  const currentUserContent = maskedMessages.at(-1)?.content ?? "";
+  const persistencePolicy = { conversationModelId: SUPPORT_CHAT_MODEL, trustedConversationSourceIds: new Set<string>() };
+
+  if (parsed.persistence && bindings.db) {
+    const recovered = await recoverVerifiedConversation(bindings.db, {
+      ...parsed.persistence,
+      userContent: currentUserContent,
+    }, persistencePolicy);
+    if (recovered.status === "recovered") {
+      return json({ reply: recovered.reply, persistence: { status: "saved", id: recovered.id } });
+    }
+    if (recovered.status === "conflict") {
+      return json({ error: "PERSISTENCE_CONFLICT" }, 409);
+    }
+  }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -225,12 +293,51 @@ export async function handleSupportChatRequest(
         timer = setTimeout(() => reject(new Error("AI_INFERENCE_TIMEOUT")), SUPPORT_CHAT_INFERENCE_TIMEOUT_MS);
       }),
     ]);
-    const reply = readModelReply(result);
+    let reply = readModelReply(result);
     if (!reply) return json({ error: "EMPTY_AI_RESPONSE" }, 502);
-    return json({ reply });
+    if (!parsed.persistenceRequested) return json({ reply });
+    if (!parsed.persistence || !bindings.db) {
+      return json({ reply, persistence: { status: "error" } });
+    }
+
+    const persisted = await persistVerifiedConversation(bindings.db, {
+      ...parsed.persistence,
+      messages: [
+        { role: "user", content: currentUserContent },
+        { role: "assistant", content: reply, sourceIds: [] },
+      ],
+    }, persistencePolicy);
+    const persistedId = await readPersistedConversationId(persisted);
+    if (persistedId) {
+      return json({ reply, persistence: { status: "saved", id: persistedId } });
+    }
+
+    if (persisted.status === 409) {
+      const recovered = await recoverVerifiedConversation(bindings.db, {
+        ...parsed.persistence,
+        userContent: currentUserContent,
+      }, persistencePolicy);
+      if (recovered.status === "recovered") {
+        reply = recovered.reply;
+        return json({ reply, persistence: { status: "saved", id: recovered.id } });
+      }
+    }
+    return json({ reply, persistence: { status: "error" } });
   } catch {
     return json({ error: "AI_REQUEST_FAILED" }, 502);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+async function readPersistedConversationId(response: Response): Promise<string | null> {
+  if (response.status !== 200 && response.status !== 201) return null;
+  const value = await response.json().catch(() => null) as unknown;
+  if (!value || typeof value !== "object") return null;
+  const envelope = value as Record<string, unknown>;
+  if (envelope.ok !== true || !envelope.data || typeof envelope.data !== "object") return null;
+  const id = (envelope.data as Record<string, unknown>).id;
+  return typeof id === "string" && /^con_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(id)
+    ? id
+    : null;
 }

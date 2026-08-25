@@ -362,6 +362,7 @@ describe("StayBridge client flow", () => {
   it("treats an absent saved-credentials key as unsaved and allows the normal local clear", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
+    sessionStorage.setItem("staybridge.conversation-consent", JSON.stringify({ version: 1, preference: "accepted" }));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -371,6 +372,37 @@ describe("StayBridge client flow", () => {
     expect(navigation.path()).toBe("/ja");
     expect(sessionStorage.getItem("staybridge.session")).toBeNull();
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.conversation-consent")).toBeNull();
+  });
+
+  it("blocks device-data clearing while conversation recovery and deletion credentials are protected", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    const recordId = "con_66666666-6666-4666-8666-666666666666";
+    sessionStorage.setItem("staybridge.conversation-consent", JSON.stringify({ version: 1, preference: "accepted" }));
+    sessionStorage.setItem("staybridge.pending-conversation-request", JSON.stringify({
+      version: 1,
+      locale: "ja",
+      content: "応答を回収したい",
+      idempotencyKey: "conversation_request_protected",
+      deletionToken: "A".repeat(43),
+    }));
+    sessionStorage.setItem("staybridge.saved-conversation-credentials", JSON.stringify({
+      version: 1,
+      records: [{ id: recordId, deletionToken: "B".repeat(43) }],
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByText(recordId);
+    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
+
+    expect(navigation.path()).toBe("/ja/roadmap");
+    await waitFor(() => expect(document.activeElement?.id).toBe("conversation-storage"));
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(sessionStorage.getItem("staybridge.pending-conversation-request")).toContain("conversation_request_protected");
+    expect(sessionStorage.getItem("staybridge.saved-conversation-credentials")).toContain(recordId);
+    expect(sessionStorage.getItem("staybridge.conversation-consent")).not.toBeNull();
   });
 
   it.each([
@@ -512,7 +544,7 @@ describe("StayBridge client flow", () => {
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
   });
 
-  it("labels conversation consent as a preference without claiming a saved conversation", async () => {
+  it("persists conversation consent across reload without making a chat request", async () => {
     navigation.reset("/ja/roadmap");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>();
@@ -521,8 +553,43 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(await screen.findByRole("button", { name: "会話保存への同意を設定" }));
-    expect(screen.getByText(/AI相談はまだ開始されておらず、会話も保存されていません/)).toBeTruthy();
+    expect(screen.getByText(/今後のAI応答/)).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.conversation-consent") ?? "null")).toEqual({
+      version: 1,
+      preference: "accepted",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
+
+    cleanup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    expect(await screen.findByText(/今後のAI応答/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "会話保存への同意を設定" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("keeps consent accepted until an ambiguous conversation save is recovered", async () => {
+    navigation.reset("/ja/roadmap");
+    restoreCompleteUserSession();
+    sessionStorage.setItem("staybridge.conversation-consent", JSON.stringify({ version: 1, preference: "accepted" }));
+    sessionStorage.setItem("staybridge.pending-conversation-request", JSON.stringify({
+      version: 1,
+      locale: "ja",
+      content: "応答を回収したい",
+      idempotencyKey: "conversation_request_recovery_required",
+      deletionToken: "A".repeat(43),
+    }));
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByDisplayValue("応答を回収したい");
+    await user.click(screen.getByRole("button", { name: "保存しない" }));
+
+    expect(screen.getByRole("button", { name: "会話保存への同意を設定" }).getAttribute("aria-pressed")).toBe("true");
+    expect(JSON.parse(sessionStorage.getItem("staybridge.conversation-consent") ?? "null")).toEqual({
+      version: 1,
+      preference: "accepted",
+    });
+    await waitFor(() => expect(document.activeElement?.id).toBe("conversation-storage"));
+    expect(screen.getByText(/保存結果を確認できない会話/)).toBeTruthy();
   });
 
   it("does not embed a build-time municipality origin in the landing link", async () => {
@@ -623,7 +690,7 @@ describe("StayBridge client flow", () => {
     expect(String(request.body)).not.toContain(demoSituation.knownStayDeadline);
     expect(String(request.body)).not.toContain(demoSituation.nationality);
 
-    await user.click(screen.getByRole("button", { name: "会話を消去" }));
+    await user.click(screen.getByRole("button", { name: "画面の会話を消去" }));
     expect(screen.queryByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeNull();
     expect(screen.getByRole("button", { name: "近くの支援" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "相談先" })).toBeTruthy();

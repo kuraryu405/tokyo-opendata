@@ -61,13 +61,19 @@ import { formatAssessmentDateForLocale } from "../assessment-date";
 import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
+  PENDING_CONVERSATION_REQUEST_KEY,
+  SAVED_CONVERSATION_CREDENTIALS_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
+  CONVERSATION_CONSENT_KEY,
   createSituationSubmissionSecrets,
   deleteSituationSubmission,
   parseSavedSituationCredentials,
+  parseConversationConsentPreference,
   parseSituationSubmissionSecrets,
   saveSituationSubmission,
   serializeSavedSituationCredentials,
+  serializeConversationConsentPreference,
+  type ConversationConsentPreference,
   type SavedRecordCredentials,
   type SituationSubmissionSecrets,
 } from "../consented-persistence";
@@ -79,7 +85,7 @@ type UserCopy = PublicUserMessages["ui"];
 type SituationPersistenceState =
   | { status: "idle" | "declined" | "saving" | "error" | "deleted" | "corrupt" }
   | { status: "saved" | "deleting" | "delete-error"; credentials: SavedRecordCredentials };
-type ConversationConsentState = "idle" | "accepted" | "declined";
+type ConversationConsentState = "idle" | ConversationConsentPreference;
 
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
@@ -161,6 +167,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           setHasPendingSituationSubmission(true);
           setSituationPersistence({ status: "error" });
         }
+      }
+      const storedConversationConsent = parseConversationConsentPreference(
+        sessionStorage.getItem(CONVERSATION_CONSENT_KEY),
+      );
+      if (storedConversationConsent.status === "valid") {
+        setConversationConsent(storedConversationConsent.value);
+      } else if (storedConversationConsent.status === "corrupt") {
+        setStorageError(true);
       }
     } catch {
       setStorageError(true);
@@ -303,15 +317,34 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     window.setTimeout(() => document.getElementById(targetId)?.focus(), 0);
   };
 
+  const focusConversationStorage = () => {
+    if (screen !== "roadmap") router.replace(buildStayBridgePath({ locale, screen: "roadmap" }));
+    window.setTimeout(() => document.getElementById("conversation-storage")?.focus(), 0);
+  };
+
   const clearData = () => {
     if (!storageReady) return;
     if (hasProtectedSituationSubmission) {
       focusSituationPersistence();
       return;
     }
+    try {
+      const hasProtectedConversationStorage = sessionStorage.getItem(PENDING_CONVERSATION_REQUEST_KEY) !== null
+        || sessionStorage.getItem(SAVED_CONVERSATION_CREDENTIALS_KEY) !== null;
+      if (hasProtectedConversationStorage) {
+        focusConversationStorage();
+        return;
+      }
+    } catch {
+      setStorageError(true);
+      return;
+    }
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
+      sessionStorage.removeItem(CONVERSATION_CONSENT_KEY);
+      sessionStorage.removeItem(PENDING_CONVERSATION_REQUEST_KEY);
+      sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY);
     } catch {
       setStorageError(true);
     }
@@ -348,7 +381,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setAnsweredSteps([]);
     setCopyState("idle");
     setSituationPersistence({ status: "idle" });
-    setConversationConsent("idle");
     setIsDemoSituation(false);
     situationSubmissionSecrets.current = null;
     try {
@@ -385,7 +417,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setAnsweredSteps([]);
     setCopyState("idle");
     setSituationPersistence({ status: "idle" });
-    setConversationConsent("idle");
     setIsDemoSituation(false);
     situationSubmissionSecrets.current = null;
     setHasPendingSituationSubmission(false);
@@ -466,6 +497,25 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     go("check");
   };
 
+  const updateConversationConsent = (preference: ConversationConsentPreference) => {
+    try {
+      if (
+        preference === "declined"
+        && sessionStorage.getItem(PENDING_CONVERSATION_REQUEST_KEY) !== null
+      ) {
+        focusConversationStorage();
+        return;
+      }
+      sessionStorage.setItem(
+        CONVERSATION_CONSENT_KEY,
+        serializeConversationConsentPreference(preference),
+      );
+      setConversationConsent(preference);
+    } catch {
+      setStorageError(true);
+    }
+  };
+
   return (
     <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
@@ -478,7 +528,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
           {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
-          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={updateConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
           {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
@@ -619,13 +669,13 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answ
   return <section className="result-page narrow-page"><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><SituationPersistenceConsent locale={locale} state={persistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} discardCorruptLocalData={discardCorruptLocalData} /><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
-function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentPreference) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
   const numberedGroups = groups.reduce<Array<{ timing: string; actions: Action[]; offset: number }>>((all, group) => {
     const last = all[all.length - 1];
     return [...all, { ...group, offset: last ? last.offset + last.actions.length : 0 }];
   }, []);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} consent={conversationConsent} /><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
 function SituationPersistenceConsent({ locale, state, hasPendingSituationSubmission, isDemo, persist, decline, deleteRecord, discardCorruptLocalData }: { locale: Locale; state: SituationPersistenceState; hasPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void }) {
@@ -638,7 +688,7 @@ function CorruptSavedCredentials({ copy, hasPendingSituationSubmission, discardL
   return <div id="corrupt-saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.corruptCredentialsTitle}</h3><p>{copy.corruptCredentialsBody}</p><p className="consent-warning">{hasPendingSituationSubmission ? copy.corruptCredentialsPendingWarning : copy.corruptCredentialsDiscardWarning}</p><div className="consent-actions"><button className="secondary-button" onClick={discardLocalData}>{hasPendingSituationSubmission ? copy.discardOnlyCorruptCredentials : copy.discardCorruptLocalData}</button></div></div>;
 }
 
-function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentState) => void }) {
+function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentPreference) => void }) {
   const copy = getPersistenceCopy(locale);
   return <section className="consent-card conversation-consent" aria-labelledby="conversation-consent-title"><h2 id="conversation-consent-title">{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={state === "accepted"} onClick={() => setState("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={state === "declined"} onClick={() => setState("declined")}>{copy.decline}</button></div>{state !== "idle" && <output className="consent-status" aria-live="polite">{state === "accepted" ? copy.conversationAccepted : copy.declined}</output>}</section>;
 }

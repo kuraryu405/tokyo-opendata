@@ -49,6 +49,7 @@ const worker = {
     if (url.pathname === "/api/support-chat") {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
+        db: env?.STAYBRIDGE_DB,
         rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
       });
     }

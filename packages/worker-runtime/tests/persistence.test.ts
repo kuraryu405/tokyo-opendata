@@ -7,6 +7,7 @@ import {
   maskDetectableContactData,
   persistVerifiedConversation,
   prepareLlmBoundMessages,
+  recoverVerifiedConversation,
   type PersistenceEnv,
 } from "../src/index";
 
@@ -20,6 +21,7 @@ type Existing = {
   id: string;
   payload_hash: string;
   deletion_token_hash: string;
+  model_id?: string;
 };
 
 class FakeStatement {
@@ -36,6 +38,16 @@ class FakeStatement {
   }
 
   async first<T = Record<string, unknown>>(): Promise<T | null> {
+    if (this.query.includes("FROM conversation_messages")) {
+      const messageIndex = this.query.includes("message_index = 0") ? 0 : 1;
+      const statement = this.database.messageStatements.find((candidate) =>
+        candidate.values[1] === this.values[0] && candidate.values[2] === messageIndex,
+      );
+      return (statement ? {
+        role: statement.values[3],
+        masked_content: statement.values[4],
+      } : null) as T | null;
+    }
     const rows = this.query.includes("FROM situation_submissions")
       ? this.database.situations
       : this.database.conversations;
@@ -54,6 +66,7 @@ class FakeStatement {
     } else if (this.query.includes("INSERT INTO conversations")) {
       this.database.conversations.set(String(this.values[5]), {
         id: String(this.values[0]),
+        model_id: String(this.values[3]),
         deletion_token_hash: String(this.values[4]),
         payload_hash: String(this.values[6]),
       });
@@ -240,6 +253,55 @@ test("masks a bounded server-verified conversation before storing it in separate
     "Call [REDACTED_PHONE]",
   ]);
   assert.doesNotMatch(JSON.stringify(database.statements.map((statement) => statement.values)), /person@example|03-1234-5678|ｐｅｒｓｏｎ|０３－/);
+});
+
+test("recovers only the server-stored assistant reply for an idempotent browser retry", async () => {
+  const database = new FakeDatabase();
+  const request = {
+    consent: { accepted: true, version: CONVERSATION_CONSENT_VERSION },
+    idempotencyKey: "conversation_request_recover_123",
+    deletionToken,
+  };
+  const persisted = await persistVerifiedConversation(
+    database as unknown as D1Database,
+    {
+      ...request,
+      messages: [
+        { role: "user", content: "Reply to user@example.com" },
+        { role: "assistant", content: "Server generated answer" },
+      ],
+    },
+    persistencePolicy,
+  );
+  assert.equal(persisted.status, 201);
+
+  const recovered = await recoverVerifiedConversation(
+    database as unknown as D1Database,
+    { ...request, userContent: "Reply to user@example.com" },
+    persistencePolicy,
+  );
+  assert.equal(recovered.status, "recovered");
+  if (recovered.status === "recovered") {
+    assert.equal(recovered.reply, "Server generated answer");
+    assert.match(recovered.id, /^con_/u);
+  }
+
+  assert.deepEqual(
+    await recoverVerifiedConversation(
+      database as unknown as D1Database,
+      { ...request, userContent: "Different user message" },
+      persistencePolicy,
+    ),
+    { status: "conflict" },
+  );
+  assert.deepEqual(
+    await recoverVerifiedConversation(
+      database as unknown as D1Database,
+      { ...request, deletionToken: "B".repeat(43), userContent: "Reply to user@example.com" },
+      persistencePolicy,
+    ),
+    { status: "conflict" },
+  );
 });
 
 test("validates content type, body size, rate limits, and public list methods", async () => {

@@ -87,6 +87,11 @@ export type MaskedConversationMessage = {
   sourceIds: string[];
 };
 
+export type ConversationRecoveryResult =
+  | { status: "absent" }
+  | { status: "recovered"; id: string; reply: string }
+  | { status: "invalid" | "conflict" | "unavailable" };
+
 type SituationAnswers = {
   municipalityCode: string | null;
   visitPurpose: string;
@@ -204,6 +209,59 @@ export async function persistVerifiedConversation(
   return persistConversation(db, parsed.value);
 }
 
+/**
+ * Recovers a prior support-chat turn after the HTTP response was lost. The
+ * browser never supplies a trusted assistant message: the reply comes back
+ * only from the server-written conversation_messages row.
+ */
+export async function recoverVerifiedConversation(
+  db: D1Database,
+  value: unknown,
+  policy: Pick<PersistencePolicy, "conversationModelId">,
+): Promise<ConversationRecoveryResult> {
+  const parsed = parseConversationRecovery(value, policy);
+  if (!parsed) return { status: "invalid" };
+  const idempotencyHash = await sha256(parsed.idempotencyKey);
+  const deletionTokenHash = await sha256(parsed.deletionToken);
+
+  try {
+    const existing = await db.prepare(
+      `SELECT id, deletion_token_hash, model_id
+       FROM conversations WHERE idempotency_key_hash = ?`,
+    ).bind(idempotencyHash).first<{
+      id: string;
+      deletion_token_hash: string;
+      model_id: string;
+    }>();
+    if (!existing) return { status: "absent" };
+    if (
+      existing.deletion_token_hash !== deletionTokenHash
+      || existing.model_id !== policy.conversationModelId
+      || !/^con_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(existing.id)
+    ) return { status: "conflict" };
+
+    const [storedUser, storedAssistant] = await Promise.all([
+      db.prepare(
+        `SELECT role, masked_content FROM conversation_messages
+         WHERE conversation_id = ? AND message_index = 0`,
+      ).bind(existing.id).first<{ role: string; masked_content: string }>(),
+      db.prepare(
+        `SELECT role, masked_content FROM conversation_messages
+         WHERE conversation_id = ? AND message_index = 1`,
+      ).bind(existing.id).first<{ role: string; masked_content: string }>(),
+    ]);
+    if (
+      storedUser?.role !== "user"
+      || storedUser.masked_content !== parsed.maskedUserContent
+      || storedAssistant?.role !== "assistant"
+      || !storedAssistant.masked_content
+    ) return { status: "conflict" };
+    return { status: "recovered", id: existing.id, reply: storedAssistant.masked_content };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
 export function prepareLlmBoundMessages(
   value: unknown,
   trustedSourceIds: ReadonlySet<string>,
@@ -300,6 +358,24 @@ function parseConversation(value: unknown, policy: PersistencePolicy): ParseResu
       modelId: policy.conversationModelId,
       messages: messages.value,
     },
+  };
+}
+
+function parseConversationRecovery(
+  value: unknown,
+  policy: Pick<PersistencePolicy, "conversationModelId">,
+): { idempotencyKey: string; deletionToken: string; maskedUserContent: string } | null {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["consent", "idempotencyKey", "deletionToken", "userContent"])) return null;
+  if (!hasConsent(value.consent, CONVERSATION_CONSENT_VERSION)) return null;
+  if (!isIdempotencyKey(value.idempotencyKey) || !isDeletionToken(value.deletionToken)) return null;
+  if (!/^[A-Za-z0-9@._:/-]{1,120}$/.test(policy.conversationModelId)) return null;
+  if (typeof value.userContent !== "string") return null;
+  const userContent = value.userContent.normalize("NFKC").trim();
+  if (!userContent || userContent.length > MAX_MESSAGE_LENGTH || containsRejectedIdentifier(userContent)) return null;
+  return {
+    idempotencyKey: value.idempotencyKey,
+    deletionToken: value.deletionToken,
+    maskedUserContent: maskDetectableContactData(userContent),
   };
 }
 

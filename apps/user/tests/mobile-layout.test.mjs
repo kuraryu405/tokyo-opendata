@@ -141,3 +141,62 @@ test("keeps all reviewed navigation labels visible at a 390px physical width wit
     await context.close();
   }
 });
+
+test("connects reviewed conversation consent, recovery credentials, reload, and deletion in the real browser", async () => {
+  const copy = {
+    ja: { accept: "会話保存への同意を設定", decline: "保存しない", input: "相談したいこと", send: "送る", saved: "保存済み会話を削除", reply: "保存対象の回答です。", transient: "保存しない回答です。" },
+    en: { accept: "Set storage consent", decline: "Do not save", input: "What do you want to ask?", send: "Send", saved: "Delete saved conversation", reply: "This response is saved.", transient: "This response is not saved." },
+    my: { accept: "စကားပြောသိမ်းဆည်းမှု သဘောတူညီချက် ရွေးရန်", decline: "မသိမ်းရန်", input: "မေးလိုသောအချက်", send: "ပို့ရန်", saved: "သိမ်းထားသော စကားပြောကို ဖျက်ရန်", reply: "ဤအဖြေကို သိမ်းပါသည်။", transient: "ဤအဖြေကို မသိမ်းပါ။" },
+  };
+  const recordId = "con_44444444-4444-4444-8444-444444444444";
+
+  for (const locale of ["ja", "en", "my"]) {
+    for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
+      const context = await browser.newContext({ viewport });
+      const page = await openRoute(context, locale);
+      await page.locator("nav[aria-label] button").first().click();
+      await page.getByRole("heading", { name: locale === "ja" ? "AI相談アシスタント" : locale === "en" ? "AI consultation assistant" : "AI တိုင်ပင်ရေး အကူ" }).waitFor();
+
+      let acceptedRequest;
+      let declinedRequest;
+      await page.route("**/api/conversations/**", async (route) => {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { deleted: true } }) });
+      });
+      await page.route("**/api/support-chat", async (route) => {
+        const request = route.request();
+        const payload = request.postDataJSON();
+        if (payload.persistence) {
+          acceptedRequest = payload;
+          const pending = await page.evaluate(() => sessionStorage.getItem("staybridge.pending-conversation-request"));
+          assert.match(pending ?? "", /"version":1/u);
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ reply: copy[locale].reply, persistence: { status: "saved", id: recordId } }) });
+        } else {
+          declinedRequest = payload;
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ reply: copy[locale].transient }) });
+        }
+      });
+
+      await page.getByRole("button", { name: copy[locale].accept }).click();
+      await page.getByRole("textbox", { name: copy[locale].input }).fill("support desk question");
+      await page.getByRole("button", { name: copy[locale].send }).click();
+      await page.getByText(copy[locale].reply).waitFor();
+      assert.equal(acceptedRequest.persistence.consent.version, "conversation-2026-08-23");
+      assert.equal(await page.evaluate(() => sessionStorage.getItem("staybridge.pending-conversation-request")), null);
+      assert.match(await page.evaluate(() => sessionStorage.getItem("staybridge.saved-conversation-credentials")) ?? "", new RegExp(recordId, "u"));
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      assert.equal(await page.getByRole("button", { name: copy[locale].accept }).getAttribute("aria-pressed"), "true");
+      await page.getByText(recordId).click();
+      await page.getByRole("button", { name: copy[locale].saved }).click();
+      await page.waitForFunction(() => sessionStorage.getItem("staybridge.saved-conversation-credentials") === null);
+
+      await page.getByRole("button", { name: copy[locale].decline }).click();
+      await page.getByRole("textbox", { name: copy[locale].input }).fill("do not save this turn");
+      await page.getByRole("button", { name: copy[locale].send }).click();
+      await page.getByText(copy[locale].transient).waitFor();
+      assert.equal(declinedRequest.persistence, undefined);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1));
+      await context.close();
+    }
+  }
+});

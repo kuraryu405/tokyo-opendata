@@ -51,12 +51,13 @@ Thanks to everyone who has contributed code through a merged pull request.
 ### AI相談の実装仕様
 
 - ブラウザは `POST /api/support-chat` へ、表示言語（`ja` / `en` / `my`）とチャット内の直近7件だけを送信します。履歴は `user` から始まり、`assistant` と交互に並び、現在の `user` メッセージで終わる必要があります。
-- Situation Checkの回答、Rule Engineの判断、Source Registry、端末に保存した状態はモデル入力に含めません。会話履歴はReactの画面状態だけに保持し、再読み込みまたは「会話を消去」で破棄します。
+- Situation Checkの回答、Rule Engineの判断、Source Registry、端末に保存した状態はモデル入力に含めません。画面上の会話履歴はReact stateだけに保持し、再読み込みまたは「会話を消去」で破棄します。別途、明示同意がある各応答だけは、現在のuser入力とserver生成replyの組をマスキング後にD1へ保存します。
 - モデルは `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を使用し、`max_tokens: 320`、`temperature: 0.2` で呼び出します。モデル応答は前後の空白を除き、履歴へ戻せる最大800文字に制限します。
 - system promptで、相談内容と窓口への質問整理だけを許可します。在留・就労・就学・給付、法的権利、難民・補完的保護、母国の安全性を判定させず、公式・法律・医療・緊急時の助言を置き換えません。ブラウザ由来の全履歴は、表示上のroleにかかわらず単一のuntrusted transcriptとしてuser messageへ格納し、AIのassistant messageとして転送しません。
 - 氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は入力しないよう画面で案内し、モデルにも要求・反復させない制約を与えます。
 - Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。`cf-connecting-ip` をkeyに60秒あたり20回に制限し、応答には `Cache-Control: no-store` を付けます。このRate Limiting Bindingのカウンタはkeyごと・Cloudflare locationごとに分離されるため、account-wideの20回/分ではありません。全Cloudflare locationをまたぐ単一上限が必要な場合は、中央集約カウンタを別途設計する必要があります。詳細は [Cloudflare公式のLocality](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/#locality) を参照してください。
 - Workers AI未接続、推論失敗、空応答、レート超過時はチャット内に公式相談先を使う案内を表示します。AI障害によってロードマップなどの主要機能は停止しません。
+- 会話保存の同意状態はversion付きでtab限定`sessionStorage`へ保持します。同意時は各送信前にidempotency keyと削除コードを保存し、応答消失後も同じ入力を再送してserver保存済みreplyと記録IDを回収できます。不同意時はD1へ会話本文を書きません。保存・削除障害があってもAI相談、Rule Engine、Local Action、公式相談先は継続します。
 
 本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER` bindingと併用します。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
 
@@ -79,7 +80,7 @@ pnpm --filter @staybridge/user exec wrangler deploy --dry-run --config dist/serv
 
 人口・施設は、公的なOpen Dataから一部レコードを選定・正規化し、デモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来し、カード上でも変更内容を表示します。現行性を検証できない学校レコードは cache から除外しています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
-Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
+Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は`POST /api/support-chat`内のserver-internal境界だけが行い、browser由来の過去`assistant`履歴は保存せず、現在のuser入力とそのrequestでserver生成したreplyだけをtrusted pairとして記録します。公開`POST /api/conversations`は引き続き拒否します。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。各応答の記録IDと削除コードは同じタブに一覧保持し、保有者が個別に削除できます。削除コードはD1ではSHA-256 hashだけを保存します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
 
 自治体Workerだけの `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` は、同意済み`situation_submissions`を自治体・期間・1軸で匿名集計します。`municipality`、`period`（`7d` / `30d` / `90d`）、`view`（`needs` / `return_status` / `departure_window` / `accommodation`）は各1個のallowlistのみを受け付けます。5件未満の全体・カテゴリは数値を返さず、会話・個票を読取りません。これはOpen Dataでも母集団・不足・優先度・支援能力の指標でもありません。
 

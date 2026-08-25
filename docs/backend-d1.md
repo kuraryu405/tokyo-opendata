@@ -63,8 +63,9 @@ production は `production` と production ID で一時設定を作りますが�
 
 - `POST /api/situation-submissions`: version付きSituation同意と厳格allowlist回答を保存。
 - `DELETE /api/situation-submissions/:sit_id`: `Authorization: Bearer <deletion-code>`で該当記録だけを削除。
-- 会話作成の公開HTTP routeは#59では提供しない。`POST /api/conversations`は405で拒否し、browserが作ったassistant本文、model ID、source IDをtrusted provenanceとして保存しない。
-- server-internal `persistVerifiedConversation`だけが、#62でserver生成したassistant本文、server固定model ID、trusted Source Registryのsource IDを検証し、NFKC正規化・マスキング後に保存できる。
+- 会話作成専用の公開HTTP routeは提供しない。`POST /api/conversations`は405で拒否し、browserが作ったassistant本文、model ID、source IDをtrusted provenanceとして保存しない。
+- `POST /api/support-chat`はversion付き会話同意があるrequestだけ、現在のuser入力と同じrequestでserver生成したassistant replyをserver-internal `persistVerifiedConversation`へ渡す。過去のclient-authored assistant履歴は保存しない。固定model IDとtrusted source IDを検証し、NFKC正規化・マスキング後に各応答を独立したconversation recordとして保存する。
+- 応答消失後の再送ではidempotency keyと削除コードhashを照合し、D1にserverが書いたuser/assistant pairだけから元replyとrecord IDを回収する。同じkeyの入力・token・modelが異なる場合はconflictとして新規保存しない。
 - `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除。
 - `GET /api/conversations`を含む一覧・取得APIは提供しない。
 
@@ -76,7 +77,7 @@ production は `production` と production ID で一時設定を作りますが�
 
 期間は`Asia/Tokyo`の暦日で、当日を含む直近7/30/90日の00:00 JSTから現在までとする。D1にはUTC ISO 8601 textで保存されるため、query bindはそのJST境界と同じUTC時刻を使う。最終集計日が直近7東京暦日にない場合は`freshness=stale`、それ以外は`fresh`である。レスポンスは常にthreshold、coverage note、非推定のlimitationsを含める。匿名集計は任意回答の観測範囲に限られ、人口・不足・優先度・サービス提供能力を示さない。
 
-Situation POSTは`application/json`、48,000 byte以下を必須とし、同一origin、1分20回のCloudflare Rate Limit、payloadとtokenを含むhashでのidempotencyを検証します。同じidempotency keyを別payloadへ再利用すると409です。会話のserver-internal境界は20件以下・1件2,000文字以下、role交互、source ID 12件以下に制限します。Rate Limitのkeyには接続IPを利用しますがD1へ保存せず、Cookieや恒久ユーザーIDを発行しません。
+Situation POSTは`application/json`、48,000 byte以下を必須とし、同一origin、1分20回のCloudflare Rate Limit、payloadとtokenを含むhashでのidempotencyを検証します。同じidempotency keyを別payloadへ再利用すると409です。会話のserver-internal境界は20件以下・1件2,000文字以下、role交互、source ID 12件以下に制限します。Support Chatは表示履歴7件までを推論へ使いますが、保存する1 recordは現在のuser入力とserver replyの2件だけです。Rate Limitのkeyには接続IPを利用しますがD1へ保存せず、Cookieや恒久ユーザーIDを発行しません。
 
 `situation_submissions`、`conversations`、`conversation_messages`は分離し、未マスキング本文やraw requestは保存しません。削除コード・idempotency keyはSHA-256 hashだけをD1へ保存します。`expires_at`と期限削除jobは持たず、検査通過後の同意済みデータは無期限保持です。保存・削除APIは回答本文やD1例外をログ出力せず、失敗時は一般化したエラーだけを返します。
 
