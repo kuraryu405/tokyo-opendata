@@ -96,69 +96,80 @@ export function serializeSavedSituationCredentials(credentials: SavedRecordCrede
 export async function saveSituationSubmission(
   situation: Situation,
   secrets: SituationSubmissionSecrets,
+  requestSignal?: AbortSignal,
 ): Promise<SavedRecordCredentials> {
-  const response = await fetchWithSubmissionTimeout("/api/situation-submissions", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
-      idempotencyKey: secrets.idempotencyKey,
+  return withSubmissionTimeout(async (signal) => {
+    const response = await fetch("/api/situation-submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
+        idempotencyKey: secrets.idempotencyKey,
+        deletionToken: secrets.deletionToken,
+        answers: {
+          municipalityCode: municipalityCodes[situation.currentMunicipality] ?? null,
+          visitPurpose: situation.visitPurpose,
+          departureWindow: situation.originalDepartureWindow,
+          returnStatus: situation.returnStatus,
+          familyAgeGroups: situation.familyMembers.children.map((child) => child.ageGroup),
+          accommodation: situation.accommodation,
+          needs: situation.needs,
+          japaneseLevel: situation.japaneseLevel,
+        },
+      }),
+      signal,
+    });
+    const body = await readSuccessBody(response);
+    const credentials = parseSavedSituationCredentialsValue({
+      id: body?.id,
       deletionToken: secrets.deletionToken,
-      answers: {
-        municipalityCode: municipalityCodes[situation.currentMunicipality] ?? null,
-        visitPurpose: situation.visitPurpose,
-        departureWindow: situation.originalDepartureWindow,
-        returnStatus: situation.returnStatus,
-        familyAgeGroups: situation.familyMembers.children.map((child) => child.ageGroup),
-        accommodation: situation.accommodation,
-        needs: situation.needs,
-        japaneseLevel: situation.japaneseLevel,
-      },
-    }),
-  });
-  const body = await readSuccessBody(response);
-  const credentials = parseSavedSituationCredentialsValue({
-    id: body?.id,
-    deletionToken: secrets.deletionToken,
-  });
-  if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
-  return credentials;
+    });
+    if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
+    return credentials;
+  }, requestSignal);
 }
 
 export async function deleteSituationSubmission(
   credentials: SavedRecordCredentials,
+  requestSignal?: AbortSignal,
 ): Promise<void> {
   const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
   if (!validatedCredentials) throw new Error("SITUATION_DELETION_FAILED");
-  const response = await fetchWithSubmissionTimeout(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
-  });
-  // A prior DELETE may have succeeded even if its response was lost. Because
-  // this call uses the exact locally-held random ID and token, 404 is a safe
-  // idempotent completion for the client credential lifecycle.
-  if (response.status === 404) return;
-  const body = await readSuccessBody(response);
-  if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+  await withSubmissionTimeout(async (signal) => {
+    const response = await fetch(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
+      signal,
+    });
+    // A prior DELETE may have succeeded even if its response was lost. Because
+    // this call uses the exact locally-held random ID and token, 404 is a safe
+    // idempotent completion for the client credential lifecycle.
+    if (response.status === 404) return;
+    const body = await readSuccessBody(response);
+    if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+  }, requestSignal);
 }
 
 /**
- * A save or delete whose response never settles must not leave the consent UI
- * busy forever. The request is aborted after the timeout so the caller's error
- * path runs while the pending secrets / deletion credentials stay stored: a
- * timed-out save may still have been persisted server-side, so retrying with
- * the same idempotency key remains the only safe recovery.
+ * Covers the complete request lifecycle, including response-body decoding.
+ * The optional caller signal lets a component abort work that is no longer
+ * needed when it unmounts, while the internal deadline guarantees a finite
+ * wait even when either fetch or response.json() never settles.
  */
-async function fetchWithSubmissionTimeout(
-  input: string,
-  init: RequestInit,
-): Promise<Response> {
+async function withSubmissionTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  requestSignal?: AbortSignal,
+): Promise<T> {
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (requestSignal?.aborted) controller.abort();
+  else requestSignal?.addEventListener("abort", abortFromCaller, { once: true });
   const timer = setTimeout(() => controller.abort(), SITUATION_SUBMISSION_TIMEOUT_MS);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    return await operation(controller.signal);
   } finally {
     clearTimeout(timer);
+    requestSignal?.removeEventListener("abort", abortFromCaller);
   }
 }
 
