@@ -174,7 +174,10 @@ describe("StayBridge client flow", () => {
     expect(answers).not.toHaveProperty("stayDeadlineKnown");
     expect(answers).not.toHaveProperty("visitPurposeOther");
     expect(String(body.deletionToken)).toHaveLength(43);
-    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_11111111");
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-situation-credentials") ?? "{}")).toMatchObject({
+      version: 1,
+      id: "sit_11111111-1111-4111-8111-111111111111",
+    });
   });
 
   it("never saves the public demo fixture as support-need input", async () => {
@@ -356,6 +359,76 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText(/このタブのsessionStorageにも保持/)).toBeTruthy();
   });
 
+  it("treats an absent saved-credentials key as unsaved and allows the normal local clear", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByRole("heading", { name: "Situation Check の回答を保存" });
+    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
+
+    expect(navigation.path()).toBe("/ja");
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+  });
+
+  it.each([
+    ["malformed JSON", "{"],
+    ["wrong id", JSON.stringify({ version: 1, id: "sit_not-valid", deletionToken: "A".repeat(43) })],
+    ["wrong token", JSON.stringify({ version: 1, id: "sit_55555555-5555-4555-8555-555555555555", deletionToken: "short" })],
+    ["unknown version", JSON.stringify({ version: 2, id: "sit_55555555-5555-4555-8555-555555555555", deletionToken: "A".repeat(43) })],
+  ])("fails closed for %s saved credentials until explicit local-only discard", async (_case, storedCredentials) => {
+    restoreCompleteUserSession();
+    sessionStorage.setItem("staybridge.saved-situation-credentials", storedCredentials);
+    navigation.reset("/ja/check?step=4");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
+    expect(await screen.findByRole("heading", { name: "削除情報を確認できません" })).toBeTruthy();
+    expect(screen.getByText(/サーバー記録が残っている可能性/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(navigation.path()).toBe("/ja/roadmap");
+    await user.click(screen.getByRole("button", { name: "最初からやり直す" }));
+    await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
+    await user.click(screen.getByRole("button", { name: "回答を見直す" }));
+    expect(navigation.path()).toBe("/ja/status");
+    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
+    expect(navigation.path()).toBe("/ja/status");
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBe(storedCredentials);
+
+    await user.click(screen.getByRole("button", { name: "サーバー記録を残して端末データだけ破棄" }));
+    expect(navigation.path()).toBe("/ja");
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+  });
+
+  it("preserves a valid pending retry when corrupt saved credentials are discarded", async () => {
+    restoreCompleteUserSession();
+    const pendingSecrets = {
+      idempotencyKey: "pending-retry-key-1234",
+      deletionToken: "A".repeat(43),
+    };
+    sessionStorage.setItem("staybridge.saved-situation-credentials", "{");
+    sessionStorage.setItem("staybridge.pending-situation-submission", JSON.stringify(pendingSecrets));
+    navigation.reset("/ja/status");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("heading", { name: "削除情報を確認できません" })).toBeTruthy();
+    expect(screen.getByText(/別の未完了の保存情報も残っています/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "壊れた削除情報だけ破棄" }));
+
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(JSON.stringify(pendingSecrets));
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "同意して保存" })).toBeTruthy();
+  });
+
   it("restores pending secrets after an ambiguous response and retries without a duplicate", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
@@ -401,6 +474,10 @@ describe("StayBridge client flow", () => {
 
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
     expect(await screen.findByText("sit_55555555-5555-4555-8555-555555555555")).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-situation-credentials") ?? "{}")).toMatchObject({
+      version: 1,
+      id: "sit_55555555-5555-4555-8555-555555555555",
+    });
 
     navigation.reset("/ja/check?step=0");
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
