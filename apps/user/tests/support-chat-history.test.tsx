@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
@@ -113,7 +113,7 @@ describe("AI consultation transcript lifetime", () => {
     await user.click(await screen.findByRole("button", { name: "相談窓口で何を聞けばいい？" }));
     expect(await screen.findByText("公式相談先で確認してください。")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: /近くの支援/ }));
+    await user.click(screen.getByRole("button", { name: "近くの支援" }));
     expect(navigation.path()).toContain("/local");
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
 
@@ -137,7 +137,8 @@ describe("AI consultation transcript lifetime", () => {
     const input = screen.getByRole("textbox", { name: "What do you want to ask?" });
     await user.type(input, "What should I bring?");
     await user.click(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findAllByText("公式相談先で確認してください。")).toHaveLength(2);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getAllByText("公式相談先で確認してください.")).toHaveLength(2));
     const requestBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body)) as { locale: string };
     expect(requestBody.locale).toBe("en");
   });
