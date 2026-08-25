@@ -82,7 +82,7 @@ const jaMessagesWithoutDailyLife = {
   },
   timing: { today: "今日", this_week: "今週", next_30_days: "今後30日", before_deadline: "期限まで", long_term: "長期化したら" },
   reasons: { RETURN_DIFFICULT_SHORT_TERM: "「旅行・短期の訪問で来た」「予定どおり帰ることが難しい」と回答したため表示しています。", RETURN_DIFFICULT: "予定どおり帰ることが難しいと回答したため、現在の状況を公式窓口で確認する案内を表示しています。", SITUATION_NEEDS_CONFIRMATION: "帰国や滞在の状況が分からない、または相談先を知りたいと回答したため表示しています。", SCHOOL_AGE_CHILD: "学齢期の子どもと一緒にいるため、教育相談と学校情報を表示しています。", CHILD_LOCAL_ROUTINE: "子どもと一緒に東京で生活を続ける可能性があるため、地域の居場所を表示しています。", TEMPORARY_HOTEL: "現在ホテルに滞在し、予定どおり帰ることが難しいため表示しています。", UNSTABLE_ACCOMMODATION: "今後の滞在場所に不安があり、予定どおり帰ることが難しいため表示しています。", CHILDCARE_NEED: "乳幼児と一緒に滞在し、子どもの生活について困っていると回答したため表示しています。", MEDICAL_NEED: "医療について困っていると回答したため表示しています。", EMPLOYMENT_NEED: "仕事または生活費について確認したいと回答したため、就労可否の確認を先に表示しています。", LIVING_COST_NEED: "当面の生活費について困っていると回答したため、公式相談先を表示しています。", LANGUAGE_BARRIER: "日本語での相談に言語サポートが役立つ可能性があるため表示しています。", KNOWN_STAY_DEADLINE: "滞在できる期限を入力したため、その日より前に公式確認できるよう表示しています。", STAY_DEADLINE_PASSED: "入力した滞在期限を過ぎているため、すぐに公式窓口へ状況を確認する案内を表示しています。" },
-  needs: { stay: "日本にこれからどのくらい滞在できるか", consultation: "必要な手続と相談先", accommodation: "当面の宿泊・生活", living_cost: "生活費についての相談", employment: "働ける条件", education: "子どもの教育", childcare: "子どもの生活", medical: "医療を受けられる場所", language: "言語サポート", daily_life: "日々の生活" },
+  needs: { stay: "日本にこれからどのくらい滞在できるか", consultation: "必要な手続と相談先", accommodation: "当面の宿泊・生活", living_cost: "生活費についての相談", employment: "働ける条件", education: "子どもの教育", childcare: "子どもの生活", medical: "医療を受けられる場所", language: "言語サポート", daily_life: "日々の生活", none: "特になし" },
 } as const satisfies PublicUserMessages;
 
 const enMessagesWithoutDailyLife = {
@@ -95,7 +95,7 @@ const enMessagesWithoutDailyLife = {
   },
   timing: { today: "Today", this_week: "This week", next_30_days: "Within 30 days", before_deadline: "Before the deadline", long_term: "If your stay becomes longer" },
   reasons: { RETURN_DIFFICULT_SHORT_TERM: "You said you came for a short visit and now find it difficult to return as planned.", RETURN_DIFFICULT: "You said it is difficult to return as planned, so an official check of your current situation is shown.", SITUATION_NEEDS_CONFIRMATION: "You said your return or stay is unclear, or that you need to find where to ask for help.", SCHOOL_AGE_CHILD: "You are with a school-age child, so education consultation and school information are shown.", CHILD_LOCAL_ROUTINE: "You may need to continue daily life in Tokyo with a child, so local child spaces are shown.", TEMPORARY_HOTEL: "You are staying in a hotel and find it difficult to return as planned.", UNSTABLE_ACCOMMODATION: "You said your accommodation is unstable and that it is difficult to return as planned.", CHILDCARE_NEED: "You are with a young child and selected childcare or daily-life support as a concern.", MEDICAL_NEED: "You selected medical care as a current concern.", EMPLOYMENT_NEED: "You selected work or living costs, so checking work eligibility comes before job search.", LIVING_COST_NEED: "You selected immediate living costs as a concern, so an official consultation route is shown.", LANGUAGE_BARRIER: "Language support may help you explain your situation during official consultations.", KNOWN_STAY_DEADLINE: "You entered a stay deadline, so this is shown to help you confirm with an official service before that date.", STAY_DEADLINE_PASSED: "The stay deadline you entered has passed, so this directs you to confirm your situation with an official service now." },
-  needs: { stay: "How long I can stay in Japan", consultation: "Procedures and official support", accommodation: "Accommodation and daily living", living_cost: "Help with living costs", employment: "Whether I may work", education: "My child’s education", childcare: "My child’s daily life", medical: "Where to get medical care", language: "Language support", daily_life: "Daily life" },
+  needs: { stay: "How long I can stay in Japan", consultation: "Procedures and official support", accommodation: "Accommodation and daily living", living_cost: "Help with living costs", employment: "Whether I may work", education: "My child’s education", childcare: "My child’s daily life", medical: "Where to get medical care", language: "Language support", daily_life: "Daily life", none: "None of these" },
 } as const satisfies PublicUserMessages;
 
 const myMessagesWithoutDailyLife = {
@@ -108,8 +108,17 @@ const myMessagesWithoutDailyLife = {
   },
   timing: { today: "ယနေ့", this_week: "ယခုအပတ်", next_30_days: "လာမည့် ၃၀ ရက်", before_deadline: "သတ်မှတ်ရက်မတိုင်မီ", long_term: "ရေရှည်" },
   reasons: { RETURN_DIFFICULT_SHORT_TERM: "ခရီးတိုအတွက် လာပြီး ယခု စီစဉ်ထားသလို ပြန်ရန်ခက်ခဲသည်ဟု ဖြေထားသောကြောင့် ပြထားပါသည်။", RETURN_DIFFICULT: "စီစဉ်ထားသလို ပြန်ရန်ခက်ခဲသည်ဟု ဖြေထားသောကြောင့် လက်ရှိအခြေအနေကို တရားဝင်ဌာနတွင် စစ်ဆေးရန် ပြထားပါသည်။", SITUATION_NEEDS_CONFIRMATION: "ပြန်ခြင်း/နေထိုင်ခြင်းအခြေအနေ မသေချာ သို့မဟုတ် တိုင်ပင်ရာနေရာလိုသည်ဟု ဖြေထားပါသည်။", SCHOOL_AGE_CHILD: "ကျောင်းနေအရွယ်ကလေးနှင့်အတူရှိသောကြောင့် ပညာရေးနှင့်ကျောင်းအချက်အလက် ပြထားပါသည်။", CHILD_LOCAL_ROUTINE: "ကလေးနှင့်အတူ တိုကျိုတွင် နေ့စဉ်ဘဝ ဆက်လက်တည်ဆောက်ရန် လိုနိုင်သောကြောင့် ပြထားပါသည်။", TEMPORARY_HOTEL: "ဟိုတယ်တွင် နေပြီး စီစဉ်ထားသလို ပြန်ရန်ခက်ခဲသောကြောင့် ပြထားပါသည်။", UNSTABLE_ACCOMMODATION: "နေထိုင်ရာမတည်ငြိမ်ဘဲ စီစဉ်ထားသလို ပြန်ရန်ခက်ခဲသောကြောင့် ပြထားပါသည်။", CHILDCARE_NEED: "ကလေးငယ်နှင့်အတူရှိပြီး ကလေး၏နေ့စဉ်ဘဝအကူအညီကို ရွေးထားသောကြောင့် ပြထားပါသည်။", MEDICAL_NEED: "ဆေးကုသမှုကို လက်ရှိစိုးရိမ်ချက်အဖြစ် ရွေးထားပါသည်။", EMPLOYMENT_NEED: "အလုပ် သို့မဟုတ် နေထိုင်စရိတ်ကို ရွေးထားသောကြောင့် အလုပ်မရှာမီ လုပ်ကိုင်ခွင့် စစ်ဆေးရန် ပြထားပါသည်။", LIVING_COST_NEED: "လတ်တလော နေထိုင်စရိတ်အတွက် စိုးရိမ်ကြောင်း ရွေးထားသောကြောင့် တရားဝင်တိုင်ပင်ရာနေရာကို ပြထားပါသည်။", LANGUAGE_BARRIER: "တရားဝင်တိုင်ပင်ရာတွင် ဘာသာစကားအကူအညီ အသုံးဝင်နိုင်သောကြောင့် ပြထားပါသည်။", KNOWN_STAY_DEADLINE: "နေထိုင်နိုင်သည့်ရက် ထည့်ထားသောကြောင့် ထိုရက်မတိုင်မီ တရားဝင်အတည်ပြုနိုင်ရန် ပြထားပါသည်။", STAY_DEADLINE_PASSED: "ထည့်ထားသော နေထိုင်ခွင့်နောက်ဆုံးရက် ကျော်လွန်နေသောကြောင့် တရားဝင်ဌာနသို့ ယခုချက်ချင်း အတည်ပြုရန် ပြထားပါသည်။" },
-  needs: { stay: "ဂျပန်တွင် မည်မျှကြာ နေနိုင်မည်", consultation: "လုပ်ငန်းစဉ်နှင့် တိုင်ပင်ရာနေရာ", accommodation: "နေထိုင်ရာနှင့် နေ့စဉ်ဘဝ", living_cost: "နေထိုင်စရိတ်", employment: "အလုပ်လုပ်နိုင်မှု", education: "ကလေးပညာရေး", childcare: "ကလေး၏ နေ့စဉ်ဘဝ", medical: "ဆေးကုသရာနေရာ", language: "ဘာသာစကားအကူအညီ", daily_life: "နေ့စဉ်ဘဝ" },
+  needs: { stay: "ဂျပန်တွင် မည်မျှကြာ နေနိုင်မည်", consultation: "လုပ်ငန်းစဉ်နှင့် တိုင်ပင်ရာနေရာ", accommodation: "နေထိုင်ရာနှင့် နေ့စဉ်ဘဝ", living_cost: "နေထိုင်စရိတ်", employment: "အလုပ်လုပ်နိုင်မှု", education: "ကလေးပညာရေး", childcare: "ကလေး၏ နေ့စဉ်ဘဝ", medical: "ဆေးကုသရာနေရာ", language: "ဘာသာစကားအကူအညီ", daily_life: "နေ့စဉ်ဘဝ", none: "ထူးမရှိပါ" },
 } as const satisfies PublicUserMessages;
+
+function withNoneNeedOption(messages: PublicUserMessages, label: string): PublicUserMessages {
+  const questions = messages.questions.map((question, index) => {
+    if (index !== 8 || question[2].some(([value]) => value === "none")) return question;
+    const options = [...question[2], ["none", label]] as unknown as typeof question[2];
+    return [question[0], question[1], options];
+  }) as unknown as PublicUserMessages["questions"];
+  return { ...messages, questions };
+}
 
 function withDailyLifeNeed(messages: PublicUserMessages, label: string): PublicUserMessages {
   const questions = messages.questions.map((question, index) => {
@@ -145,26 +154,26 @@ function withPublicCopy(messages: PublicUserMessages, overrides: PublicCopyOverr
 }
 
 export const reviewedUserMessages = {
-  ja: withDailyLifeNeed(withPublicCopy(jaMessagesWithoutDailyLife, {
+  ja: withNoneNeedOption(withDailyLifeNeed(withPublicCopy(jaMessagesWithoutDailyLife, {
     crisis: "行政・支援者向けの確認画面",
     principleBody: "公開データから、地域で確認する意味のある場所へ。",
     sectionLocalAction: "地域での行動",
     openDataLabel: "公開データ",
-  }), "日々の生活"),
-  en: withDailyLifeNeed(withPublicCopy(enMessagesWithoutDailyLife, {
+  }), "日々の生活"), "特になし"),
+  en: withNoneNeedOption(withDailyLifeNeed(withPublicCopy(enMessagesWithoutDailyLife, {
     crisis: "Information for public teams",
     principleBody: "Use publicly available data to find relevant places to check in your municipality.",
     sectionLocalAction: "Local action",
     openDataLabel: "Public data",
     localIntro: "Public resources relevant to your situation, drawn from publicly available data. Ask each office about eligibility and availability.",
-  }), "Daily life"),
-  my: withDailyLifeNeed(withPublicCopy(myMessagesWithoutDailyLife, {
+  }), "Daily life"), "None of these"),
+  my: withNoneNeedOption(withDailyLifeNeed(withPublicCopy(myMessagesWithoutDailyLife, {
     crisis: "အုပ်ချုပ်ရေးနှင့် ကူညီသူများအတွက် အချက်အလက်",
     principleBody: "အများပြည်သူဒေတာမှ မိမိမြို့နယ်တွင် စစ်ဆေးသင့်သည့်နေရာများကို ရှာနိုင်သည်။",
     sectionLocalAction: "ဒေသတွင်းလုပ်ဆောင်ချက်",
     openDataLabel: "အများပြည်သူဒေတာ",
     localIntro: "သင့်အခြေအနေနှင့် သက်ဆိုင်သည့် အများပြည်သူဆိုင်ရာအရင်းအမြစ်များကို အများပြည်သူရရှိနိုင်သောဒေတာမှ ပြထားပါသည်။ အသုံးပြုနိုင်မှုကို သက်ဆိုင်ရာဌာနသို့ မေးမြန်းပါ။",
-  }), "နေ့စဉ်ဘဝ"),
+  }), "နေ့စဉ်ဘဝ"), "ထူးမရှိပါ"),
 } satisfies Record<SelectableUserLocale, PublicUserMessages>;
 
 export const { ja: jaMessages, en: enMessages, my: myMessages } = reviewedUserMessages;

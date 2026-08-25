@@ -575,7 +575,13 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     }
     if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
     if (step === 8) {
-      const nextNeeds = situation.needs.includes(value as NeedCategory) ? situation.needs.filter((n) => n !== value) : [...situation.needs, value as NeedCategory];
+      // 「特になし」is exclusive: choosing it clears real needs, and any real
+      // need clears it, so nobody must fake a category to finish the flow.
+      const nextNeeds = value === "none"
+        ? situation.needs.includes("none") ? [] : ["none" as NeedCategory]
+        : situation.needs.includes(value as NeedCategory)
+          ? situation.needs.filter((n) => n !== value)
+          : [...situation.needs.filter((n) => n !== "none"), value as NeedCategory];
       setSituation({ ...situation, needs: nextNeeds });
       markAnswered(nextNeeds.length > 0);
       return;

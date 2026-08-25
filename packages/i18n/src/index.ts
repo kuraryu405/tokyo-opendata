@@ -88,6 +88,7 @@ export const needKeys = [
   "medical",
   "language",
   "daily_life",
+  "none",
 ] as const;
 
 export type NeedKey = (typeof needKeys)[number];
