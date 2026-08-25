@@ -113,6 +113,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
   const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
+  const situationRequestController = useRef<AbortController | null>(null);
   const t = getUserMessages(locale).ui;
   const hasSavedSituationCredentials = "credentials" in situationPersistence;
   const hasCorruptSavedSituationCredentials = situationPersistence.status === "corrupt";
@@ -168,6 +169,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       setStorageReady(true);
     }
   }, []);
+
+  useEffect(() => () => situationRequestController.current?.abort(), []);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -401,6 +404,13 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     [assessmentDate, locale],
   );
 
+  const startSituationRequest = () => {
+    situationRequestController.current?.abort();
+    const controller = new AbortController();
+    situationRequestController.current = controller;
+    return controller;
+  };
+
   const persistSituation = async () => {
     const secrets = situationSubmissionSecrets.current ?? createSituationSubmissionSecrets();
     if (!situationSubmissionSecrets.current) {
@@ -414,9 +424,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       situationSubmissionSecrets.current = secrets;
       setHasPendingSituationSubmission(true);
     }
+    const controller = startSituationRequest();
     setSituationPersistence({ status: "saving" });
     try {
-      const credentials = await saveSituationSubmission(situation, secrets);
+      const credentials = await saveSituationSubmission(situation, secrets, controller.signal);
       let replacedPending = false;
       try {
         sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, serializeSavedSituationCredentials(credentials));
@@ -431,14 +442,17 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }
       setSituationPersistence({ status: "saved", credentials });
     } catch {
-      setSituationPersistence({ status: "error" });
+      if (!controller.signal.aborted) setSituationPersistence({ status: "error" });
+    } finally {
+      if (situationRequestController.current === controller) situationRequestController.current = null;
     }
   };
 
   const deletePersistedSituation = async (credentials: SavedRecordCredentials) => {
+    const controller = startSituationRequest();
     setSituationPersistence({ status: "deleting", credentials });
     try {
-      await deleteSituationSubmission(credentials);
+      await deleteSituationSubmission(credentials, controller.signal);
       try {
         sessionStorage.removeItem(SAVED_SITUATION_CREDENTIALS_KEY);
         sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
@@ -449,7 +463,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       setHasPendingSituationSubmission(false);
       setSituationPersistence({ status: "deleted" });
     } catch {
-      setSituationPersistence({ status: "delete-error", credentials });
+      if (!controller.signal.aborted) setSituationPersistence({ status: "delete-error", credentials });
+    } finally {
+      if (situationRequestController.current === controller) situationRequestController.current = null;
     }
   };
 
