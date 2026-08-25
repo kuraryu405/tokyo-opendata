@@ -110,10 +110,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
   const [isDemoSituation, setIsDemoSituation] = useState(false);
-  // The server pins one Tokyo calendar date per request. A tab that stays open
-  // across Tokyo midnight must re-evaluate catalog publication with the new
-  // date instead of showing expired cards from the stale one.
-  const [assessmentToday, setAssessmentToday] = useState(assessmentDate);
+  // Keep the request's assessment date pinned for answer-dependent rules while
+  // independently advancing the Tokyo date used only for catalog publication.
+  const [publicationToday, setPublicationToday] = useState(assessmentDate);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
   const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
@@ -180,7 +179,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   useEffect(() => {
     const refresh = () => {
       const today = getTokyoAssessmentDate();
-      setAssessmentToday((previous) => (previous === today ? previous : today));
+      setPublicationToday((previous) => (previous === today ? previous : today));
     };
     const timer = window.setInterval(refresh, 60_000);
     document.addEventListener("visibilitychange", refresh);
@@ -248,10 +247,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
-    return generateActions(situation, { asOfDate: assessmentToday, stayAnswer }).filter((action) =>
+    return generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer }).filter((action) =>
       action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
     );
-  }, [assessmentComplete, assessmentToday, situation, stayAnswer]);
+  }, [assessmentComplete, assessmentDate, publicationToday, situation, stayAnswer]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -414,8 +413,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const summaryDate = useMemo(
-    () => formatAssessmentDateForLocale(assessmentToday, locale),
-    [assessmentToday, locale],
+    () => formatAssessmentDateForLocale(assessmentDate, locale),
+    [assessmentDate, locale],
   );
 
   const persistSituation = async () => {
