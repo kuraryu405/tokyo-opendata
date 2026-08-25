@@ -13,6 +13,7 @@ export interface BackendEnv extends RevisionEnv {
 export interface ApiError {
   code:
     | "CONSENT_REQUIRED"
+    | "DELETION_NOT_FOUND"
     | "DUPLICATE_CONFLICT"
     | "HIGH_RISK_IDENTIFIER"
     | "INVALID_REQUEST"

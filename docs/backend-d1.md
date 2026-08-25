@@ -62,10 +62,10 @@ production は `production` と production ID で一時設定を作りますが�
 ### 同意済みデータ保存API
 
 - `POST /api/situation-submissions`: version付きSituation同意と厳格allowlist回答を保存。
-- `DELETE /api/situation-submissions/:sit_id`: `Authorization: Bearer <deletion-code>`で該当記録だけを削除。
+- `DELETE /api/situation-submissions/:sit_id`: `Authorization: Bearer <deletion-code>`で該当記録だけを削除。IDと削除コードに一致する記録がない場合は404 `DELETION_NOT_FOUND`を返す。browserはこの削除endpoint固有のenvelopeだけを冪等な削除完了として扱い、routing・proxy・不正形式の404では削除credentialsを保持する。
 - 会話作成の公開HTTP routeは#59では提供しない。`POST /api/conversations`は405で拒否し、browserが作ったassistant本文、model ID、source IDをtrusted provenanceとして保存しない。
 - server-internal `persistVerifiedConversation`だけが、#62でserver生成したassistant本文、server固定model ID、trusted Source Registryのsource IDを検証し、NFKC正規化・マスキング後に保存できる。
-- `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除。
+- `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除し、一致する記録がない場合は404 `DELETION_NOT_FOUND`を返す。
 - `GET /api/conversations`を含む一覧・取得APIは提供しない。
 
 ### 自治体 Crisis View の匿名集計API

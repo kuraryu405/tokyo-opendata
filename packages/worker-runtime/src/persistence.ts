@@ -441,7 +441,7 @@ async function deleteRecord(
     }
     if ((result.meta.changes ?? 0) < 1) {
       return createApiErrorResponse(
-        { code: "NOT_FOUND", message: "No matching record was found." },
+        { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
         404,
       );
     }
