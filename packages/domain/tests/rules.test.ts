@@ -55,7 +55,7 @@ describe("production action rule table", () => {
         returnStatus: "difficult",
         accommodation: "unstable",
         familyMembers: { children: [{ ageGroup: "6-11" }] },
-        needs: ["accommodation", "living_cost", "employment", "education", "childcare", "medical", "language"],
+        needs: ["accommodation", "living_cost", "employment", "education", "childcare", "medical", "language", "daily_life"],
       })),
     ];
     const matched = new Set(branchResults.flatMap((result) => result.flatMap((action) => action.matchedRuleIds)));
@@ -142,6 +142,16 @@ describe("generateActions", () => {
       "FIND_LANGUAGE_SUPPORT",
     ]);
     expect(result.find((action) => action.id === "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH")?.humanReviewRequired).toBe(true);
+  });
+
+  it("adds daily-life guidance when only daily_life is selected instead of the empty fallback", () => {
+    const result = actions(quietSituation({ needs: ["daily_life"] }));
+    expect(result.map((action) => action.id)).toEqual(["FIND_DAILY_LIFE_GUIDANCE"]);
+    const guidance = result[0];
+    expect(guidance.reasonCode).toBe("DAILY_LIFE_NEED");
+    expect(guidance.answerCodes).toEqual(["needs=daily_life"]);
+    expect(guidance.sourceIds).toContain("TIPS_LIVING_GUIDE");
+    expect(guidance.humanReviewRequired).toBe(false);
   });
 
   it("adds education and child support only at their age and need boundaries", () => {
