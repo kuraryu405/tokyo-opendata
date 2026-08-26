@@ -9,13 +9,16 @@ import {
   type PersistenceEnv,
   type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
-import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
+import { handleSupportChatRequest, handleSupportChatSessionRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
 import { createMunicipalityAppRedirect, municipalityAppRoute } from "../src/municipality-url";
 
 interface Env extends PersistenceEnv {
   AI?: SupportChatAi;
   COUNTERPART_APP_URL?: string;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
+  SUPPORT_CHAT_ISSUE_LIMITER?: SupportChatRateLimiter;
+  SUPPORT_CHAT_IP_CEILING_LIMITER?: SupportChatRateLimiter;
+  SUPPORT_CHAT_SESSION_SECRET?: string;
   ASSETS: Fetcher;
   PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
   IMAGES: {
@@ -46,10 +49,19 @@ const worker = {
       return createMunicipalityAppRedirect(env?.COUNTERPART_APP_URL, request.url);
     }
 
+    if (url.pathname === "/api/support-chat-session") {
+      return handleSupportChatSessionRequest(request, {
+        issueRateLimiter: env?.SUPPORT_CHAT_ISSUE_LIMITER,
+        sessionSecret: env?.SUPPORT_CHAT_SESSION_SECRET,
+      });
+    }
+
     if (url.pathname === "/api/support-chat") {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
         rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
+        ipCeilingRateLimiter: env?.SUPPORT_CHAT_IP_CEILING_LIMITER,
+        sessionSecret: env?.SUPPORT_CHAT_SESSION_SECRET,
       });
     }
 

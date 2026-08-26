@@ -69,6 +69,22 @@ const readErrorCode = async (response: Response): Promise<string> => {
   }
 };
 
+const SESSION_REFRESH_MARGIN_MS = 60_000;
+
+export async function fetchSupportChatSession(): Promise<{ capability: string; expiresAt: number }> {
+  const response = await fetch("/api/support-chat-session", { method: "POST" });
+  if (!response.ok) throw new ChatRequestError(await readErrorCode(response));
+  const body = await response.json() as { capability?: unknown; expiresAt?: unknown };
+  if (typeof body.capability !== "string" || !body.capability || typeof body.expiresAt !== "number") {
+    throw new Error("Support chat session endpoint returned no capability");
+  }
+  return { capability: body.capability, expiresAt: body.expiresAt };
+}
+
+function freshSessionCapability(session: { capability: string; expiresAt: number } | null): string | null {
+  return session && Date.now() < session.expiresAt - SESSION_REFRESH_MARGIN_MS ? session.capability : null;
+}
+
 export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
   const panelId = useId();
@@ -80,6 +96,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const sessionRef = useRef<{ capability: string; expiresAt: number } | null>(null);
 
   useEffect(() => () => activeRequest.current?.abort(), []);
 
@@ -116,9 +133,18 @@ export function SupportChat({ locale }: { locale: Locale }) {
     setError("");
 
     try {
+      const cachedCapability = freshSessionCapability(sessionRef.current);
+      let capability: string;
+      if (cachedCapability) {
+        capability = cachedCapability;
+      } else {
+        const freshSession = await fetchSupportChatSession();
+        sessionRef.current = freshSession;
+        capability = freshSession.capability;
+      }
       const response = await fetch("/api/support-chat", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-staybridge-chat-session": capability },
         body: JSON.stringify({ locale, messages: requestMessages }),
         signal: controller.signal,
       });
@@ -130,6 +156,9 @@ export function SupportChat({ locale }: { locale: Locale }) {
       setMessages((current) => [...current, createEntry("assistant", reply)]);
     } catch (requestError) {
       if (activeRequestId.current !== requestId) return;
+      if (requestError instanceof ChatRequestError && requestError.code.startsWith("CAPABILITY_")) {
+        sessionRef.current = null;
+      }
       setMessages((current) => current.filter((message) => message.id !== userMessage.id));
       setInput(content);
       setError(requestError instanceof ChatRequestError ? requestError.code : "REQUEST_FAILED");

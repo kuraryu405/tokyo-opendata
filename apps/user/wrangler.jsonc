@@ -16,6 +16,16 @@
       "name": "SUPPORT_CHAT_RATE_LIMITER",
       "namespace_id": "202608230020",
       "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "SUPPORT_CHAT_ISSUE_LIMITER",
+      "namespace_id": "202608230060",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "SUPPORT_CHAT_IP_CEILING_LIMITER",
+      "namespace_id": "202608230061",
+      "simple": { "limit": 60, "period": 60 }
     }
   ],
   "d1_databases": [
@@ -40,6 +50,16 @@
           "name": "SUPPORT_CHAT_RATE_LIMITER",
           "namespace_id": "202608230021",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_ISSUE_LIMITER",
+          "namespace_id": "202608230161",
+          "simple": { "limit": 10, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_IP_CEILING_LIMITER",
+          "namespace_id": "202608230162",
+          "simple": { "limit": 60, "period": 60 }
         }
       ],
       "d1_databases": [
@@ -63,6 +83,16 @@
           "name": "SUPPORT_CHAT_RATE_LIMITER",
           "namespace_id": "202608230022",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_ISSUE_LIMITER",
+          "namespace_id": "202608230261",
+          "simple": { "limit": 10, "period": 60 }
+        },
+        {
+          "name": "SUPPORT_CHAT_IP_CEILING_LIMITER",
+          "namespace_id": "202608230262",
+          "simple": { "limit": 60, "period": 60 }
         }
       ],
       "d1_databases": [

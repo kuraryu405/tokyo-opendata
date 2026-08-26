@@ -12,9 +12,18 @@ describe("SupportChat conversation log autoscroll", () => {
   beforeEach(() => {
     scrollToSpy = vi.fn<(...args: unknown[]) => void>();
     Element.prototype.scrollTo = scrollToSpy as unknown as typeof Element.prototype.scrollTo;
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      reply: "窓口で確認してください。",
-    }), { status: 200, headers: { "content-type": "application/json" } })));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      if (!String(input).endsWith("/api/support-chat")) {
+        return new Response(JSON.stringify({ capability: "cap_test", expiresAt: Date.now() + 600_000 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ reply: "窓口で確認してください。" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }));
   });
 
   afterEach(() => {
@@ -55,9 +64,18 @@ describe("SupportChat conversation log autoscroll", () => {
   });
 
   it("shows the personal-identifier notice when the server rejects the message", async () => {
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      error: "HIGH_RISK_IDENTIFIER",
-    }), { status: 400, headers: { "content-type": "application/json" } })));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      if (!String(input).endsWith("/api/support-chat")) {
+        return new Response(JSON.stringify({ capability: "cap_test", expiresAt: Date.now() + 600_000 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: "HIGH_RISK_IDENTIFIER" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      });
+    }));
     const user = userEvent.setup();
     render(<SupportChat locale="ja" />);
 

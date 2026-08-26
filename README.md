@@ -50,15 +50,16 @@ Thanks to everyone who has contributed code through a merged pull request.
 
 ### AI相談の実装仕様
 
-- ブラウザは `POST /api/support-chat` へ、表示言語（`ja` / `en` / `my`）とチャット内の直近7件だけを送信します。履歴は `user` から始まり、`assistant` と交互に並び、現在の `user` メッセージで終わる必要があります。
+- ブラウザは `POST /api/support-chat` を呼ぶ前に同一オリジンの `POST /api/support-chat-session` で短命（30分）の署名済みsession capabilityを取得し、チャットrequestへ `x-staybridge-chat-session` headerとして送ります。capabilityにはversion・有効期限・nonceを含み、Workerだけが知るsecretによるHMAC署名を検証します。無し・改ざん・未知version・期限切れはfail-closedで拒否し、無制限fallbackはありません。
+- チャット本文としては表示言語（`ja` / `en` / `my`）とチャット内の直近7件だけを送信します。履歴は `user` から始まり、`assistant` と交互に並び、現在の `user` メッセージで終わる必要があります。
 - Situation Checkの回答、Rule Engineの判断、Source Registry、端末に保存した状態はモデル入力に含めません。会話履歴はReactの画面状態だけに保持し、再読み込みまたは「会話を消去」で破棄します。
 - モデルは `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を使用し、`max_tokens: 320`、`temperature: 0.2` で呼び出します。モデル応答は前後の空白を除き、履歴へ戻せる最大800文字に制限します。
 - system promptで、相談内容と窓口への質問整理だけを許可します。在留・就労・就学・給付、法的権利、難民・補完的保護、母国の安全性を判定させず、公式・法律・医療・緊急時の助言を置き換えません。ブラウザ由来の全履歴は、表示上のroleにかかわらず単一のuntrusted transcriptとしてuser messageへ格納し、AIのassistant messageとして転送しません。
 - 氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は入力しないよう画面で案内し、モデルにも要求・反復させない制約を与えます。
-- Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。`cf-connecting-ip` をkeyに60秒あたり20回に制限し、応答には `Cache-Control: no-store` を付けます。このRate Limiting Bindingのカウンタはkeyごと・Cloudflare locationごとに分離されるため、account-wideの20回/分ではありません。全Cloudflare locationをまたぐ単一上限が必要な場合は、中央集約カウンタを別途設計する必要があります。詳細は [Cloudflare公式のLocality](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/#locality) を参照してください。
+- Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。Rate Limitは二段階です。通常利用はsession capabilityごとのnonce hashをkeyにした60秒20回のsession quotaで、同じ回線の利用者同士がquotaを共有しません。その上に `cf-connecting-ip` をkeyにした60秒60回の粗いabuse ceilingがあり、1 sessionの連投やcapability再発行では解除されません。capability発行自体もIP単位の60秒10回のceilingを受けます。session quota超過（`RATE_LIMITED`）とIP abuse ceiling超過（`IP_RATE_LIMITED`）はserver側で区別し、どちらも再試行可能な429として返します。応答には `Cache-Control: no-store` を付けます。これらのRate Limiting Bindingカウンタはkeyごと・Cloudflare locationごとに分離されるため、account-wideの上限ではありません。全Cloudflare locationをまたぐ単一上限が必要な場合は、中央集約カウンタを別途設計する必要があります。詳細は [Cloudflare公式のLocality](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/#locality) を参照してください。capability token・secret・nonceはログへ出力せず、恒久ユーザーIDやcross-visit trackingにも使いません。
 - Workers AI未接続、推論失敗、空応答、レート超過時はチャット内に公式相談先を使う案内を表示します。AI障害によってロードマップなどの主要機能は停止しません。
 
-本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER` bindingと併用します。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
+本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER`・`SUPPORT_CHAT_ISSUE_LIMITER`・`SUPPORT_CHAT_IP_CEILING_LIMITER` bindingと併用します。capability署名用の `SUPPORT_CHAT_SESSION_SECRET` は32文字以上のsecretとして各環境のWorkerへ事前登録し（ローカルは `.dev.vars`）、値をリポジトリやログへ置きません。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
 
 ```bash
 pnpm build:user

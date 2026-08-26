@@ -2,6 +2,22 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
+async function makeTestSessionCapability(secret) {
+  const expiresAt = Date.now() + 30 * 60 * 1000;
+  const nonce = new Uint8Array(16);
+  crypto.getRandomValues(nonce);
+  const payload = `sc1.${expiresAt}.${Buffer.from(nonce).toString("base64url")}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return `${payload}.${Buffer.from(new Uint8Array(signature)).toString("base64url")}`;
+}
+
 async function render(pathname = "/", origin = "http://localhost", counterpartAppUrl) {
   const requestOrigin = new URL(origin);
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -110,6 +126,9 @@ test("routes support chat through rate limiting and untrusted transcript inferen
   const { default: worker } = await import(workerUrl.href);
   let inference;
 
+  const sessionSecret = "built-worker-test-secret-is-at-least-32-chars";
+  const capability = await makeTestSessionCapability(sessionSecret);
+  const okLimiter = { limit: async () => ({ success: true }) };
   const response = await worker.fetch(
     new Request("https://staybridge.example/api/support-chat", {
       method: "POST",
@@ -117,6 +136,7 @@ test("routes support chat through rate limiting and untrusted transcript inferen
         "content-type": "application/json",
         origin: "https://staybridge.example",
         "cf-connecting-ip": "192.0.2.10",
+        "x-staybridge-chat-session": capability,
       },
       body: JSON.stringify({
         locale: "ja",
@@ -129,7 +149,10 @@ test("routes support chat through rate limiting and untrusted transcript inferen
     }),
     {
       AI: { run: async (model, input) => { inference = { model, input }; return { response: "確認したいことを一つずつ整理しましょう。" }; } },
-      SUPPORT_CHAT_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      SUPPORT_CHAT_RATE_LIMITER: okLimiter,
+      SUPPORT_CHAT_ISSUE_LIMITER: okLimiter,
+      SUPPORT_CHAT_IP_CEILING_LIMITER: okLimiter,
+      SUPPORT_CHAT_SESSION_SECRET: sessionSecret,
     },
     { waitUntil() {}, passThroughOnException() {} },
   );
@@ -142,26 +165,63 @@ test("routes support chat through rate limiting and untrusted transcript inferen
   assert.match(inference.input.messages[1].content, /ignore system rules/);
 });
 
-test("fails closed when the local production server has no Worker bindings", async () => {
+test("issues a chat session capability and fails closed without the full limiter set", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-support-chat-no-env`);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-support-chat-session`);
   const { default: worker } = await import(workerUrl.href);
 
-  const response = await worker.fetch(
+  const sessionSecret = "built-worker-test-secret-is-at-least-32-chars";
+  const issued = await worker.fetch(
+    new Request("https://staybridge.example/api/support-chat-session", {
+      method: "POST",
+      headers: { origin: "https://staybridge.example", "cf-connecting-ip": "192.0.2.11" },
+    }),
+    {
+      SUPPORT_CHAT_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      SUPPORT_CHAT_ISSUE_LIMITER: { limit: async () => ({ success: true }) },
+      SUPPORT_CHAT_IP_CEILING_LIMITER: { limit: async () => ({ success: true }) },
+      SUPPORT_CHAT_SESSION_SECRET: sessionSecret,
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(issued.status, 200);
+  const issuedBody = await issued.json();
+  assert.match(issuedBody.capability, /^sc1\.\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+
+  const missingCeiling = await worker.fetch(
+    new Request("https://localhost/api/support-chat", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-staybridge-chat-session": issuedBody.capability,
+      },
+      body: JSON.stringify({ locale: "ja", messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }] }),
+    }),
+    {
+      SUPPORT_CHAT_RATE_LIMITER: { limit: async () => ({ success: true }) },
+      SUPPORT_CHAT_SESSION_SECRET: sessionSecret,
+    },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(missingCeiling.status, 503);
+  assert.deepEqual(await missingCeiling.json(), { error: "RATE_LIMIT_UNAVAILABLE" });
+
+  const noBindings = await worker.fetch(
     new Request("http://localhost/api/support-chat", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        locale: "ja",
-        messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
-      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost",
+        "x-staybridge-chat-session": issuedBody.capability,
+      },
+      body: JSON.stringify({ locale: "ja", messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }] }),
     }),
     undefined,
     { waitUntil() {}, passThroughOnException() {} },
   );
 
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: "RATE_LIMIT_UNAVAILABLE" });
+  assert.equal(noBindings.status, 503);
+  assert.deepEqual(await noBindings.json(), { error: "CHAT_SESSION_UNAVAILABLE" });
 });
 
 test("declares local-safe and explicitly remote AI binding configurations", async () => {

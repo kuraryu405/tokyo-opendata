@@ -4,6 +4,14 @@ export const SUPPORT_CHAT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 export const SUPPORT_CHAT_INFERENCE_TIMEOUT_MS = 12_000;
 
+/** A chat session capability stays valid for this long before a fresh one is required. */
+export const SUPPORT_CHAT_SESSION_TTL_MS = 30 * 60 * 1000;
+
+const MIN_SECRET_LENGTH = 32;
+const SESSION_NONCE_BYTES = 16;
+const CAPABILITY_HEADER = "x-staybridge-chat-session";
+const SESSION_VERSION = "sc1";
+
 const MAX_MESSAGES = 7;
 const MAX_MESSAGE_LENGTH = 800;
 const MAX_BODY_BYTES = 25_000;
@@ -35,7 +43,18 @@ export interface SupportChatRateLimiter {
 
 export type SupportChatBindings = {
   ai?: SupportChatAi;
+  /** Per-session normal-use quota for chat inference. */
   rateLimiter?: SupportChatRateLimiter;
+  /** Coarse per-IP abuse ceiling for capability issuance. */
+  issueRateLimiter?: SupportChatRateLimiter;
+  /** Coarse per-IP abuse ceiling for chat inference. */
+  ipCeilingRateLimiter?: SupportChatRateLimiter;
+  sessionSecret?: string;
+};
+
+export type SupportChatSessionBindings = {
+  issueRateLimiter?: SupportChatRateLimiter;
+  sessionSecret?: string;
 };
 
 const responseLanguage: Record<SupportChatLocale, string> = {
@@ -143,6 +162,125 @@ function readModelReply(result: unknown): string | null {
   return reply ? reply.slice(0, MAX_MESSAGE_LENGTH).trimEnd() : null;
 }
 
+function hasUsableSessionSecret(secret: string | undefined): secret is string {
+  return typeof secret === "string" && secret.length >= MIN_SECRET_LENGTH;
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(value: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  try {
+    const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+async function hmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export type ChatSessionCapability = {
+  capability: string;
+  expiresAt: number;
+};
+
+export async function createSupportChatSessionCapability(
+  secret: string,
+  now: number = Date.now(),
+): Promise<ChatSessionCapability> {
+  const expiresAt = now + SUPPORT_CHAT_SESSION_TTL_MS;
+  const nonce = crypto.getRandomValues(new Uint8Array(SESSION_NONCE_BYTES));
+  const payload = `${SESSION_VERSION}.${expiresAt}.${toBase64Url(nonce)}`;
+  const key = await hmacKey(secret);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return { capability: `${payload}.${toBase64Url(new Uint8Array(signature))}`, expiresAt };
+}
+
+export type ChatSessionVerification =
+  | { ok: true; sessionKey: string }
+  | { ok: false; reason: "invalid" | "expired" };
+
+export async function verifySupportChatSessionCapability(
+  token: string,
+  secret: string,
+  now: number = Date.now(),
+): Promise<ChatSessionVerification> {
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== SESSION_VERSION) return { ok: false, reason: "invalid" };
+  const [, rawExpiresAt, rawNonce, rawSignature] = parts;
+  const expiresAt = Number(rawExpiresAt);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= now) {
+    return { ok: false, reason: expiresAt > 0 && expiresAt <= now ? "expired" : "invalid" };
+  }
+  const nonce = fromBase64Url(rawNonce);
+  const signature = fromBase64Url(rawSignature);
+  if (!nonce || nonce.length < SESSION_NONCE_BYTES || !signature) return { ok: false, reason: "invalid" };
+  const key = await hmacKey(secret);
+  const payload = `${SESSION_VERSION}.${rawExpiresAt}.${rawNonce}`;
+  const valid = await crypto.subtle.verify(
+    "HMAC",
+    key,
+    signature as BufferSource,
+    new TextEncoder().encode(payload),
+  );
+  if (!valid) return { ok: false, reason: "invalid" };
+  // Only the hashed nonce reaches the limiter key; the raw token is never logged or stored.
+  return { ok: true, sessionKey: `support-chat:${await sha256Hex(nonce)}` };
+}
+
+function clientAddress(request: Request): string {
+  return request.headers.get("cf-connecting-ip") ?? "local";
+}
+
+export async function handleSupportChatSessionRequest(
+  request: Request,
+  bindings: SupportChatSessionBindings,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return json({ error: "METHOD_NOT_ALLOWED" }, 405, { allow: "POST" });
+  }
+
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+  }
+
+  if (!hasUsableSessionSecret(bindings.sessionSecret) || !bindings.issueRateLimiter) {
+    return json({ error: "CHAT_SESSION_UNAVAILABLE" }, 503);
+  }
+
+  try {
+    const { success } = await bindings.issueRateLimiter.limit({
+      key: `support-chat-issue:${clientAddress(request)}`,
+    });
+    if (!success) return json({ error: "RATE_LIMITED" }, 429, { "retry-after": "60" });
+  } catch {
+    return json({ error: "CHAT_SESSION_UNAVAILABLE" }, 503);
+  }
+
+  const session = await createSupportChatSessionCapability(bindings.sessionSecret);
+  return json({ capability: session.capability, expiresAt: session.expiresAt });
+}
+
 export async function handleSupportChatRequest(
   request: Request,
   bindings: SupportChatBindings,
@@ -165,14 +303,30 @@ export async function handleSupportChatRequest(
     return json({ error: "REQUEST_TOO_LARGE" }, 413);
   }
 
-  if (!bindings.rateLimiter) {
+  if (!hasUsableSessionSecret(bindings.sessionSecret)) {
+    return json({ error: "CHAT_SESSION_UNAVAILABLE" }, 503);
+  }
+
+  const token = request.headers.get(CAPABILITY_HEADER) ?? "";
+  if (!token) return json({ error: "CAPABILITY_REQUIRED" }, 403);
+  const session = await verifySupportChatSessionCapability(token, bindings.sessionSecret);
+  if (!session.ok) {
+    return json({ error: session.reason === "expired" ? "CAPABILITY_EXPIRED" : "CAPABILITY_INVALID" }, 403);
+  }
+
+  if (!bindings.rateLimiter || !bindings.ipCeilingRateLimiter) {
     return json({ error: "RATE_LIMIT_UNAVAILABLE" }, 503);
   }
 
   try {
-    const actor = request.headers.get("cf-connecting-ip") ?? "local";
-    const { success } = await bindings.rateLimiter.limit({ key: `support-chat:${actor}` });
-    if (!success) return json({ error: "RATE_LIMITED" }, 429, { "retry-after": "60" });
+    const perSession = await bindings.rateLimiter.limit({ key: session.sessionKey });
+    // Normal users consume their own short-session quota; the shared line only
+    // trips the coarse IP ceiling, so one heavy session cannot exhaust others.
+    if (!perSession.success) return json({ error: "RATE_LIMITED" }, 429, { "retry-after": "60" });
+    const ipCeiling = await bindings.ipCeilingRateLimiter.limit({
+      key: `support-chat-ip:${clientAddress(request)}`,
+    });
+    if (!ipCeiling.success) return json({ error: "IP_RATE_LIMITED" }, 429, { "retry-after": "60" });
   } catch {
     return json({ error: "RATE_LIMIT_UNAVAILABLE" }, 503);
   }

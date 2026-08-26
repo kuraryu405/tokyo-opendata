@@ -600,9 +600,18 @@ describe("StayBridge client flow", () => {
 
   it("uses AI to organize a question without sending saved assessment answers", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      reply: "窓口では、滞在について確認したいことを最初に伝えてください。",
-    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/support-chat")) {
+        return new Response(JSON.stringify({
+          reply: "窓口では、滞在について確認したいことを最初に伝えてください。",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ capability: "cap_test", expiresAt: Date.now() + 600_000 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
     vi.stubGlobal("fetch", fetchMock);
     restoreCompleteDemoSession();
     navigation.reset("/ja/roadmap");
@@ -615,7 +624,10 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "送る" }));
 
     expect(await screen.findByText("窓口では、滞在について確認したいことを最初に伝えてください。")).toBeTruthy();
-    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const chatCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/api/support-chat")) as [string, RequestInit];
+    expect(chatCall).toBeTruthy();
+    expect((chatCall[1].headers as Record<string, string>)["x-staybridge-chat-session"]).toBe("cap_test");
+    const [, request] = chatCall;
     expect(JSON.parse(String(request.body))).toEqual({
       locale: "ja",
       messages: [{ role: "user", content: "窓口で何を聞けばいいですか？" }],
@@ -631,7 +643,13 @@ describe("StayBridge client flow", () => {
 
   it("keeps a user-first alternating history on the fifth AI question", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      if (!String(input).endsWith("/api/support-chat")) {
+        return new Response(JSON.stringify({ capability: "cap_test", expiresAt: Date.now() + 600_000 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
       const payload = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
       const question = payload.messages.at(-1)?.content ?? "";
       return new Response(JSON.stringify({ reply: question.replace("質問", "回答") }), {
@@ -651,7 +669,8 @@ describe("StayBridge client flow", () => {
       expect(await screen.findByText(`回答${turn}`)).toBeTruthy();
     }
 
-    const [, fifthRequest] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const chatCalls = fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/support-chat")) as Array<[string, RequestInit]>;
+    const [, fifthRequest] = chatCalls[4];
     const fifthPayload = JSON.parse(String(fifthRequest.body)) as { messages: Array<{ role: string; content: string }> };
     expect(fifthPayload.messages).toHaveLength(7);
     expect(fifthPayload.messages.map(({ role }) => role)).toEqual(["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
