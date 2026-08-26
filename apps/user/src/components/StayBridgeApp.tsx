@@ -273,9 +273,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
-    return generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer }).filter((action) =>
-      action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
-    );
+    const municipality = situation.currentMunicipality;
+    return generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer }).filter((action) => {
+      if (action.sourceIds.length === 0 || !action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId]))) {
+        return false;
+      }
+      // Resource-listing cards must only point at a municipality/category that
+      // actually has coverage, or the CTA lands on an empty Local Action screen
+      // backed by another municipality's Open Data.
+      const destination = getActionCatalogEntry(action.id)?.destination;
+      if (destination?.screen !== "local") return true;
+      if (!municipality || municipality === "Other") return false;
+      return localResources.some((resource) => resource.municipality === municipality && resource.category === destination.filter);
+    });
   }, [assessmentComplete, assessmentDate, publicationToday, situation, stayAnswer]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
