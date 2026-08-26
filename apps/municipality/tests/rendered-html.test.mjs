@@ -63,8 +63,8 @@ test("server-renders the Japanese support-preparation view at the municipality r
   assert.match(html, /相談導線・言語対応・利用条件の確認順/);
   assert.match(html, /次に確認する情報/);
   assert.match(html, /追加で確認する情報/);
-  assert.match(html, /集計範囲とプライバシー/);
-  assert.match(html, /会話本文・個票・国籍・正確な時刻や住所は表示対象に含めません/);
+  assert.match(html, /同意と投稿条件を確認できた任意回答から作成しています/);
+  assert.match(html, /会話本文・個票は含まれません/);
   assert.match(html, /公開情報と匿名集計を使用/);
   assert.match(html, /短期滞在者の地域分布/);
   assert.match(html, /掲載施設は、空き状況・予約状況・受け入れ余力までは示していません/);
