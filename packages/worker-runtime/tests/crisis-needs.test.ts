@@ -60,6 +60,7 @@ test("returns the aggregate at five submissions and suppresses categories below 
   assert.deepEqual(body.data.categories, [{ key: "medical", submissionCount: 5 }]);
   assert.match(database.statements[1]?.query ?? "", /json_each\(situation_submissions\.needs_json\)/);
   assert.match(database.statements[1]?.query ?? "", /COUNT\(DISTINCT situation_submissions\.id\)/);
+  assert.ok(database.statements.every((statement) => /contribution_state\s*=\s*'accepted'/.test(statement.query)));
 });
 
 test("keeps the needs total while withholding small multi-select cells", async () => {
@@ -309,6 +310,7 @@ test("uses fixed columns, a Tokyo-period bind value, and never queries conversat
   await handleCrisisNeedsRequest(request("municipality=13117&period=30d&view=accommodation"), database as unknown as D1Database, { now });
   assert.match(database.statements[0]?.query ?? "", /FROM situation_submissions/);
   assert.match(database.statements[1]?.query ?? "", /SELECT accommodation AS category/);
+  assert.ok(database.statements.every((statement) => /contribution_state\s*=\s*'accepted'/.test(statement.query)));
   assert.deepEqual(database.statements[0]?.values, ["13117", "2026-07-24T15:00:00.000Z"]);
   assert.ok(database.statements.every((statement) => !/conversation/i.test(statement.query)));
 });

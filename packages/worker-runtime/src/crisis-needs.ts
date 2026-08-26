@@ -62,7 +62,7 @@ export type CrisisNeedsOptions = {
   now?: Date;
 };
 
-const coverageNote = "同意済みの任意回答だけを自治体単位で匿名集計しています。期間ごとの件数は5件幅の下限バケットに丸めているため、期間を比較しても小さな増減を正確には確定できません。少数セルや排他的な区分の総数は推測を防ぐため表示を控えています。";
+const coverageNote = "同意と投稿条件を確認できた任意回答だけを自治体単位で匿名集計しています。期間ごとの件数は5件幅の下限バケットに丸めているため、期間を比較しても小さな増減を正確には確定できません。少数セルや排他的な区分の総数は推測を防ぐため表示を控えています。";
 const limitations = [
   "母集団ではなく、人口・不足・優先度・サービス提供能力を示しません。",
   "1〜4件の実在する区分は表示しません。排他的な区分では、推測を防ぐため総数と追加の公開セルも表示しません。回答が0件の区分は抑制セルではありません。",
@@ -102,7 +102,8 @@ export async function handleCrisisNeedsRequest(
     const total = await db.prepare(
       `SELECT COUNT(DISTINCT id) AS submission_count, MAX(created_at) AS last_updated_at
        FROM situation_submissions
-       WHERE municipality_code = ? AND created_at >= ?`,
+       WHERE contribution_state = 'accepted'
+         AND municipality_code = ? AND created_at >= ?`,
     ).bind(municipalityCode, periodStart).first<AggregateTotal>();
 
     const submissionCount = Number(total?.submission_count ?? 0);
@@ -210,7 +211,8 @@ async function queryFullCategories(
       `SELECT json_each.value AS category, COUNT(DISTINCT situation_submissions.id) AS submission_count
        FROM situation_submissions
        CROSS JOIN json_each(situation_submissions.needs_json)
-       WHERE situation_submissions.municipality_code = ? AND situation_submissions.created_at >= ?
+       WHERE situation_submissions.contribution_state = 'accepted'
+         AND situation_submissions.municipality_code = ? AND situation_submissions.created_at >= ?
        GROUP BY json_each.value
        ORDER BY submission_count DESC, category ASC`,
     )
@@ -254,7 +256,8 @@ function categoryQueryFor(view: Exclude<CrisisView, "needs">): string {
   }[view];
   return `SELECT ${column} AS category, COUNT(DISTINCT id) AS submission_count
     FROM situation_submissions
-    WHERE municipality_code = ? AND created_at >= ?
+    WHERE contribution_state = 'accepted'
+      AND municipality_code = ? AND created_at >= ?
     GROUP BY ${column}
     ORDER BY submission_count DESC, category ASC`;
 }

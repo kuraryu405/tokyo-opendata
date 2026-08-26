@@ -8,7 +8,9 @@ describe("public need -> rule -> action -> source coverage", () => {
   it.each(assessmentOptionCodes.needs)("defines a complete roadmap chain for need=%s", (need) => {
     const coverage = selectionCoverage.find((entry) => entry.question === "needs" && entry.code === need);
     expect(coverage, `missing selection coverage for needs=${need}`).toBeDefined();
-    expect(coverage?.use).toBe("rule_input");
+    // 「特になし」is the one honest opt-out; every real need must drive a rule.
+    expect(coverage?.use === "explicit_no_card").toBe(need === "none");
+    if (coverage?.use !== "rule_input") return;
     expect(coverage?.ruleIds.length, `needs=${need} must reference at least one rule`).toBeGreaterThan(0);
 
     for (const ruleId of coverage?.ruleIds ?? []) {

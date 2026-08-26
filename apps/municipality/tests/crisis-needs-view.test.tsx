@@ -18,7 +18,7 @@ const baseData = {
   freshness: "fresh" as const,
   threshold: 5 as const,
   countBucketSize: 5 as const,
-  coverageNote: "同意済みの任意回答だけを自治体単位で匿名集計しています。",
+  coverageNote: "同意と投稿条件を確認できた任意回答だけを自治体単位で匿名集計しています。",
   limitations: [] as string[],
 };
 
@@ -233,5 +233,19 @@ describe("Crisis View suppression rendering", () => {
   it("marks only adapted sources with the municipality changes-made copy", () => {
     expect(getMunicipalityChangesMade("selected_and_normalized")).toBe(municipalityChangesMadeCopy);
     expect(getMunicipalityChangesMade(undefined)).toBeUndefined();
+  });
+
+  it("states that Crisis View excludes contributions that were not accepted", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({
+      ...baseData,
+      view: "needs",
+      categories: [],
+      respondentCount: 5,
+    })));
+
+    render(<CrisisView />);
+
+    expect(screen.getByText("集計対象として確認できた任意回答のみ")).toBeTruthy();
+    expect(screen.getByText(/確認できない回答、会話本文・個票は含まれません/)).toBeTruthy();
   });
 });

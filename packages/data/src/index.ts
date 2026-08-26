@@ -4,6 +4,7 @@ export * from "./adapters/open-data";
 export * from "./adapters/current-data";
 export * from "./adapters/population-cache";
 export * from "./normalized/kita-resources";
+export * from "./kita-facility-source";
 
 import { localResources } from "./normalized/kita-resources";
 import type { LocalResource, LocalResourceCategory } from "./adapters/types";
