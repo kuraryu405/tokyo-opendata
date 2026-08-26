@@ -6,10 +6,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { demoSituation } from "@staybridge/domain/demo";
-import type { VisitPurpose } from "@staybridge/domain/types";
+import type { Situation, VisitPurpose } from "@staybridge/domain/types";
 import { sourceRegistry } from "@staybridge/data";
 import { supportCopy } from "@staybridge/i18n";
 import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client";
+import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
+import { createPendingSituationSubmission } from "../src/consented-persistence";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
 import { getPersistenceCopy } from "../src/persistence-copy";
 
@@ -82,6 +84,15 @@ function restoreCompleteDemoSession() {
     familyAnswers: ["children"],
     answeredSteps: Array.from({ length: 10 }, (_, index) => index),
   }));
+}
+
+const testSubmissionCapability = `cap_${"A".repeat(43)}`;
+
+function capabilityResponse(capability = testSubmissionCapability): Response {
+  return new Response(JSON.stringify({
+    ok: true,
+    data: { capability, expiresAt: "2026-08-24T10:05:00.000Z" },
+  }), { status: 201, headers: { "content-type": "application/json" } });
 }
 
 beforeEach(() => {
@@ -176,24 +187,27 @@ describe("StayBridge client flow", () => {
   it("links from the user landing page to the municipality preparedness view", async () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("http://localhost:3001");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("/crisis");
   });
 
   it("saves only allowlisted Situation fields after separate explicit consent", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_11111111-1111-4111-8111-111111111111", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_11111111-1111-4111-8111-111111111111", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     expect(await screen.findByRole("heading", { name: "削除に必要な情報" })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const request = fetchMock.mock.calls[0];
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
+    const request = fetchMock.mock.calls[1];
     expect(request[0]).toBe("/api/situation-submissions");
     const options = request[1] as RequestInit;
     const body = JSON.parse(String(options.body)) as Record<string, unknown>;
@@ -204,7 +218,11 @@ describe("StayBridge client flow", () => {
     expect(answers).not.toHaveProperty("stayDeadlineKnown");
     expect(answers).not.toHaveProperty("visitPurposeOther");
     expect(String(body.deletionToken)).toHaveLength(43);
-    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_11111111");
+    expect(body.capability).toBe(testSubmissionCapability);
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-situation-credentials") ?? "{}")).toMatchObject({
+      version: 1,
+      id: "sit_11111111-1111-4111-8111-111111111111",
+    });
   });
 
   it("never saves the public demo fixture as support-need input", async () => {
@@ -271,10 +289,12 @@ describe("StayBridge client flow", () => {
   });
 
   it("clears every demo answer before review and enables saving only after a complete real questionnaire", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_77777777-7777-4777-8777-777777777777", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_77777777-7777-4777-8777-777777777777", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -312,8 +332,8 @@ describe("StayBridge client flow", () => {
     expect((saveButton as HTMLButtonElement).disabled).toBe(false);
     await user.click(saveButton);
     await screen.findByRole("heading", { name: "削除に必要な情報" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { answers: { municipalityCode: string } };
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as { answers: { municipalityCode: string } };
     expect(body.answers.municipalityCode).toBe("13104");
   });
 
@@ -330,18 +350,21 @@ describe("StayBridge client flow", () => {
 
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
     expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "子どもの教育について相談する" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
   });
 
   it("deletes a saved Situation record only with its in-memory deletion code", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         data: { id: "sit_22222222-2222-4222-8222-222222222222", created: true },
@@ -357,8 +380,8 @@ describe("StayBridge client flow", () => {
     await user.click(await screen.findByRole("button", { name: "同意して保存" }));
     await user.click(await screen.findByRole("button", { name: "このサーバー記録を削除" }));
     expect(await screen.findByText("サーバー記録を削除しました。")).toBeTruthy();
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/situation-submissions/sit_22222222-2222-4222-8222-222222222222");
-    const headers = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/situation-submissions/sit_22222222-2222-4222-8222-222222222222");
+    const headers = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
     expect(headers.authorization).toMatch(/^Bearer [A-Za-z0-9_-]{43}$/);
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
   });
@@ -366,10 +389,12 @@ describe("StayBridge client flow", () => {
   it("restores deletion credentials across remounts and blocks answer reset until server deletion", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      ok: true,
-      data: { id: "sit_44444444-4444-4444-8444-444444444444", created: true },
-    }), { status: 201, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { id: "sit_44444444-4444-4444-8444-444444444444", created: true },
+      }), { status: 201, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const firstRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -386,11 +411,82 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText(/このタブのsessionStorageにも保持/)).toBeTruthy();
   });
 
-  it("restores pending secrets after an ambiguous response and retries without a duplicate", async () => {
+  it("treats an absent saved-credentials key as unsaved and allows the normal local clear", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByRole("heading", { name: "回答の保存方法を選ぶ" });
+    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
+
+    expect(navigation.path()).toBe("/ja");
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+  });
+
+  it.each([
+    ["malformed JSON", "{"],
+    ["wrong id", JSON.stringify({ version: 1, id: "sit_not-valid", deletionToken: "A".repeat(43) })],
+    ["wrong token", JSON.stringify({ version: 1, id: "sit_55555555-5555-4555-8555-555555555555", deletionToken: "short" })],
+    ["unknown version", JSON.stringify({ version: 2, id: "sit_55555555-5555-4555-8555-555555555555", deletionToken: "A".repeat(43) })],
+  ])("fails closed for %s saved credentials until explicit local-only discard", async (_case, storedCredentials) => {
+    restoreCompleteUserSession();
+    sessionStorage.setItem("staybridge.saved-situation-credentials", storedCredentials);
+    navigation.reset("/ja/check?step=4");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
+    expect(await screen.findByRole("heading", { name: "削除情報を確認できません" })).toBeTruthy();
+    expect(screen.getByText(/サーバー記録が残っている可能性/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(navigation.path()).toBe("/ja/roadmap");
+    await user.click(screen.getByRole("button", { name: "最初からやり直す" }));
+    await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
+    await user.click(screen.getByRole("button", { name: "回答を見直す" }));
+    expect(navigation.path()).toBe("/ja/status");
+    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
+    expect(navigation.path()).toBe("/ja/status");
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBe(storedCredentials);
+
+    await user.click(screen.getByRole("button", { name: "サーバー記録を残して端末データだけ破棄" }));
+    expect(navigation.path()).toBe("/ja");
+    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+  });
+
+  it("preserves a versioned pending retry when corrupt saved credentials are discarded", async () => {
+    restoreCompleteUserSession();
+    const versionedPending = createPendingSituationSubmission(demoSituation);
+    sessionStorage.setItem("staybridge.saved-situation-credentials", "{");
+    sessionStorage.setItem("staybridge.pending-situation-submission", JSON.stringify(versionedPending));
+    navigation.reset("/ja/status");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(await screen.findByRole("heading", { name: "削除情報を確認できません" })).toBeTruthy();
+    expect(screen.getByText(/別の未完了の保存情報も残っています/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "壊れた削除情報だけ破棄" }));
+
+    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual(versionedPending);
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
+    expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "同意して保存" })).toBeTruthy();
+  });
+
+  it.each(["altered answers", "migrated session", "malformed session"] as const)(
+    "restores the initial pending payload after response loss with %s",
+    async (sessionChange) => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse(`cap_${"A".repeat(43)}`))
       .mockRejectedValueOnce(new TypeError("response lost after request"))
+      .mockResolvedValueOnce(capabilityResponse(`cap_${"B".repeat(43)}`))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         data: { id: "sit_33333333-3333-4333-8333-333333333333", created: false },
@@ -403,20 +499,99 @@ describe("StayBridge client flow", () => {
     await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
     const pendingBeforeReload = sessionStorage.getItem("staybridge.pending-situation-submission");
     expect(pendingBeforeReload).toBeTruthy();
-    const firstBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
+    expect(firstBody.capability).toBe(testSubmissionCapability);
+    // The stored snapshot excludes the per-attempt capability entirely.
+    const { capability: _sentCapability, ...firstRequestWithoutCapability } = firstBody;
+    expect(JSON.parse(pendingBeforeReload ?? "null")).toEqual({ version: 1, request: firstRequestWithoutCapability });
+    expect(pendingBeforeReload).not.toContain(demoSituation.nationality);
+    expect(pendingBeforeReload).not.toContain(demoSituation.knownStayDeadline);
+    expect(pendingBeforeReload).not.toContain("nationality");
+    expect(pendingBeforeReload).not.toContain("knownStayDeadline");
+    expect(pendingBeforeReload).not.toContain("stayDeadlineKnown");
+    expect(pendingBeforeReload).not.toContain("capability");
 
     firstRender.unmount();
+    const alteredSituation: Situation = {
+      ...demoSituation,
+      currentMunicipality: "Shinjuku",
+      visitPurpose: "work",
+      nationality: "US",
+      knownStayDeadline: "2030-12-31",
+      needs: ["employment"],
+    };
+    if (sessionChange === "altered answers") {
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({
+        provenance: "user",
+        situation: alteredSituation,
+        stayAnswer: "known",
+        familyAnswers: ["none"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+    } else if (sessionChange === "migrated session") {
+      sessionStorage.setItem("staybridge.session", JSON.stringify({
+        version: 2,
+        situation: alteredSituation,
+        stayAnswer: "known",
+        familyAnswers: ["none"],
+        answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      }));
+    } else {
+      sessionStorage.setItem("staybridge.session", "{malformed");
+    }
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
     await user.click(screen.getByRole("button", { name: "同意して保存" }));
     await screen.findByRole("heading", { name: "削除に必要な情報" });
 
-    const retryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey);
-    expect(retryBody.deletionToken).toBe(firstBody.deletionToken);
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body)) as Record<string, unknown>;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/situation-submission-capabilities");
+    expect(retryBody.capability).not.toBe(firstBody.capability);
+    expect({ ...retryBody, capability: undefined }).toEqual({ ...firstBody, capability: undefined });
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toContain("sit_33333333");
+    },
+  );
+
+  it.each([
+    { idempotencyKey: "legacy_request_key", deletionToken: "A".repeat(43) },
+    { version: 2, request: {} },
+    { version: 1, request: { unexpected: "payload" } },
+    {
+      version: 1,
+      request: {
+        consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
+        idempotencyKey: "request_key_123456",
+        deletionToken: "A".repeat(43),
+        answers: {
+          municipalityCode: "13117",
+          visitPurpose: "tourism",
+          departureWindow: "within_30_days",
+          returnStatus: "difficult",
+          familyAgeGroups: ["6-11"],
+          accommodation: "hotel",
+          needs: ["medical"],
+          japaneseLevel: "beginner",
+          nationality: "MMR",
+        },
+      },
+    },
+  ])("keeps an incompatible pending format without overwriting or sending it: %#", async (pending) => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const storedPending = JSON.stringify(pending);
+    sessionStorage.setItem("staybridge.pending-situation-submission", storedPending);
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    // An unreadable pending value is protected fail-closed: the corrupt-pending
+    // section replaces the normal consent actions until it is explicitly discarded.
+    await screen.findByRole("heading", { name: "未完了の保存情報を確認できません" });
+    expect(screen.queryByRole("button", { name: "同意して保存" })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
   });
 
   it("guards saved records from direct, Back, Home, and demo state-changing routes", async () => {
@@ -431,6 +606,10 @@ describe("StayBridge client flow", () => {
 
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
     expect(await screen.findByText("sit_55555555-5555-4555-8555-555555555555")).toBeTruthy();
+    expect(JSON.parse(sessionStorage.getItem("staybridge.saved-situation-credentials") ?? "{}")).toMatchObject({
+      version: 1,
+      id: "sit_55555555-5555-4555-8555-555555555555",
+    });
 
     navigation.reset("/ja/check?step=0");
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
@@ -446,7 +625,7 @@ describe("StayBridge client flow", () => {
     await waitFor(() => expect(navigation.path()).toBe("/ja/help"));
   });
 
-  it("treats a 404 deletion retry as completion for the locally held credential", async () => {
+  it("treats a canonical deletion 404 retry as completion for the locally held credential", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     sessionStorage.setItem("staybridge.saved-situation-credentials", JSON.stringify({
@@ -455,7 +634,7 @@ describe("StayBridge client flow", () => {
     }));
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       ok: false,
-      error: { code: "NOT_FOUND", message: "not found" },
+      error: { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
     }), { status: 404, headers: { "content-type": "application/json" } })));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -478,11 +657,11 @@ describe("StayBridge client flow", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("uses the configured production municipality URL in the landing link", async () => {
+  it("does not embed a build-time municipality origin in the landing link", async () => {
     vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("https://municipality.staybridge.example");
+    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("/crisis");
   });
 
   it("offers start over after completed answers and returns to the first question", async () => {
@@ -631,15 +810,14 @@ describe("StayBridge client flow", () => {
     expect((input as HTMLTextAreaElement).value).toBe("在留資格について");
   });
 
-  it("does not invent location, nationality, or needs when Help is opened directly", async () => {
+  it("sends unanswered Help visitors to the first question instead of an empty consultation summary", async () => {
     const user = userEvent.setup();
     navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: /相談内容をまとめる/ }));
-
-    expect(screen.getByText("まだ入力された情報はありません。")).toBeTruthy();
-    expect(screen.getByText("まだ確認したいことは選択されていません。")).toBeTruthy();
+    expect(navigation.path()).toBe("/ja/check?step=0");
+    expect(screen.queryByRole("heading", { name: "相談サマリー" })).toBeNull();
     expect(screen.queryByText(/地域: 北区/)).toBeNull();
     expect(screen.queryByText(/国籍・地域: ミャンマー/)).toBeNull();
   });
@@ -735,7 +913,8 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
 
     expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "子どもの教育について相談する" })).toBeTruthy();
+    // The education card stays fail-closed while the school source publishes zero rows.
+    expect(screen.queryByRole("heading", { name: "子どもの教育について相談する" })).toBeNull();
     await waitFor(() => expect(sessionStorage.getItem("staybridge.session")).toContain('"children":[{"ageGroup":"3-5"},{"ageGroup":"6-11"}]'));
 
     navigation.reset("/ja/summary");
@@ -942,6 +1121,7 @@ describe("StayBridge client flow", () => {
       configurable: true,
       value: { writeText: vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error("denied")) },
     });
+    restoreCompleteUserSession();
     navigation.reset("/ja/help");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -1116,12 +1296,12 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("heading", { name: "人に相談する" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
-    const schoolAction = screen.getByRole("heading", { name: "子どもの教育について相談する" }).closest("article");
-    await user.click(within(schoolAction!).getByRole("button", { name: /近くの学校を見る/ }));
-    expect(screen.getByRole("button", { name: "学校・教育", pressed: true })).toBeTruthy();
-    expect(screen.getByText("相談窓口の一覧から、この地域で利用できる支援を確認してください。")).toBeTruthy();
-    expect(screen.queryByText("豊川小学校")).toBeNull();
-    expect(screen.queryByText("おうじキッズクリニック")).toBeNull();
+    // The school card is fail-closed while the school source publishes zero rows.
+    expect(screen.queryByRole("heading", { name: "子どもの教育について相談する" })).toBeNull();
+    const childSupportAction = screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" }).closest("article");
+    await user.click(within(childSupportAction!).getByRole("button", { name: /子どもの居場所を見る/ }));
+    expect(screen.getByRole("button", { name: "子どもの居場所", pressed: true })).toBeTruthy();
+    expect(screen.getByText("赤羽北児童館")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
     const medicalAction = screen.getByRole("heading", { name: "医療を受けられる場所を確認する" }).closest("article");
@@ -1139,7 +1319,7 @@ describe("StayBridge client flow", () => {
       situation: { ...demoSituation, knownStayDeadline: undefined, stayDeadlineKnown: false, familyMembers: { children: [] } },
       stayAnswer: "documents",
       familyAnswers: ["spouse"],
-      answeredSteps: [5, 6],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -1165,7 +1345,7 @@ describe("StayBridge client flow", () => {
     await screen.findByRole("button", { name: "My steps" });
 
     await user.click(screen.getByRole("button", { name: "My steps" }));
-    expect(screen.getByRole("heading", { name: "Ask about your child’s education" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Find local places for your child" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Get help" }));
     await user.click(screen.getByRole("button", { name: /Create consultation summary/ }));
     expect(screen.getByText(/A child is with me · age: 6-11 \/ My spouse is with me/)).toBeTruthy();
@@ -1181,7 +1361,7 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: /ステップへ戻る/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /相談先へ進む/ })).toBeTruthy();
     const resourceCard = screen.getByRole("heading", { name: "おうじキッズクリニック" }).closest("article");
-    expect(within(resourceCard!).getByText("データ更新: 公開日不明")).toBeTruthy();
+    expect(within(resourceCard!).getByText("データ更新: 2024-10-31")).toBeTruthy();
     expect(within(resourceCard!).getByText("取得日: 2026-08-23")).toBeTruthy();
     expect(within(resourceCard!).queryByText(/確認日/)).toBeNull();
     expect(within(resourceCard!).getByText("東京都北区")).toBeTruthy();
@@ -1261,6 +1441,13 @@ describe("StayBridge client flow", () => {
   });
 
   it("re-renders direct back and forward URL changes instead of keeping screen state", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
     const { unmount } = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     navigation.reset("/my/summary");

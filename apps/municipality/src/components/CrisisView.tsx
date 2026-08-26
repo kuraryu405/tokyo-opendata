@@ -3,16 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry, type DataSource } from "@staybridge/data";
 import type { CrisisNeedsData } from "@staybridge/worker-runtime";
+import { userAppRoute } from "../user-url";
 
 export const municipalityChangesMadeCopy = "東京都北区Open DataをStayBridge用に一部選定・正規化しています";
 
 export function getMunicipalityChangesMade(adaptation: DataSource["adaptation"]): string | undefined {
   return adaptation === "selected_and_normalized" ? municipalityChangesMadeCopy : undefined;
 }
-
-const userAppUrl =
-  process.env.NEXT_PUBLIC_USER_APP_URL?.replace(/\/+$/, "") ||
-  "http://localhost:3000";
 
 const checklist = [
   { group: "情報提供", items: ["ミャンマー語・英語で案内できる情報を確認", "最新の在留関連公式情報への導線を確認", "外国人相談窓口への情報共有状況を確認"] },
@@ -64,6 +61,8 @@ type Period = keyof typeof periodLabels;
 type View = keyof typeof viewLabels;
 type NeedsState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; data: CrisisNeedsData };
 
+export const CRISIS_NEEDS_REQUEST_TIMEOUT_MS = 10_000;
+
 function CrisisNeedsPanel() {
   const [period, setPeriod] = useState<Period>("30d");
   const [view, setView] = useState<View>("needs");
@@ -75,26 +74,39 @@ function CrisisNeedsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const timeoutId = window.setTimeout(() => {
+      if (!active) return;
+      controller.abort();
+      setState({ requestKey, value: { kind: "error" } });
+    }, CRISIS_NEEDS_REQUEST_TIMEOUT_MS);
     const params = new URLSearchParams({ municipality: "13117", period, view });
     fetch(`/api/crisis/needs?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as { ok?: boolean; data?: CrisisNeedsData };
         if (!response.ok || !body.ok || !body.data) throw new Error("Crisis needs request failed");
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
         setState({ requestKey, value: { kind: "ready", data: body.data } });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ requestKey, value: { kind: "error" } });
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
+        setState({ requestKey, value: { kind: "error" } });
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
-    <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">任意回答から確認する傾向</h2></div><p>期間と表示軸を選び、相談準備の確認項目を整理します。</p></div>
+    <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">寄せられた任意回答の傾向</h2></div><p>支援準備の検討材料の一つとしてご覧ください。</p></div>
     <div className="crisis-needs-panel">
       <div className="crisis-needs-copy">
-        <span className="card-kicker">同意済み任意回答の匿名集計</span>
-        <p>期間と表示軸ごとの傾向を確認し、各窓口の公開情報と組み合わせて相談準備に使います。</p>
-        <details className="dataset-details"><summary>集計範囲とプライバシー</summary><p>会話本文・個票・国籍・正確な時刻や住所は表示対象に含めません。少数の区分は匿名性の基準に従って非表示にします。</p></details>
+        <span className="card-kicker">集計対象として確認できた任意回答のみ</span>
+        <p>この傾向は、同意と投稿条件を確認できた任意回答から作成しています。確認できない回答、会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
       </div>
       <div className="crisis-needs-controls" aria-label="任意回答の集計条件">
         <label htmlFor={periodId}>対象期間<select id={periodId} value={period} onChange={(event) => setPeriod(event.target.value as Period)}>{Object.entries(periodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -114,12 +126,12 @@ function CrisisNeedsResult({ data }: { data: CrisisNeedsData }) {
     return <div data-testid="crisis-needs-no-data" className="crisis-needs-state"><strong>この期間に表示可能な任意回答はありません</strong><p>未回答を意味するものではなく、母集団や支援状況の推定には使えません。</p><Coverage data={data} /></div>;
   }
   if (data.availability === "below_threshold") {
-    return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>匿名性の基準を満たさないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は表示しません。</p><Coverage data={data} /></div>;
+    return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>件数が少ないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は公開しません。</p><Coverage data={data} /></div>;
   }
   return <div data-testid="crisis-needs-available" className="crisis-needs-available">
-    <div className="crisis-needs-meta"><strong>{typeof data.respondentCount === "number" ? `回答者数 ${data.respondentCount}件以上` : "回答者数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
+    <div className="crisis-needs-meta"><strong>{typeof data.submissionCount === "number" ? `回答件数 ${data.submissionCount}件以上` : "回答件数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
     {data.hasSuppressedCategories && <p className="crisis-needs-note">件数が少ない区分は表示を控えています。</p>}
-    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}件以上</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
+    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.submissionCount}件以上</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
     <Coverage data={data} />
   </div>;
 }
@@ -144,9 +156,9 @@ export function CrisisView() {
 
   return <div className="crisis-shell">
     <header className="crisis-header">
-      <a className="brand" href={userAppUrl}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
+      <a className="brand" href={userAppRoute}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
       <div className="admin-label"><span /> 自治体・支援者向け確認画面</div>
-      <a className="back-to-service" href={userAppUrl}>本人向け画面へ ↗</a>
+      <a className="back-to-service" href={userAppRoute}>本人向け画面へ ↗</a>
     </header>
     <main className="crisis-main">
       <section className="crisis-intro">

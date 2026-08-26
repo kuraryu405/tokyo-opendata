@@ -33,6 +33,19 @@ export type PersistenceCopy = {
   copyCredentials: string;
   credentialsCopied: string;
   credentialsCopyFailed: string;
+  corruptCredentialsTitle: string;
+  corruptCredentialsBody: string;
+  corruptCredentialsDiscardWarning: string;
+  corruptCredentialsPendingWarning: string;
+  discardCorruptLocalData: string;
+  discardOnlyCorruptCredentials: string;
+  pendingCorruptTitle: string;
+  pendingCorruptBody: string;
+  pendingCorruptWarning: string;
+  discardCorruptPending: string;
+  sessionUnreadableTitle: string;
+  sessionUnreadableBody: string;
+  startFreshSession: string;
 };
 
 const copy = {
@@ -69,6 +82,19 @@ const copy = {
     copyCredentials: "記録IDと削除コードをコピー",
     credentialsCopied: "削除情報をコピーしました。",
     credentialsCopyFailed: "コピーできませんでした。表示された記録IDと削除コードを手動で控えてください。",
+    corruptCredentialsTitle: "削除情報を確認できません",
+    corruptCredentialsBody: "この端末の削除情報を読み取れません。サーバー記録が残っている可能性があるため、回答の変更・やり直し・端末データ消去を停止しました。",
+    corruptCredentialsDiscardWarning: "この画面からは削除情報を復元できません。下の操作はサーバー記録を削除せず、この端末の回答と保存済み削除情報だけを破棄します。",
+    corruptCredentialsPendingWarning: "別の未完了の保存情報も残っています。下の操作は壊れた削除情報だけを破棄し、回答と未完了の保存情報は保持します。",
+    discardCorruptLocalData: "サーバー記録を残して端末データだけ破棄",
+    discardOnlyCorruptCredentials: "壊れた削除情報だけ破棄",
+    pendingCorruptTitle: "未完了の保存情報を確認できません",
+    pendingCorruptBody: "前回の保存がサーバーで完了している可能性があります。この端末では未完了の保存情報を読み取れないため、回答の変更・やり直し・端末データ消去を停止しました。",
+    pendingCorruptWarning: "下の操作は未完了の保存情報を破棄します。破棄すると、サーバーに保存済みの可能性がある記録を削除できなくなります。この操作は取り消せません。",
+    discardCorruptPending: "読み取れない保存情報を破棄",
+    sessionUnreadableTitle: "前回の回答を読み取れません",
+    sessionUnreadableBody: "この端末に残っていた回答データが、壊れているか現在の版より新しい形式のため読み取れません。誤って上書きしないよう、回答の保存とデモの読み込みを停止しています。「新しく始める」を選ぶと、このデータを破棄して最初からやり直せます。",
+    startFreshSession: "新しく始める",
   },
   en: {
     situationTitle: "Choose how to save your answers",
@@ -103,6 +129,19 @@ const copy = {
     copyCredentials: "Copy record ID and deletion code",
     credentialsCopied: "Deletion information copied.",
     credentialsCopyFailed: "We could not copy it. Manually save the record ID and deletion code shown above.",
+    corruptCredentialsTitle: "Deletion information cannot be verified",
+    corruptCredentialsBody: "This device cannot read the deletion information. Answer changes, restarts, and device-data clearing are blocked because the server record may remain.",
+    corruptCredentialsDiscardWarning: "This screen cannot recover the deletion information. The action below does not delete the server record; it only discards this device's answers and saved deletion information.",
+    corruptCredentialsPendingWarning: "Another unfinished save is still recoverable. The action below discards only the corrupt deletion information and keeps the answers and pending save information.",
+    discardCorruptLocalData: "Discard device data and leave server record",
+    discardOnlyCorruptCredentials: "Discard only corrupt deletion information",
+    pendingCorruptTitle: "Unfinished save information cannot be verified",
+    pendingCorruptBody: "A previous save may have reached the server. This device cannot read the unfinished save information, so answer changes, restarts, and device-data clearing are blocked.",
+    pendingCorruptWarning: "The action below discards the unfinished save information. After discarding it, a record that may already exist on the server can no longer be deleted. This cannot be undone.",
+    discardCorruptPending: "Discard unreadable save information",
+    sessionUnreadableTitle: "We cannot read your previous answers",
+    sessionUnreadableBody: "The answer data left on this device is corrupt or written in a newer format than this version can read. To avoid overwriting it, saving answers and loading the demo are paused. Choose \u201cStart fresh\u201d to discard this data and begin again.",
+    startFreshSession: "Start fresh",
   },
   my: {
     situationTitle: "အဖြေသိမ်းဆည်းနည်းကို ရွေးရန်",
@@ -137,6 +176,19 @@ const copy = {
     copyCredentials: "record ID နှင့် deletion code ကို ကူးယူရန်",
     credentialsCopied: "ဖျက်ရန်အချက်အလက်ကို ကူးယူပြီးပါပြီ။",
     credentialsCopyFailed: "မကူးယူနိုင်ပါ။ အပေါ်တွင်ပြထားသော record ID နှင့် deletion code ကို ကိုယ်တိုင်သိမ်းပါ။",
+    corruptCredentialsTitle: "ဖျက်ရန်အချက်အလက်ကို အတည်မပြုနိုင်ပါ",
+    corruptCredentialsBody: "ဤစက်ရှိ ဖျက်ရန်အချက်အလက်ကို ဖတ်မရပါ။ server record ကျန်နေနိုင်သောကြောင့် အဖြေပြင်ခြင်း၊ အစမှပြန်စခြင်းနှင့် စက်ဒေတာဖျက်ခြင်းကို ပိတ်ထားပါသည်။",
+    corruptCredentialsDiscardWarning: "ဤမျက်နှာပြင်မှ ဖျက်ရန်အချက်အလက်ကို ပြန်မရနိုင်ပါ။ အောက်ပါလုပ်ဆောင်ချက်သည် server record ကို မဖျက်ဘဲ ဤစက်ရှိ အဖြေနှင့် သိမ်းထားသောဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ပါမည်။",
+    corruptCredentialsPendingWarning: "မပြီးသေးသော အခြားသိမ်းဆည်းမှုအချက်အလက်ကို ပြန်လည်အသုံးပြုနိုင်ပါသေးသည်။ အောက်ပါလုပ်ဆောင်ချက်သည် ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ပြီး အဖြေနှင့် မပြီးသေးသောသိမ်းဆည်းမှုအချက်အလက်ကို ထိန်းထားပါမည်။",
+    discardCorruptLocalData: "server record ကိုထားပြီး စက်ဒေတာသာ စွန့်ပစ်ရန်",
+    discardOnlyCorruptCredentials: "ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ရန်",
+    pendingCorruptTitle: "မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို အတည်မပြုနိုင်ပါ",
+    pendingCorruptBody: "ယခင်သိမ်းဆည်းမှုသည် server တွင် ပြီးဆုံးနေနိုင်ပါသည်။ ဤစက်တွင် မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို ဖတ်မရသောကြောင့် အဖြေပြင်ခြင်း၊ အစမှပြန်စခြင်းနှင့် စက်ဒေတာဖျက်ခြင်းကို ပိတ်ထားပါသည်။",
+    pendingCorruptWarning: "အောက်ပါလုပ်ဆောင်ချက်သည် မပြီးသေးသော သိမ်းဆည်းမှုအချက်အလက်ကို စွန့်ပစ်ပါမည်။ စွန့်ပစ်ပြီးပါက server တွင် ရှိနေနိုင်သော record ကို မဖျက်နိုင်တော့ပါ။ ဤလုပ်ဆောင်ချက်ကို ပြန်ရုံးလို့မရပါ။",
+    discardCorruptPending: "ဖတ်မရသော သိမ်းဆည်းမှုအချက်အလက်ကို စွန့်ပစ်ရန်",
+    sessionUnreadableTitle: "ယခင်အဖြေများကို ဖတ်မရပါ",
+    sessionUnreadableBody: "ဤစက်တွင်ကျန်ရှိသော အဖြေဒေတာသည် ပျက်နေသဖြင့် သို့မဟုတ် လက်ရှိဗားဇင်းထက် အသစ်ဖြစ်နေသဖြင့် ဖတ်မရပါ။ မှားယွင်းစွာရေးထပ်ခြင်းမရှိစေရန် အဖြေသိမ်းခြင်းနှင့် နမူနာဖွင့်ခြင်းကို ရပ်ထားပါသည်။ \u201cအသစ်မှစတင်ရန်\u201d ကို ရွေးပါက ဤဒေတာကို စွန့်ပစ်ပြီး အစမှပြန်စနိုင်ပါသည်။",
+    startFreshSession: "အသစ်မှစတင်ရန်",
   },
 } satisfies Record<Locale, PersistenceCopy>;
 

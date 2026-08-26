@@ -19,6 +19,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "確認先: パスポート、在留カード、その他の公式書類と専門相談窓口。確認項目: 滞在期限と期限前に必要な手続。",
     CHECK_CHILD_LOCAL_SUPPORT: "確認先: 候補の施設。確認項目: 受け入れ年齢、定員、利用時間。",
     CHECK_LIVING_COST_SUPPORT: "確認先: 公式の生活相談窓口。確認項目: 利用できる相談、支援内容、対象条件。",
+    FIND_DAILY_LIFE_GUIDANCE: "確認先: 公式の生活案内ページまたはお住まいの区の窓口。確認項目: 必要な手続、対象条件、持ち物。",
   },
   en: {
     CHECK_STAY_STATUS: "Where to confirm: the Immigration Services Agency or a specialist support desk. What to ask: your current period of stay and the next required steps.",
@@ -31,6 +32,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "Where to confirm: your passport, residence card, or other official documents and a specialist desk. What to ask: your stay deadline and any steps required before it.",
     CHECK_CHILD_LOCAL_SUPPORT: "Where to confirm: the facility. What to ask: accepted ages, capacity, and opening hours.",
     CHECK_LIVING_COST_SUPPORT: "Where to confirm: an official living-support desk. What to ask: available consultations, support, and eligibility.",
+    FIND_DAILY_LIFE_GUIDANCE: "Where to confirm: official daily-life guidance pages or your local ward office. What to ask: required procedures, eligibility, and what to bring.",
   },
   my: {
     CHECK_STAY_STATUS: "အတည်ပြုရန်နေရာ: လူဝင်မှုကြီးကြပ်ရေးဌာန သို့မဟုတ် ကျွမ်းကျင်တိုင်ပင်ရေးဌာန။ မေးရန်: လက်ရှိနေနိုင်သည့်ကာလနှင့် နောက်လုပ်ငန်းစဉ်။",
@@ -43,6 +45,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "အတည်ပြုရန်နေရာ: နိုင်ငံကူးလက်မှတ်၊ နေထိုင်ခွင့်ကတ် သို့မဟုတ် အခြားတရားဝင်စာရွက်စာတမ်းများနှင့် ကျွမ်းကျင်တိုင်ပင်ရေးဌာန။ မေးရန်: နောက်ဆုံးရက်နှင့် ထိုရက်မတိုင်မီ လိုအပ်သည့်လုပ်ငန်းစဉ်။",
     CHECK_CHILD_LOCAL_SUPPORT: "အတည်ပြုရန်နေရာ: သက်ဆိုင်ရာနေရာ။ မေးရန်: လက်ခံအသက်၊ လူအရေအတွက်နှင့် ဖွင့်ချိန်။",
     CHECK_LIVING_COST_SUPPORT: "အတည်ပြုရန်နေရာ: တရားဝင်နေထိုင်မှုအကူအညီဌာန။ မေးရန်: တိုင်ပင်နိုင်သည့်အကြောင်းအရာ၊ အကူအညီနှင့် သတ်မှတ်ချက်များ။",
+    FIND_DAILY_LIFE_GUIDANCE: "အတည်ပြုရန်နေရာ: တရားဝင်နေ့စဉ်ဘဝလမ်းညွှန် သို့မဟုတ် မြို့နယ်ရုံး။ မေးရန်: လိုအပ်သည့်လုပ်ထုံးလုပ်နည်း၊ စံနည်းနှင့် ယူဆောင်ရမည့်အရာများ။",
   },
 } as const satisfies ActionNoticeCatalog;
 
