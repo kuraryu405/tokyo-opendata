@@ -69,13 +69,13 @@ production は `production` と production ID で一時設定を作りますが�
 - `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除し、一致する記録がない場合は404 `DELETION_NOT_FOUND`を返す。
 - `GET /api/conversations`を含む一覧・取得APIは提供しない。
 
-### 自治体 Crisis View の匿名集計API
+### 自治体 Crisis View の集計API
 
 自治体Workerだけが `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` を提供する。利用可能な値は固定で、`municipality=13117`、`period=7d|30d|90d`、`view=needs|return_status|departure_window|accommodation` の各1個だけである。未知・重複・欠落・自由形式のquery parameterとGET以外は拒否する。利用者Worker、個票取得API、会話の一覧・集計APIは追加しない。
 
-対象は同意済みかつ`contribution_state = 'accepted'`の`situation_submissions`だけである。migration前の既存行と検証不能な行は`quarantined`のまま集計しない。`needs`は`json_each(needs_json)`と`COUNT(DISTINCT situation_submissions.id)`で集計し、他viewはコード内固定のenum columnを使う。request文字列はSQLへ補間しない。全体またはカテゴリが5件未満なら正確な数を返さず、`availability`を`no_data` / `below_threshold` / `available`で返す。`available`の場合だけ回答者数と、個人時刻を避けた最終集計日のJST日付を返す。D1障害は内部情報なしの503 `SERVICE_UNAVAILABLE`である。
+対象は同意済みかつ`contribution_state = 'accepted'`の`situation_submissions`だけである。migration前の既存行と検証不能な行は`quarantined`のまま集計しない。`needs`は`json_each(needs_json)`と`COUNT(DISTINCT situation_submissions.id)`で集計し、他viewはコード内固定のenum columnを使う。request文字列はSQLへ補間しない。全体またはカテゴリが5件未満なら正確な数を返さず、`availability`を`no_data` / `below_threshold` / `available`で返す。`available`の場合だけ回答件数（`COUNT(DISTINCT id)`のsubmission単位）と、個人時刻を避けた最終集計日のJST日付を返す。閾値は人物単位の匿名化保証ではなく、少数データをそのまま公開しないための最小公開件数である。D1障害は内部情報なしの503 `SERVICE_UNAVAILABLE`である。
 
-期間は`Asia/Tokyo`の暦日で、当日を含む直近7/30/90日の00:00 JSTから現在までとする。D1にはUTC ISO 8601 textで保存されるため、query bindはそのJST境界と同じUTC時刻を使う。最終集計日が直近7東京暦日にない場合は`freshness=stale`、それ以外は`fresh`である。レスポンスは常にthreshold、coverage note、非推定のlimitationsを含める。匿名集計は任意回答の観測範囲に限られ、人口・不足・優先度・サービス提供能力を示さない。
+期間は`Asia/Tokyo`の暦日で、当日を含む直近7/30/90日の00:00 JSTから現在までとする。D1にはUTC ISO 8601 textで保存されるため、query bindはそのJST境界と同じUTC時刻を使う。最終集計日が直近7東京暦日にない場合は`freshness=stale`、それ以外は`fresh`である。レスポンスは常にthreshold、coverage note、非推定のlimitationsを含める。集計は任意回答の観測範囲に限られ、人口・不足・優先度・サービス提供能力を示さない。
 
 Capability発行とSituation POSTはいずれも明示的な同一originと1分20回のCloudflare Rate Limitを必須とします。POSTは`application/json`、48,000 byte以下で、署名済みversion・期限・nonce・scopeを検証します。accepted行のINSERTとcapability消費は同じD1 batchで行い、同じidempotency key・payload・削除コードの応答欠落再試行だけは消費済み・期限切れ後も既存結果を返します。別idempotency keyでの再利用は拒否し、発行を繰り返してもSituation POST側の20回/分上限は増えません。検証・rate limit・D1処理に失敗したrequestは保存せず、意図的に隔離する既存行だけを`quarantined`として扱います。会話のserver-internal境界は20件以下・1件2,000文字以下、role交互、source ID 12件以下に制限します。Rate Limitのkeyには接続IPを利用しますがD1へ保存せず、Cookieや恒久ユーザーIDを発行しません。
 
