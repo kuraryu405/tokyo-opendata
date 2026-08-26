@@ -114,7 +114,7 @@ function CrisisNeedsPanel() {
       </div>
       <div className="crisis-needs-result" aria-live="polite">
         {displayedState.kind === "loading" && <output className="crisis-needs-loading">匿名集計を確認しています…</output>}
-        {displayedState.kind === "error" && <div data-testid="crisis-needs-error" className="crisis-needs-state crisis-needs-error"><strong>現在、匿名集計を表示できません</strong><p>個別の情報は表示せず、時間をおいて再度確認してください。</p></div>}
+        {displayedState.kind === "error" && <div data-testid="crisis-needs-error" className="crisis-needs-state crisis-needs-error"><strong>現在、匿名集計を表示できません</strong><p>各窓口の公開情報を確認し、時間をおいて再度お試しください。</p></div>}
         {displayedState.kind === "ready" && <CrisisNeedsResult data={displayedState.data} />}
       </div>
     </div>
@@ -162,17 +162,17 @@ export function CrisisView() {
     </header>
     <main className="crisis-main">
       <section className="crisis-intro">
-        <div><span className="section-label">支援準備の参考情報</span><h1>支援準備のために、<br />次に確認すること。</h1><p>人口統計と地域資源を「対応の断定」ではなく、確認を始めるための手がかりとして整理します。</p></div>
-        <div className="country-picker" aria-label="集計の対象"><span>今回集計している対象</span><strong>北区 × Myanmar · ミャンマー</strong><small>他の自治体・国籍は未対応です</small></div>
+        <div><span className="section-label">支援準備の参考情報</span><h1>支援準備のために、<br />次に確認すること。</h1><p>人口統計と地域資源を使い、相談導線・言語対応・利用条件の確認順を整理します。</p></div>
+        <div className="country-picker" aria-label="集計の対象"><span>今回集計している対象</span><strong>北区 × Myanmar · ミャンマー</strong><small>集計範囲: 北区・ミャンマー国籍／地域</small></div>
       </section>
 
-      <div className="coverage-banner"><span className="coverage-icon">i</span><div><strong>人口データについて</strong><p>この人口データは住民基本台帳に基づく居住者の参考データです。短期滞在者など、すべての滞在者を表すものではありません。</p></div><a href={populationSource.url} target="_blank" rel="noreferrer">出典を見る ↗</a></div>
+      <div className="coverage-banner"><span className="coverage-icon">i</span><div><strong>この数値で確認できる範囲</strong><p>住民基本台帳に基づく居住者の参考人数です。短期滞在者、相談件数、窓口の対応余力は別の情報で確認します。</p></div><a href={populationSource.url} target="_blank" rel="noreferrer">出典を見る ↗</a></div>
 
       <section className="crisis-section" data-testid="crisis-official-data">
-        <div className="crisis-section-title"><span>01</span><div><h2>確認を始める地域</h2></div><p>人口数は参考値です。判断には各窓口の公開情報を併用してください。</p></div>
+        <div className="crisis-section-title"><span>01</span><div><h2>確認を始める地域</h2></div><p>相談窓口・言語対応の情報と組み合わせて支援準備に使います。</p></div>
         <div className="impact-grid">
           <article className="population-card"><div className="population-top"><span>北区</span><span className="verified-chip">住民基本台帳</span></div><strong>{profile.residentPopulation?.toLocaleString("ja-JP")}</strong><p>ミャンマー国籍・地域の住民（比較率ではなく参考人数）</p><footer><span>基準日 {populationSource.dataUpdatedAt}</span><a href={populationSource.url} target="_blank" rel="noreferrer">東京都統計 ↗</a></footer></article>
-          <article className="interpretation-card"><h3>「支援が不足」とは断定できません</h3><p>この数字から分かるのは、平時の居住者分布の一部です。短期滞在者、実際の相談件数、窓口の処理能力は含まれません。</p><div className="confirm-row"><span>→</span><strong>地域の相談導線と言語対応を確認する</strong></div></article>
+          <article className="interpretation-card"><h3>次に確認する情報</h3><p>平時の居住者分布に加えて、短期滞在者の状況、実際の相談件数、窓口の処理能力を確認します。</p><div className="confirm-row"><span>→</span><strong>地域の相談導線と言語対応を確認する</strong></div></article>
         </div>
       </section>
 
@@ -186,15 +186,15 @@ export function CrisisView() {
       <CrisisNeedsPanel />
 
       <section className="crisis-section">
-        <div className="crisis-section-title"><span>04</span><div><h2>公開情報だけでは分からないこと</h2></div><p>不足を隠さず、次に整備すべき情報として扱います。</p></div>
+        <div className="crisis-section-title"><span>04</span><div><h2>追加で確認する情報</h2></div><p>担当窓口と確認方法を決めるための情報ギャップです。</p></div>
         <div className="gap-grid">{dataGaps.map((gap, index) => { const copy = gapCopy[gap.id] || gap; return <article key={gap.id}><span className="gap-index">確認項目 0{index + 1}</span><h3>{gapLabels[gap.id] || gap.title}</h3><p>{copy.description}</p><footer>{copy.whyItMatters}</footer></article>; })}</div>
       </section>
 
       <section className="crisis-section checklist-section">
-        <div className="crisis-section-title"><span>05</span><div><h2>対応検討項目</h2></div><p>自動判断や命令ではなく、担当者が確認するための一覧です。</p></div>
+        <div className="crisis-section-title"><span>05</span><div><h2>対応検討項目</h2></div><p>担当者が上から順に確認し、対応方針を決める一覧です。</p></div>
         <div className="checklist-grid">{checklist.map((group) => <article key={group.group}><h3>{group.group}</h3><ul>{group.items.map((item) => <li key={item}>{item}</li>)}</ul></article>)}</div>
       </section>
     </main>
-    <footer className="crisis-footer"><span>StayBridge Tokyo · 支援準備の確認画面</span><span>個人が特定される情報は表示しません</span></footer>
+    <footer className="crisis-footer"><span>StayBridge Tokyo · 支援準備の確認画面</span><span>公開情報と匿名集計を使用</span></footer>
   </div>;
 }

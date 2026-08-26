@@ -90,13 +90,13 @@ describe("Situation persistence decline preference", () => {
     const user = userEvent.setup();
     const firstRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(await screen.findByRole("button", { name: "保存しない" }));
-    expect(screen.getByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeTruthy();
+    await user.click(await screen.findByRole("button", { name: "このタブだけで続ける" }));
+    expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
     expect(sessionStorage.getItem("staybridge.situation-persistence-preference")).toBe("declined");
 
     firstRender.unmount();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
-    expect(await screen.findByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeTruthy();
+    expect(await screen.findByText("このタブだけで案内を続けます。")).toBeTruthy();
     expect(screen.queryByText("Situation Check の回答を保存に同意していません") ?? null).toBeNull();
     expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
   });
@@ -105,8 +105,8 @@ describe("Situation persistence decline preference", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(await screen.findByRole("button", { name: "保存しない" }));
-    await screen.findByText("保存しない設定です。主要な案内はそのまま利用できます。");
+    await user.click(await screen.findByRole("button", { name: "このタブだけで続ける" }));
+    await screen.findByText("このタブだけで案内を続けます。");
 
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     await user.click(screen.getByRole("button", { name: "最初からやり直す" }));
@@ -125,8 +125,8 @@ describe("Situation persistence decline preference", () => {
     const pendingBefore = sessionStorage.getItem("staybridge.pending-situation-submission");
     expect(pendingBefore).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "保存しない" }));
-    expect(screen.getByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
+    expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
 
     firstRender.unmount();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -134,6 +134,6 @@ describe("Situation persistence decline preference", () => {
     expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "{}")).toEqual(
       JSON.parse(pendingBefore ?? "{}"),
     );
-    expect(screen.queryByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeNull();
+    expect(screen.queryByText("このタブだけで案内を続けます。")).toBeNull();
   });
 });

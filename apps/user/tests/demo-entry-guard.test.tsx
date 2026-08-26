@@ -116,7 +116,7 @@ describe("Landing demo entry protection", () => {
     navigation.reset("/ja/status");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(await screen.findByRole("button", { name: "保存しない" }));
+    await user.click(await screen.findByRole("button", { name: "このタブだけで続ける" }));
     await user.click(screen.getByRole("button", { name: getUserMessages("ja").ui.homeLabel }));
 
     expect(screen.queryByRole("button", { name: demoLabel })).toBeNull();

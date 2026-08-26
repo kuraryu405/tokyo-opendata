@@ -105,7 +105,7 @@ describe("No-current-need assessment option", () => {
     expect(screen.getByText("ほとんど話せない")).toBeTruthy();
     await user.click(screen.getByRole("radio", { name: "十分話せる" }));
     await user.click(screen.getByRole("button", { name: /状況を整理する/ }));
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     // No cards may be invented from an explicit no-current-need answer.

@@ -13,6 +13,7 @@ import { getUserMessages, selectableUserLocales } from "@staybridge/i18n/client"
 import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
 import { createPendingSituationSubmission } from "../src/consented-persistence";
 import { createInitialSituation, serializeStoredSession } from "../src/components/staybridge-session";
+import { getPersistenceCopy } from "../src/persistence-copy";
 
 const navigation = vi.hoisted(() => {
   let currentPath = "/ja/";
@@ -129,11 +130,40 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: messages.ui.navHelp }));
     expect(screen.getByRole("heading", { name: messages.ui.helpTitle })).toBeTruthy();
+    const legalDetails = screen.getByText(messages.ui.notDecision).closest("details") as HTMLDetailsElement;
+    expect(legalDetails.open).toBe(false);
+    expect(screen.getByText(messages.ui.emergency)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: new RegExp(messages.ui.summary) }));
     expect(screen.getByRole("heading", { name: messages.ui.summaryTitle })).toBeTruthy();
-    expect(screen.queryByText(messages.ui.summaryIntro)).toBeNull();
+    expect(screen.getByText(messages.ui.summaryIntro)).toBeTruthy();
     expect(screen.queryByText(messages.ui.notDecision)).toBeNull();
     expect(screen.queryByText(messages.ui.helpIntro)).toBeNull();
+  });
+
+  it.each(selectableUserLocales)("keeps primary actions before supplemental persistence details in %s", async (locale) => {
+    const messages = getUserMessages(locale);
+    const persistence = getPersistenceCopy(locale);
+    navigation.reset(`/${locale}/status`);
+    restoreCompleteUserSession();
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const nextStep = await screen.findByRole("button", { name: new RegExp(messages.ui.seeRoadmap) });
+    const situationConsent = screen.getByRole("heading", { name: persistence.situationTitle });
+    expect(nextStep.compareDocumentPosition(situationConsent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const situationDetails = screen.getByText(persistence.detailsTitle).closest("details") as HTMLDetailsElement;
+    expect(situationDetails.open).toBe(false);
+    expect(within(situationDetails).getByText(persistence.retention)).toBeTruthy();
+    expect(screen.getByText(persistence.warning)).toBeTruthy();
+
+    await user.click(nextStep);
+    const firstAction = screen.getAllByRole("heading", { level: 3 })[0];
+    const conversationConsent = screen.getByRole("heading", { name: persistence.conversationTitle });
+    expect(firstAction.compareDocumentPosition(conversationConsent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const conversationDetails = screen.getByText(persistence.detailsTitle).closest("details") as HTMLDetailsElement;
+    expect(conversationDetails.open).toBe(false);
+    expect(within(conversationDetails).getByText(persistence.deletion)).toBeTruthy();
+    expect(screen.getByText(persistence.warning)).toBeTruthy();
   });
 
   it.each(selectableUserLocales)("returns from every primary destination to the %s locale home", async (locale) => {
@@ -249,13 +279,13 @@ describe("StayBridge client flow", () => {
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(navigation.path()).toBe("/ja/status");
     expect((screen.getByRole("button", { name: "同意して保存" }) as HTMLButtonElement).disabled).toBe(true);
 
     navigation.reset("/ja/check?step=0");
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
-    expect(screen.getByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
   });
 
   it("clears every demo answer before review and enables saving only after a complete real questionnaire", async () => {
@@ -325,8 +355,8 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "保存しない" }));
-    expect(screen.getByText("保存しない設定です。主要な案内はそのまま利用できます。")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
+    expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
   });
 
@@ -387,7 +417,7 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await screen.findByRole("heading", { name: "Situation Check の回答を保存" });
+    await screen.findByRole("heading", { name: "回答の保存方法を選ぶ" });
     await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
 
     expect(navigation.path()).toBe("/ja");
@@ -623,7 +653,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(await screen.findByRole("button", { name: "会話保存への同意を設定" }));
-    expect(screen.getByText(/AI相談はまだ開始されておらず、会話も保存されていません/)).toBeTruthy();
+    expect(screen.getByText(/現在は同意設定の確認のみです/)).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -796,7 +826,7 @@ describe("StayBridge client flow", () => {
     navigation.reset("/ja/local");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByText(/支援情報はまだ掲載がありません/)).toBeTruthy();
+    expect(screen.getByText(/相談窓口の一覧から、この地域で利用できる支援を確認/)).toBeTruthy();
     expect(screen.queryByText("豊川小学校")).toBeNull();
   });
 
@@ -959,7 +989,7 @@ describe("StayBridge client flow", () => {
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(screen.queryByText("まだ入力された情報はありません。")).toBeNull();
   });
 
@@ -968,7 +998,7 @@ describe("StayBridge client flow", () => {
     restoreCompleteDemoSession();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     const resultPage = document.querySelector(".result-page");
     expect(resultPage).not.toBeNull();
     expect(resultPage!.textContent).not.toContain("✓");
@@ -990,7 +1020,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "auto" });
   });
 
@@ -1001,7 +1031,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: "smooth" });
   });
 
@@ -1014,7 +1044,7 @@ describe("StayBridge client flow", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "主要ナビゲーション" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "わたしのステップ" })).toBeTruthy();
 
@@ -1055,7 +1085,7 @@ describe("StayBridge client flow", () => {
     navigation.reset("/ja/status");
 
     await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
-    expect(screen.queryByText("今の状況を整理しました")).toBeNull();
+    expect(screen.queryByText("回答を確認して、次の行動へ進みましょう")).toBeNull();
     expect(screen.getByText("質問 01")).toBeTruthy();
   });
 
@@ -1064,7 +1094,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
-    expect(screen.queryByText("今の状況を整理しました")).toBeNull();
+    expect(screen.queryByText("回答を確認して、次の行動へ進みましょう")).toBeNull();
     expect(screen.getByText("質問 01")).toBeTruthy();
   });
 
@@ -1114,7 +1144,7 @@ describe("StayBridge client flow", () => {
     expect(workLinks.some((link) => (link.textContent ?? "").includes("Bureau of Labor"))).toBe(true);
     expect(within(workAction!).queryByText(/確認日:/)).toBeNull();
     expect(within(workAction!).queryByText(/LICENSE:/)).toBeNull();
-    expect(within(workAction!).getByText(/在留資格によって異なります/)).toBeTruthy();
+    expect(within(workAction!).getByText(/確認先:.*確認項目:.*就労の範囲/)).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "相談先" }));
     expect(await screen.findByRole("heading", { name: "関連する公式情報", level: 2 })).toBeTruthy();
