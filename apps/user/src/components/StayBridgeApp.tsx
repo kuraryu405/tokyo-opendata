@@ -195,10 +195,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     && (screen === "landing" || screen === "check");
   const demoSituationRouteGuard = storageReady
     && isDemoSituation
-    && (screen === "check" || (screen === "roadmap" && !assessmentComplete));
+    && (screen === "check" || ((screen === "roadmap" || screen === "summary") && !assessmentComplete));
   const routeNeedsAssessmentGuard = storageReady && !hasProtectedSituationSubmission && !isDemoSituation && (
     (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
-    ((screen === "status" || screen === "roadmap") && !assessmentComplete)
+    ((screen === "status" || screen === "roadmap" || screen === "summary") && !assessmentComplete)
   );
 
   useEffect(() => {
