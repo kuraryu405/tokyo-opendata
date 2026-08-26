@@ -7,7 +7,8 @@ import { demoSituation } from "@staybridge/domain/demo";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { serializeStoredSession } from "../src/components/staybridge-session";
 import {
-  createSituationSubmissionSecrets,
+  createPendingSituationSubmission,
+  PENDING_SITUATION_SUBMISSION_VERSION,
   saveSituationSubmission,
   SITUATION_SUBMISSION_TIMEOUT_MS,
 } from "../src/consented-persistence";
@@ -99,6 +100,25 @@ function headersThenHangUntilAborted(_input: RequestInfo | URL, init?: RequestIn
   return Promise.resolve(new Response(stream, { status: 201, headers: { "content-type": "application/json" } }));
 }
 
+function capabilityResponse(capability = `cap_${"A".repeat(43)}`): Response {
+  return new Response(JSON.stringify({
+    ok: true,
+    data: { capability, expiresAt: "2026-08-24T10:05:00.000Z" },
+  }), { status: 201, headers: { "content-type": "application/json" } });
+}
+
+const CAPABILITY_URL = "/api/situation-submission-capabilities";
+
+/** Resolves the capability issue request; everything else goes to the fallback mock. */
+function routeCapabilityIssue(
+  fallback: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
+  return (input, init) => {
+    if (String(input) === CAPABILITY_URL) return Promise.resolve(capabilityResponse());
+    return fallback(input, init);
+  };
+}
+
 function savedCredentialsValue(): string {
   return JSON.stringify({
     id: "sit_22222222-2222-4222-8222-222222222222",
@@ -139,36 +159,43 @@ describe("Situation persistence request timeouts", () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
       .mockImplementationOnce(hangUntilAborted)
+      .mockResolvedValueOnce(capabilityResponse(`cap_${"B".repeat(43)}`))
       .mockResolvedValue(new Response(JSON.stringify({
         ok: true,
-        data: { id: "sit_11111111-1111-4111-8111-111111111111", created: true },
-      }), { status: 201, headers: { "content-type": "application/json" } }));
+        data: { id: "sit_11111111-1111-4111-8111-111111111111", created: false },
+      }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     fireEvent.click(screen.getByRole("button", { name: "同意して保存" }));
+    await flushSubmissions();
     expect(screen.getByText("保存しています…")).toBeTruthy();
-    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(fetchMock.mock.calls[0][0]).toBe(CAPABILITY_URL);
+    expect(fetchMock.mock.calls[1][1]?.signal).toBeInstanceOf(AbortSignal);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
     });
     expect(screen.getByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
-    const firstSignal = fetchMock.mock.calls[0][1]?.signal as AbortSignal | undefined;
-    expect(firstSignal?.aborted).toBe(true);
+    const saveSignal = fetchMock.mock.calls[1][1]?.signal as AbortSignal | undefined;
+    expect(saveSignal?.aborted).toBe(true);
 
-    const firstBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { idempotencyKey: string; deletionToken: string };
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
+    const { capability: _sentCapability, ...requestWithoutCapability } = firstBody;
+    // The stored snapshot keeps the exact original request (capability excluded).
     expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "{}")).toEqual({
-      idempotencyKey: firstBody.idempotencyKey,
-      deletionToken: firstBody.deletionToken,
+      version: PENDING_SITUATION_SUBMISSION_VERSION,
+      request: requestWithoutCapability,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "同意して保存" }));
     await flushSubmissions();
     expect(screen.getByRole("heading", { name: "削除に必要な情報" })).toBeTruthy();
-    const retryBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as { idempotencyKey: string };
-    expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey);
+    expect(fetchMock.mock.calls[2][0]).toBe(CAPABILITY_URL);
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[3][1]?.body)) as { idempotencyKey: string };
+    expect(retryBody.idempotencyKey).toBe(firstBody.idempotencyKey as string);
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
   });
 
@@ -176,7 +203,7 @@ describe("Situation persistence request timeouts", () => {
     vi.useFakeTimers();
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(headersThenHangUntilAborted);
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(routeCapabilityIssue(headersThenHangUntilAborted));
     vi.stubGlobal("fetch", fetchMock);
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -188,7 +215,7 @@ describe("Situation persistence request timeouts", () => {
       await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
     });
 
-    const streamingSignal = fetchMock.mock.calls[0][1]?.signal;
+    const streamingSignal = fetchMock.mock.calls[1][1]?.signal;
     expect(streamingSignal).toBeInstanceOf(AbortSignal);
     expect((streamingSignal as AbortSignal).aborted).toBe(true);
     expect(screen.getByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
@@ -196,12 +223,12 @@ describe("Situation persistence request timeouts", () => {
   });
 
   it("allows an owning request controller to abort a submission", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(hangUntilAborted);
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(routeCapabilityIssue(hangUntilAborted));
     vi.stubGlobal("fetch", fetchMock);
     const ownerController = new AbortController();
-    const request = saveSituationSubmission(demoSituation, createSituationSubmissionSecrets(), ownerController.signal);
-    await Promise.resolve();
-    const internalSignal = fetchMock.mock.calls[0][1]?.signal as AbortSignal;
+    const request = saveSituationSubmission(createPendingSituationSubmission(demoSituation), ownerController.signal);
+    await flushSubmissions();
+    const internalSignal = fetchMock.mock.calls[1][1]?.signal as AbortSignal;
 
     ownerController.abort();
 
@@ -212,12 +239,13 @@ describe("Situation persistence request timeouts", () => {
   it("aborts the app-owned save request when StayBridgeApp unmounts", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(hangUntilAborted);
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(routeCapabilityIssue(hangUntilAborted));
     vi.stubGlobal("fetch", fetchMock);
     const view = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     fireEvent.click(screen.getByRole("button", { name: "同意して保存" }));
-    const signal = fetchMock.mock.calls[0][1]?.signal;
+    await flushSubmissions();
+    const signal = fetchMock.mock.calls[1][1]?.signal;
     expect(signal).toBeInstanceOf(AbortSignal);
 
     view.unmount();

@@ -102,11 +102,11 @@ function CrisisNeedsPanel() {
   }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
-    <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">匿名化した任意回答の傾向</h2></div><p>支援準備の検討材料の一つとしてご覧ください。</p></div>
+    <div className="crisis-section-title"><span>03</span><div><h2 id="crisis-needs-title">寄せられた任意回答の傾向</h2></div><p>支援準備の検討材料の一つとしてご覧ください。</p></div>
     <div className="crisis-needs-panel">
       <div className="crisis-needs-copy">
-        <span className="card-kicker">同意済みの任意回答のみ</span>
-        <p>この傾向は同意済みの任意回答から作成しています。会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
+        <span className="card-kicker">集計対象として確認できた任意回答のみ</span>
+        <p>この傾向は、同意と投稿条件を確認できた任意回答から作成しています。確認できない回答、会話本文・個票は含まれません。最新の状況は、各窓口の公開情報も併せてご確認ください。</p>
       </div>
       <div className="crisis-needs-controls" aria-label="任意回答の集計条件">
         <label htmlFor={periodId}>対象期間<select id={periodId} value={period} onChange={(event) => setPeriod(event.target.value as Period)}>{Object.entries(periodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -126,12 +126,12 @@ function CrisisNeedsResult({ data }: { data: CrisisNeedsData }) {
     return <div data-testid="crisis-needs-no-data" className="crisis-needs-state"><strong>この期間に表示可能な任意回答はありません</strong><p>未回答を意味するものではなく、母集団や支援状況の推定には使えません。</p><Coverage data={data} /></div>;
   }
   if (data.availability === "below_threshold") {
-    return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>匿名性の基準を満たさないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は表示しません。</p><Coverage data={data} /></div>;
+    return <div data-testid="crisis-needs-below-threshold" className="crisis-needs-state"><strong>件数が少ないため表示しません</strong><p>{data.threshold}件未満の全体数・カテゴリ数は公開しません。</p><Coverage data={data} /></div>;
   }
   return <div data-testid="crisis-needs-available" className="crisis-needs-available">
-    <div className="crisis-needs-meta"><strong>{typeof data.respondentCount === "number" ? `回答者数 ${data.respondentCount}件以上` : "回答者数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
+    <div className="crisis-needs-meta"><strong>{typeof data.submissionCount === "number" ? `回答件数 ${data.submissionCount}件以上` : "回答件数 —"}</strong><span>最終集計日 {data.lastUpdatedAt ?? "非表示"}</span>{data.freshness === "stale" && <span data-testid="crisis-needs-stale" className="stale-chip">更新から7日超過</span>}</div>
     {data.hasSuppressedCategories && <p className="crisis-needs-note">件数が少ない区分は表示を控えています。</p>}
-    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.respondentCount}件以上</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
+    {data.categories.length > 0 ? <ul className="crisis-needs-categories">{data.categories.map((category) => <li key={category.key}><span>{categoryLabels[category.key] ?? category.key}</span><strong>{category.submissionCount}件以上</strong></li>)}</ul> : <p className="crisis-needs-empty">表示できる区分はありません。件数が少ない数値は表示を控えています。</p>}
     <Coverage data={data} />
   </div>;
 }
