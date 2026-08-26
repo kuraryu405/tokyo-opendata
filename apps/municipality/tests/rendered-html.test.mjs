@@ -7,7 +7,7 @@ async function loadBuiltWorker(key) {
   return (await import(workerUrl.href)).default;
 }
 
-async function render(pathname = "/", origin = "http://localhost", database, withEnvironment = true) {
+async function render(pathname = "/", origin = "http://localhost", database, withEnvironment = true, counterpartAppUrl) {
   const requestOrigin = new URL(origin);
   const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 
@@ -27,6 +27,7 @@ async function render(pathname = "/", origin = "http://localhost", database, wit
           throw new Error("Image binding should not be used during page rendering");
         },
       },
+      ...(counterpartAppUrl ? { COUNTERPART_APP_URL: counterpartAppUrl } : {}),
     } : undefined,
     { waitUntil() {}, passThroughOnException() {} },
   );
@@ -80,7 +81,27 @@ test("server-renders the Japanese support-preparation view at the municipality r
   assert.match(html, /crisis-official-data/);
   assert.match(html, /crisis-voluntary-needs/);
   assert.match(html, /匿名集計を確認しています/);
-  assert.match(html, /href="http:\/\/localhost:3000"/i);
+  assert.match(html, /href="\/user"/i);
+});
+
+test("uses each request origin for metadata and its runtime user-app redirect", async () => {
+  for (const [municipalityOrigin, userOrigin] of [
+    ["https://staybridge-municipality-staging.example", "https://staybridge-user-staging.example"],
+    ["https://staybridge-municipality-production.example", "https://staybridge-user-production.example"],
+  ]) {
+    const pageResponse = await render("/", municipalityOrigin);
+    assert.equal(pageResponse.status, 200);
+    const html = await pageResponse.text();
+    assert.match(html, new RegExp(`property="og:image" content="${municipalityOrigin.replaceAll(".", "\\.").replaceAll("/", "\\/")}\\/og\\.png"`, "i"));
+
+    const redirectResponse = await render("/user", municipalityOrigin, undefined, true, userOrigin);
+    assert.equal(redirectResponse.status, 307);
+    assert.equal(redirectResponse.headers.get("location"), `${userOrigin}/`);
+  }
+
+  const missingConfiguration = await render("/user", "https://staybridge-municipality-staging.example");
+  assert.equal(missingConfiguration.status, 503);
+  assert.equal(missingConfiguration.headers.get("cache-control"), "no-store");
 });
 
 test("serves the built municipality Worker crisis aggregate route before app rendering", async () => {

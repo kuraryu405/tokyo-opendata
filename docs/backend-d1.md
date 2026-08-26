@@ -132,3 +132,5 @@ curl -fsS "${MUNICIPALITY_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY
 学校sourceのdriftによりdry-runが503の場合は実同期を行わず、公開GETが `origin=d1` の既存activeまたは `origin=bundled` の8件cacheを返すことを確認します。source修正後にdry-runが12件で成功した場合だけ実同期と両Worker GETを確認します。import履歴は `SELECT started_at, finished_at, status, version_hash, row_count, error_code FROM open_data_import_runs ORDER BY started_at DESC LIMIT 5` で確認できます。production migration、seed、secret登録、初回手動同期は既存のproduction変更承認手順に従います。
 
 staging/production の smoke test は liveness と readiness の両方を確認します。readiness が 503 の場合は、対象環境の Worker Binding が `STAYBRIDGE_DB` か、DB ID が対象環境のものか、D1 が利用可能かを Cloudflare 側で確認します。レスポンスに内部詳細を追加して調査しないでください。
+
+binding・var・secretの環境別の一覧と出所(wrangler.jsonc / CD注入 / 手動登録)は [ランタイム設定リファレンス](runtime-configuration.md) にまとめる。

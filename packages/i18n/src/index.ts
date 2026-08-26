@@ -60,6 +60,7 @@ export const reasonCodes = [
   "MEDICAL_NEED",
   "EMPLOYMENT_NEED",
   "LIVING_COST_NEED",
+  "DAILY_LIFE_NEED",
   "LANGUAGE_BARRIER",
   "KNOWN_STAY_DEADLINE",
   "STAY_DEADLINE_PASSED",
@@ -88,6 +89,7 @@ export const needKeys = [
   "medical",
   "language",
   "daily_life",
+  "none",
 ] as const;
 
 export type NeedKey = (typeof needKeys)[number];

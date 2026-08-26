@@ -17,6 +17,19 @@ function requireWorkerName(value, key) {
   return worker;
 }
 
+function requireUniqueWorkerNames(workers) {
+  const ownersByWorker = new Map();
+  for (const [key, worker] of Object.entries(workers)) {
+    const existingKey = ownersByWorker.get(worker);
+    if (existingKey) {
+      throw new Error(
+        `Worker names must be unique: ${existingKey} and ${key} both resolve to ${worker}`,
+      );
+    }
+    ownersByWorker.set(worker, key);
+  }
+}
+
 export function resolveReleaseConfig({ workersSubdomain, workers = {} }) {
   const subdomain = workersSubdomain?.trim() ?? "";
   if (!subdomain) {
@@ -28,9 +41,13 @@ export function resolveReleaseConfig({ workersSubdomain, workers = {} }) {
     throw new Error(`Invalid CLOUDFLARE_WORKERS_SUBDOMAIN: ${subdomain}`);
   }
 
+  const resolvedWorkers = Object.fromEntries(
+    Object.keys(DEFAULT_WORKERS).map((key) => [key, requireWorkerName(workers[key], key)]),
+  );
+  requireUniqueWorkerNames(resolvedWorkers);
+
   const result = {};
-  for (const key of Object.keys(DEFAULT_WORKERS)) {
-    const worker = requireWorkerName(workers[key], key);
+  for (const [key, worker] of Object.entries(resolvedWorkers)) {
     result[key] = worker;
     result[key.replace(/_worker$/, "_verification_url")] =
       `https://${worker}.${subdomain}.workers.dev`;

@@ -12,11 +12,17 @@ const deletionTokenPattern = /^[A-Za-z0-9_-]{43}$/u;
 
 export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-credentials";
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
+export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
 
 export type SavedRecordCredentials = {
   id: string;
   deletionToken: string;
 };
+
+export type SavedSituationCredentialsParseResult =
+  | { status: "absent" }
+  | { status: "valid"; credentials: SavedRecordCredentials; needsMigration: boolean }
+  | { status: "corrupt" };
 
 export type SituationSubmissionSecrets = {
   idempotencyKey: string;
@@ -50,13 +56,39 @@ export function parseSituationSubmissionSecrets(value: string | null): Situation
   }
 }
 
-export function parseSavedSituationCredentials(value: string | null): SavedRecordCredentials | null {
-  if (!value) return null;
+export function parseSavedSituationCredentials(value: string | null): SavedSituationCredentialsParseResult {
+  if (value === null) return { status: "absent" };
   try {
-    return parseSavedSituationCredentialsValue(JSON.parse(value));
+    const parsed = JSON.parse(value) as unknown;
+    const legacyCredentials = parseSavedSituationCredentialsValue(parsed);
+    if (legacyCredentials) {
+      return { status: "valid", credentials: legacyCredentials, needsMigration: true };
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { status: "corrupt" };
+    const stored = parsed as Record<string, unknown>;
+    if (
+      Object.keys(stored).length !== 3
+      || stored.version !== SAVED_SITUATION_CREDENTIALS_VERSION
+    ) return { status: "corrupt" };
+    const credentials = parseSavedSituationCredentialsValue({
+      id: stored.id,
+      deletionToken: stored.deletionToken,
+    });
+    return credentials
+      ? { status: "valid", credentials, needsMigration: false }
+      : { status: "corrupt" };
   } catch {
-    return null;
+    return { status: "corrupt" };
   }
+}
+
+export function serializeSavedSituationCredentials(credentials: SavedRecordCredentials): string {
+  const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
+  if (!validatedCredentials) throw new Error("INVALID_SAVED_SITUATION_CREDENTIALS");
+  return JSON.stringify({
+    version: SAVED_SITUATION_CREDENTIALS_VERSION,
+    ...validatedCredentials,
+  });
 }
 
 export async function saveSituationSubmission(

@@ -11,9 +11,11 @@ import {
   type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
+import { createMunicipalityAppRedirect, municipalityAppRoute } from "../src/municipality-url";
 
 interface Env extends PersistenceEnv {
   AI?: SupportChatAi;
+  COUNTERPART_APP_URL?: string;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
   ASSETS: Fetcher;
   PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
@@ -40,6 +42,10 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === municipalityAppRoute) {
+      return createMunicipalityAppRedirect(env?.COUNTERPART_APP_URL, request.url);
+    }
 
     if (url.pathname === "/api/support-chat") {
       return handleSupportChatRequest(request, {

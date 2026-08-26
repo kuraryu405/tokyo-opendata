@@ -28,8 +28,8 @@ The workflow permission and secret boundaries are:
 | Assign PR author and reviewers | `contents: read`, `issues: write`, `pull-requests: write` | None | Uses `pull_request_target`; never checks out or executes pull-request code. |
 | Recognize contributors | `contents: read` | `CONTRIBUTOR_AUTOMATION_TOKEN` | Runs only after a non-bot pull request is merged and opens a reviewable follow-up pull request. |
 | Release Workers | `actions: read`, `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Runs only after successful CI on `main`, detects release scope, and passes deployment secrets only to the reusable deployment jobs. |
-| Deploy one Worker | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Builds once, promotes the verified artifact through staging and production, and rolls back failed production health checks. |
-| External E2E | Inherited from Release Workers | None | Runs only after the affected production deployments succeed; it cannot roll back a healthy release. |
+| Deploy one Worker phase | `contents: read` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Builds each app once for staging, reuses that artifact for gated production promotion, and recovers failed production health checks. |
+| External E2E | Inherited from Release Workers | None | Runs against the coherent staging pair and must pass before any affected production Worker is promoted. |
 
 ## Pull request assignment and review requests
 
@@ -61,28 +61,45 @@ After a successful push CI on `main`, CI records the push event's exact
 downloads that artifact from the successful CI run and compares the complete
 push range, including pushes that contain more than one commit:
 
-- a change under `apps/user/` releases only the user Worker;
-- a change under `apps/municipality/` releases only the municipality Worker;
+- a change under `apps/user/` promotes only the user Worker to production;
+- a change under `apps/municipality/` promotes only the municipality Worker to production;
 - a shared package, root file, workflow, or documentation change releases both.
 
-For each affected app, the reusable workflow builds once and uploads
+Whenever either app is affected, both apps are built from the same release SHA,
+deployed to staging, and tested as one cross-app release candidate. Each
+staging-phase reusable job builds once without a public environment URL and uploads
 `staybridge-<service>-<full SHA>` as an Actions artifact. The tarball includes
 the generated `dist/server/wrangler.json`, `dist/client`, and the Sites metadata
-under `dist/.openai`. Staging and production download the same tarball and check
-its SHA-256 before use.
+under `dist/.openai`. After external acceptance succeeds, only the apps detected
+as affected are promoted. Their production-phase jobs download the same tarball
+from the release run and check its SHA-256 before use.
 
-Wrangler 4.92.0 uploads a tagged Worker Version, deploys it to 100% traffic,
+Wrangler 4.92.0 uploads a tagged Worker Version with the target environment's
+`COUNTERPART_APP_URL`, deploys it to 100% traffic,
 and applies the `workers.dev` trigger. The workflow injects only the target
-environment's D1 ID into the verified artifact configuration; it does not run a
-migration. Staging `/healthz` must report the target service and commit SHA and
-`/readyz` must confirm the D1 Binding before production starts. Production does
-the same. If production liveness or readiness fails, the workflow rolls back to
+environment's D1 ID into the verified artifact configuration and does not run a
+migration. Public metadata is derived from the incoming request origin. The
+browser-facing `/crisis` and `/user` links stay origin-relative until the Worker
+resolves them through the injected counterpart URL, so staging links stay in
+staging and production links stay in production while both use the same build
+artifact. Both staging `/healthz` endpoints must report the target service and
+commit SHA and both `/readyz` endpoints must confirm the D1 Binding before
+external Playwright starts. No production promotion job can start unless that
+cross-app acceptance job succeeds. Production performs the same bounded liveness
+and readiness checks. If production liveness or readiness fails, the workflow rolls back to
 the version that was active before release when one exists, verifies that
-version is active, and fails.
+version is active, verifies its liveness/readiness again, and fails. Automatic
+promotion refuses to start when a production Worker has no prior rollback
+version. The first production deployment is therefore an explicit operator
+bootstrap performed only after staging acceptance has been reviewed; this
+prevents the automated path from activating an initial revision it cannot roll
+back.
 There is no pull-request preview or custom-domain setup in this pipeline.
 
-Production releases are serialized per service and a running release is never
-cancelled by a newer commit.
+The complete staging-to-production release is serialized across revisions, so a
+newer staging deployment cannot replace the targets while an older revision's
+external acceptance is still running. A running release is never cancelled by a
+newer commit.
 
 ## Repository configuration
 
@@ -120,11 +137,13 @@ separate operator procedures documented in
 
 自治体Workerの `OPEN_DATA_SYNC_SECRET` はrequired Worker secretとしてstaging/productionへ別々に登録する。値はrepository secretやbuild artifactへ入れない。Open Data migration後は認証付きdry-runが既存12 identityを全件検証した場合だけ実同期し、両Workerの公開GETをstaging確認する。Cron自動同期はIssue #61の対象外である。
 
-The reusable workflow receives the app directory, Worker names, GitHub
-Environment names, verification URLs, and revision as non-secret inputs. The
-build uses production URLs for canonical metadata and cross-application links
-so that the exact same artifact can be promoted through staging. Staging
-therefore tests production-link configuration as part of the release candidate.
+The reusable workflow receives an explicit staging or production phase, the app directory, Worker names, GitHub
+Environment names, the staging and production site/counterpart URL matrix, and
+the revision as non-secret inputs. It rejects identical staging/production URLs
+and injects the appropriate counterpart URL only while uploading each Worker
+Version. No staging or production origin is embedded during the one-time build.
+This makes a staging browser acceptance journey remain entirely on staging
+origins without weakening exact-artifact promotion.
 
 ### main branch protection
 
@@ -154,17 +173,19 @@ protected `main`; pull-request or fork code can never reach production.
 
 ## External Playwright contract
 
-External E2E dispatch is a post-production gate. It is not started after CI or
-staging. A failed external suite marks the release workflow failed for
-visibility, but cannot trigger the Worker rollback path after production health
-has succeeded.
+External E2E is the production-promotion gate. The release always deploys both
+apps from the exact CI revision to staging, verifies their health/readiness, and
+then runs the external suite against the two staging origins. A failed suite
+ends the release before either affected production Worker is touched. This makes
+the rollback unit for a cross-app acceptance failure the whole candidate: there
+is nothing to roll back in production.
 
 The release calls the public reusable workflow
 `kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml` at its
 pinned `main` revision directly. It passes:
 
 - `target_commit`: the exact application revision;
-- `user_url` and `municipality_url`: the production targets;
+- `user_url` and `municipality_url`: the coherent staging targets;
 - `evidence_mode`: whether to capture the optional evidence journeys.
 
 The reusable job remains part of the release run, so its result is visible
@@ -177,6 +198,12 @@ The receiving `acceptance.yml` accepts the same values through
 `workflow_call`. It may keep `workflow_dispatch` and `repository_dispatch` for
 operator reruns and backwards compatibility; those paths are separate from the
 automated release contract.
+
+The promotion matrix is explicit: a user-only change stages both apps and then
+promotes only user; a municipality-only change stages both and promotes only
+municipality; a shared change stages and promotes both. The unchanged staging
+counterpart is intentionally refreshed to the same SHA so cross-app navigation
+is tested without mixing revisions.
 
 ## Local verification without deployment
 
