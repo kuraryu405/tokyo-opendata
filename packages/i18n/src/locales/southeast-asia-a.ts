@@ -41,7 +41,7 @@ export const viMessages = {
     ["Bạn có biết mình có thể ở Nhật Bản trong bao lâu không?", "Bạn vẫn có thể tiếp tục ngay cả khi không biết tên tình trạng cư trú.", [["known", "Tôi biết"], ["unknown", "Tôi không biết"], ["documents", "Tôi muốn kiểm tra giấy tờ"]]],
     ["Có người thân nào đang ở cùng bạn tại Nhật Bản không?", "Nếu có trẻ em đi cùng, hãy chọn cả độ tuổi của trẻ.", [["none", "Không"], ["children", "Có trẻ em đi cùng"], ["spouse", "Vợ/chồng tôi đi cùng"], ["other", "Có người thân khác đi cùng"]]],
     ["Hiện bạn đang ở đâu?", "Chúng tôi không hỏi vị trí chính xác.", [["hotel", "Khách sạn hoặc chỗ ở"], ["family_or_friend", "Nhà người thân hoặc bạn bè"], ["rental", "Nhà thuê"], ["temporary_facility", "Cơ sở tạm thời"], ["unstable", "Tôi lo về nơi có thể ở"], ["prefer_not_to_say", "Không muốn trả lời"]]],
-    ["Hiện bạn đang lo lắng về điều gì?", "Chọn tất cả mục phù hợp.", [["stay", "Tôi có thể ở lại bao lâu"], ["consultation", "Nơi để hỏi hỗ trợ"], ["accommodation", "Chỗ ở"], ["living_cost", "Chi phí sinh hoạt"], ["employment", "Việc làm"], ["education", "Trường học và giáo dục"], ["childcare", "Cuộc sống hằng ngày của con tôi"], ["medical", "Chăm sóc y tế"], ["daily_life", "Cuộc sống hằng ngày"], ["language", "Tiếng Nhật"]]],
+    ["Hiện bạn đang lo lắng về điều gì?", "Chọn tất cả mục phù hợp.", [["stay", "Tôi có thể ở lại bao lâu"], ["consultation", "Nơi để hỏi hỗ trợ"], ["accommodation", "Chỗ ở"], ["living_cost", "Chi phí sinh hoạt"], ["employment", "Việc làm"], ["education", "Trường học và giáo dục"], ["childcare", "Cuộc sống hằng ngày của con tôi"], ["medical", "Chăm sóc y tế"], ["daily_life", "Cuộc sống hằng ngày"], ["language", "Tiếng Nhật"], ["none", "Không có mục nào"]]],
     ["Bạn có thể nói tiếng Nhật đến mức nào?", "Điều này giúp chúng tôi sắp xếp hỗ trợ ngôn ngữ khi tư vấn.", [["none", "Hầu như không nói được"], ["beginner", "Nói được một chút"], ["daily", "Có thể giao tiếp hằng ngày"], ["advanced", "Có thể nói tốt"]]],
   ],
   actions: {
@@ -52,7 +52,7 @@ export const viMessages = {
     CHECK_MEDICAL_OPTIONS: { title: "Kiểm tra nơi có thể nhận chăm sóc y tế", desc: "Hãy kiểm tra trước các cơ sở y tế địa phương để biết nơi có thể hỏi khi cần.", cta: "Xem cơ sở y tế gần đây" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "Kiểm tra điều kiện được làm việc trước", desc: "Trước khi tìm việc, hãy xác nhận với cơ quan chính thức liệu tình trạng hiện tại có cho phép bạn làm việc không.", cta: "Xem nơi tư vấn chính thức" },
     FIND_LANGUAGE_SUPPORT: { title: "Kiểm tra hỗ trợ thông dịch và tiếng Nhật dễ hiểu", desc: "Hãy kiểm tra hỗ trợ ngôn ngữ có thể dùng để truyền đạt chính xác điều bạn cần tư vấn.", cta: "Xem nơi tư vấn" },
-    CHECK_BEFORE_STAY_DEADLINE: { title: "Kiểm tra giấy tờ và lịch tư vấn trước hạn", desc: "Trước ngày hạn bạn đã nhập, hãy sắp xếp thời điểm kiểm tra giấy tờ và liên hệ cơ quan chính thức.", cta: "Xem nơi tư vấn chính thức" },
+    CHECK_BEFORE_STAY_DEADLINE: { title: "Kiểm tra giấy tờ và lịch tư vấn trước hạn", desc: "Trước ngày hạn bạn đã nhập, hãy sắp xếp thời điểm kiểm tra giấy tờ và liên hệ cơ quan chính thức.", cta: "Xem nơi tư vấn chính thức" }, FIND_DAILY_LIFE_GUIDANCE: { title: "Xem hướng dẫn đời sống chính thức", desc: "Dùng hướng dẫn sinh hoạt chính thức để sắp xếp thủ tục và thông tin hằng ngày khi sống ở Tokyo.", cta: "Xem hướng dẫn chính thức" },
     CHECK_CHILD_LOCAL_SUPPORT: { title: "Kiểm tra nguồn lực địa phương có thể dùng cùng trẻ", desc: "Hãy kiểm tra các cơ sở công cộng và nguồn lực địa phương nơi trẻ có thể ở an tâm.", cta: "Xem không gian cho trẻ" },
     CHECK_LIVING_COST_SUPPORT: { title: "Tư vấn về chi phí sinh hoạt trước mắt", desc: "Hãy xác nhận riêng với nơi tư vấn chính thức xem có tư vấn hoặc hỗ trợ nào bạn có thể sử dụng không.", cta: "Xem nơi tư vấn" },
   },
@@ -68,12 +68,12 @@ export const viMessages = {
     CHILDCARE_NEED: "Hướng dẫn này được hiển thị vì bạn ở cùng trẻ nhỏ và đã chọn cần hỗ trợ cho đời sống của trẻ.",
     MEDICAL_NEED: "Hướng dẫn này được hiển thị vì bạn đã chọn chăm sóc y tế là một mối lo hiện tại.",
     EMPLOYMENT_NEED: "Hướng dẫn kiểm tra điều kiện làm việc trước được hiển thị vì bạn đã chọn việc làm hoặc chi phí sinh hoạt.",
-    LIVING_COST_NEED: "Nơi tư vấn chính thức được hiển thị vì bạn đã chọn chi phí sinh hoạt trước mắt là một mối lo.",
+    LIVING_COST_NEED: "Nơi tư vấn chính thức được hiển thị vì bạn đã chọn chi phí sinh hoạt trước mắt là một mối lo.", DAILY_LIFE_NEED: "Bạn chọn gặp khó khăn trong sinh hoạt hằng ngày nên hiển thị hướng dẫn đời sống chính thức.",
     LANGUAGE_BARRIER: "Hướng dẫn này được hiển thị vì hỗ trợ ngôn ngữ có thể hữu ích khi bạn trao đổi với nơi tư vấn chính thức.",
     KNOWN_STAY_DEADLINE: "Hướng dẫn này được hiển thị vì bạn đã nhập hạn lưu trú, để bạn có thể xác nhận với cơ quan chính thức trước ngày đó.",
     STAY_DEADLINE_PASSED: "Hướng dẫn liên hệ ngay với cơ quan chính thức được hiển thị vì hạn lưu trú bạn đã nhập đã qua.",
   },
-  needs: { stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
+  needs: { none: "Không có mục nào", stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
 } as const satisfies UserMessages;
 
 export const thMessages = {
@@ -117,7 +117,7 @@ export const thMessages = {
     ["คุณทราบหรือไม่ว่าคุณสามารถอยู่ในญี่ปุ่นได้นานเท่าใด?", "คุณทำต่อได้แม้ไม่ทราบชื่อสถานะการพำนัก.", [["known", "ฉันทราบ"], ["unknown", "ฉันไม่ทราบ"], ["documents", "ฉันต้องการตรวจสอบเอกสาร"]]],
     ["มีสมาชิกครอบครัวอยู่กับคุณในญี่ปุ่นหรือไม่?", "หากมีเด็กอยู่ด้วย โปรดเลือกอายุของเด็กด้วย.", [["none", "ไม่มี"], ["children", "มีเด็กอยู่ด้วย"], ["spouse", "คู่สมรสอยู่ด้วย"], ["other", "มีสมาชิกครอบครัวคนอื่นอยู่ด้วย"]]],
     ["ขณะนี้คุณพักอยู่ที่ใด?", "เราไม่ถามตำแหน่งที่แน่นอน.", [["hotel", "โรงแรมหรือที่พัก"], ["family_or_friend", "บ้านครอบครัวหรือเพื่อน"], ["rental", "บ้านเช่า"], ["temporary_facility", "สถานที่ชั่วคราว"], ["unstable", "ฉันกังวลว่าจะพักที่ไหนได้"], ["prefer_not_to_say", "ไม่ต้องการตอบ"]]],
-    ["ขณะนี้คุณกังวลเรื่องใด?", "เลือกได้ทุกข้อที่ตรงกับคุณ.", [["stay", "ฉันจะอยู่ได้อีกนานเท่าใด"], ["consultation", "จะขอความช่วยเหลือได้ที่ไหน"], ["accommodation", "ที่พัก"], ["living_cost", "ค่าใช้จ่ายในการดำรงชีวิต"], ["employment", "งาน"], ["education", "โรงเรียนและการศึกษา"], ["childcare", "ชีวิตประจำวันของลูก"], ["medical", "การรักษาพยาบาล"], ["daily_life", "ชีวิตประจำวัน"], ["language", "ภาษาญี่ปุ่น"]]],
+    ["ขณะนี้คุณกังวลเรื่องใด?", "เลือกได้ทุกข้อที่ตรงกับคุณ.", [["stay", "ฉันจะอยู่ได้อีกนานเท่าใด"], ["consultation", "จะขอความช่วยเหลือได้ที่ไหน"], ["accommodation", "ที่พัก"], ["living_cost", "ค่าใช้จ่ายในการดำรงชีวิต"], ["employment", "งาน"], ["education", "โรงเรียนและการศึกษา"], ["childcare", "ชีวิตประจำวันของลูก"], ["medical", "การรักษาพยาบาล"], ["daily_life", "ชีวิตประจำวัน"], ["language", "ภาษาญี่ปุ่น"], ["none", "ไม่มี"]]],
     ["คุณพูดภาษาญี่ปุ่นได้มากน้อยเพียงใด?", "ข้อมูลนี้ช่วยให้เราจัดการสนับสนุนด้านภาษาเมื่อปรึกษา.", [["none", "แทบพูดไม่ได้"], ["beginner", "พูดได้เล็กน้อย"], ["daily", "สนทนาในชีวิตประจำวันได้"], ["advanced", "พูดได้ดี"]]],
   ],
   actions: {
@@ -128,7 +128,7 @@ export const thMessages = {
     CHECK_MEDICAL_OPTIONS: { title: "ตรวจสอบสถานที่ที่สามารถรับการรักษาพยาบาล", desc: "ตรวจสอบสถานพยาบาลในพื้นที่ล่วงหน้าเพื่อให้ทราบว่าควรสอบถามที่ใดเมื่อจำเป็น.", cta: "ดูสถานพยาบาลใกล้เคียง" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "ตรวจสอบเงื่อนไขการทำงานก่อน", desc: "ก่อนหางาน โปรดยืนยันกับหน่วยงานทางการว่าสถานะปัจจุบันของคุณอนุญาตให้ทำงานหรือไม่.", cta: "ดูจุดปรึกษาทางการ" },
     FIND_LANGUAGE_SUPPORT: { title: "ตรวจสอบการสนับสนุนด้านล่ามและภาษาญี่ปุ่นแบบเข้าใจง่าย", desc: "ตรวจสอบการสนับสนุนด้านภาษาที่ใช้ได้ เพื่อสื่อสารเรื่องที่คุณต้องการปรึกษาอย่างถูกต้อง.", cta: "ดูจุดปรึกษา" },
-    CHECK_BEFORE_STAY_DEADLINE: { title: "ตรวจสอบเอกสารและกำหนดนัดปรึกษาก่อนถึงกำหนด", desc: "ก่อนวันที่ที่คุณป้อน โปรดวางแผนเวลาตรวจสอบเอกสารและติดต่อหน่วยงานทางการ.", cta: "ดูจุดปรึกษาทางการ" },
+    CHECK_BEFORE_STAY_DEADLINE: { title: "ตรวจสอบเอกสารและกำหนดนัดปรึกษาก่อนถึงกำหนด", desc: "ก่อนวันที่ที่คุณป้อน โปรดวางแผนเวลาตรวจสอบเอกสารและติดต่อหน่วยงานทางการ.", cta: "ดูจุดปรึกษาทางการ" }, FIND_DAILY_LIFE_GUIDANCE: { title: "ตรวจสอบคำแนะนำการใช้ชีวิตอย่างเป็นทางการ", desc: "ใช้คู่มือการใช้ชีวิตอย่างเป็นทางการจัดระเบียบขั้นตอนและข้อมูลในชีวิตประจำวันที่ต้องใช้ในโตเกียว.", cta: "ดูคำแนะนำอย่างเป็นทางการ" },
     CHECK_CHILD_LOCAL_SUPPORT: { title: "ตรวจสอบทรัพยากรในพื้นที่ที่ใช้ได้ร่วมกับเด็ก", desc: "ตรวจสอบสถานที่สาธารณะและทรัพยากรในพื้นที่ที่เด็กสามารถใช้เวลาได้อย่างสบายใจ.", cta: "ดูพื้นที่สำหรับเด็ก" },
     CHECK_LIVING_COST_SUPPORT: { title: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิตระยะนี้", desc: "โปรดยืนยันเป็นรายบุคคลกับจุดปรึกษาทางการว่ามีการปรึกษาหรือความช่วยเหลือที่คุณใช้ได้หรือไม่.", cta: "ดูจุดปรึกษา" },
   },
@@ -144,10 +144,10 @@ export const thMessages = {
     CHILDCARE_NEED: "แสดงคำแนะนำนี้เพราะคุณอยู่กับเด็กเล็กและเลือกว่าต้องการความช่วยเหลือสำหรับชีวิตของเด็ก.",
     MEDICAL_NEED: "แสดงคำแนะนำนี้เพราะคุณเลือกการรักษาพยาบาลเป็นความกังวลในขณะนี้.",
     EMPLOYMENT_NEED: "แสดงคำแนะนำให้ตรวจสอบเงื่อนไขการทำงานก่อน เพราะคุณเลือกเรื่องงานหรือค่าใช้จ่ายในการดำรงชีวิต.",
-    LIVING_COST_NEED: "แสดงจุดปรึกษาทางการเพราะคุณเลือกค่าใช้จ่ายในการดำรงชีวิตระยะนี้เป็นความกังวล.",
+    LIVING_COST_NEED: "แสดงจุดปรึกษาทางการเพราะคุณเลือกค่าใช้จ่ายในการดำรงชีวิตระยะนี้เป็นความกังวล.", DAILY_LIFE_NEED: "คุณเลือกว่ามีความเดือดร้อนในชีวิตประจำวัน จึงแสดงคำแนะนำการใช้ชีวิตอย่างเป็นทางการ.",
     LANGUAGE_BARRIER: "แสดงคำแนะนำนี้เพราะการสนับสนุนด้านภาษาอาจช่วยได้เมื่อคุณปรึกษากับหน่วยงานทางการ.",
     KNOWN_STAY_DEADLINE: "แสดงคำแนะนำนี้เพราะคุณป้อนกำหนดการพำนัก เพื่อให้คุณยืนยันกับหน่วยงานทางการก่อนวันดังกล่าว.",
     STAY_DEADLINE_PASSED: "แสดงคำแนะนำให้ติดต่อหน่วยงานทางการทันที เพราะกำหนดการพำนักที่คุณป้อนได้ผ่านไปแล้ว.",
   },
-  needs: { stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
+  needs: { none: "ไม่มี", stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
 } as const satisfies UserMessages;

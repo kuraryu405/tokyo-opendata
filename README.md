@@ -33,6 +33,8 @@ pnpm build
 
 北区の施設キャッシュと東京都の人口キャッシュを更新する場合は、`pnpm data:fetch` を実行します。実行時だけ一次配布元を取得し、通常のアプリ実行時は生成済みのJSONキャッシュだけを参照します。学校の機械可読 source が現行 identity/address と一致しない場合は、`data:fetch` が cache を変更せず失敗し、古い学校情報を再生成しません。
 
+既存の北区施設キャッシュには、固定allowlist、schema検証、current-school identity/address確認を行う同じconnectorを使用します。公開APIは全12件の検証に成功したD1 active datasetを優先し、未同期・破損・D1障害時は既存の検証済み8件キャッシュへフォールバックします。手動同期、dry-run、staging手順は [Workers・D1バックエンド基盤](docs/backend-d1.md#open-data同期と公開api) を参照してください。Cron自動同期はIssue #61の対象外です。
+
 利用者アプリと自治体アプリは独立したCloudflare Workers互換ビルドです。ブラウザへ配信する相互リンクは利用者側の `/crisis` と自治体側の `/user` に固定し、デプロイ時に各Workerへ注入した `COUNTERPART_APP_URL` で同じ環境の相手へリダイレクトします。ローカルアクセス時だけは上記のローカルURLを既定値として使います。
 
 `main`のCI成功後は変更対象のWorkerをstagingへデプロイし、`/healthz`とD1の`/readyz`を確認してから、同じビルド成果物をproductionへ自動昇格します。D1の環境作成・migration・ローカル初期化は [Workers・D1バックエンド基盤](docs/backend-d1.md)、設定、ロールバック、外部E2E連携は [CI・CDドキュメント](docs/ci-and-e2e.md) を参照してください。
@@ -75,7 +77,7 @@ pnpm --filter @staybridge/user exec wrangler deploy --dry-run --config dist/serv
 
 ## データ
 
-実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは正規化してアプリに同梱し、実演時に毎回リモート取得しません。
+実装に同梱した **Source Registry の metadata を正**とします。各画面の出典・更新日・取得日・データ種別を確認してください。外部データは検証・正規化済みのものだけを使い、通常の画面・公開APIから一次配布元へ直接アクセスしません。北区施設APIはD1のactive datasetを使い、利用できない場合は既存の同梱last-known-goodへフォールバックします。
 
 人口・施設は、公的なOpen Dataから一部レコードを選定・正規化し、デモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来し、カード上でも変更内容を表示します。現行性を検証できない学校レコードは cache から除外しています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
@@ -96,4 +98,4 @@ StayBridge Tokyo は在留可否、難民・補完的保護、就労可否、就
 - [プロダクト概要](docs/product-overview.md) / [要件](docs/requirements.md) / [実装仕様](docs/specification.md)
 - [アーキテクチャ](docs/architecture.md) / [ルール](docs/rule-engine.md) / [Open Data戦略](docs/open-data-strategy.md)
 - [安全とプライバシー](docs/safety-and-privacy.md) / [2分デモ](docs/demo-script.md)
-- [CI・CD・外部E2E連携](docs/ci-and-e2e.md) / [Workers・D1バックエンド基盤](docs/backend-d1.md)
+- [CI・CD・外部E2E連携](docs/ci-and-e2e.md) / [Workers・D1バックエンド基盤](docs/backend-d1.md) / [ランタイム設定リファレンス](docs/runtime-configuration.md)

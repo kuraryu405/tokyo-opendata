@@ -22,6 +22,7 @@ export interface ApiError {
     | "PAYLOAD_TOO_LARGE"
     | "RATE_LIMITED"
     | "SERVICE_UNAVAILABLE"
+    | "UNAUTHORIZED"
     | "UNSUPPORTED_MEDIA_TYPE";
   message: string;
 }
@@ -47,7 +48,7 @@ export function createApiSuccessResponse<T>(
 
 export function createApiErrorResponse(
   error: ApiError,
-  status: 400 | 404 | 405 | 409 | 413 | 415 | 429 | 503,
+  status: 400 | 401 | 404 | 405 | 409 | 413 | 415 | 429 | 503,
   init: ResponseInit = {},
 ): Response {
   return Response.json(
@@ -136,9 +137,99 @@ const CONVERSATION_MESSAGES_COLUMNS = [
   "source_ids_json",
   "created_at",
 ] as const;
+const OPEN_DATA_SOURCES_COLUMNS = [
+  "source_id",
+  "title",
+  "publisher",
+  "source_url",
+  "catalog_url",
+  "license",
+  "license_url",
+  "terms_url",
+  "attribution",
+  "update_frequency",
+  "coverage_note",
+  "data_updated_at",
+  "fetched_at",
+  "created_at",
+  "updated_at",
+] as const;
+const OPEN_DATA_DATASET_VERSIONS_COLUMNS = [
+  "id",
+  "dataset_key",
+  "version_hash",
+  "source_updated_at",
+  "fetched_at",
+  "row_count",
+  "status",
+  "created_at",
+] as const;
+const OPEN_DATA_RESOURCES_COLUMNS = [
+  "dataset_version_id",
+  "resource_id",
+  "ordinal",
+  "category",
+  "municipality",
+  "name",
+  "address",
+  "latitude",
+  "longitude",
+  "phone",
+  "website",
+  "source_id",
+  "data_updated_at",
+] as const;
+const OPEN_DATA_ACTIVE_DATASETS_COLUMNS = [
+  "dataset_key",
+  "dataset_version_id",
+  "activated_at",
+] as const;
+const OPEN_DATA_IMPORT_RUNS_COLUMNS = [
+  "run_id",
+  "dataset_key",
+  "started_at",
+  "finished_at",
+  "status",
+  "dry_run",
+  "version_hash",
+  "row_count",
+  "error_code",
+] as const;
+
+const OPEN_DATA_READINESS_SCHEMA: ReadinessSchema = {
+  open_data_sources: {
+    columns: OPEN_DATA_SOURCES_COLUMNS,
+    uniqueConstraints: [["source_id"]],
+  },
+  open_data_dataset_versions: {
+    columns: OPEN_DATA_DATASET_VERSIONS_COLUMNS,
+    uniqueConstraints: [["dataset_key", "version_hash"], ["dataset_key", "id"]],
+  },
+  open_data_resources: {
+    columns: OPEN_DATA_RESOURCES_COLUMNS,
+    uniqueConstraints: [["dataset_version_id", "resource_id"], ["dataset_version_id", "ordinal"]],
+    foreignKeys: [
+      { column: "dataset_version_id", referencedTable: "open_data_dataset_versions", referencedColumn: "id" },
+      { column: "source_id", referencedTable: "open_data_sources", referencedColumn: "source_id" },
+    ],
+  },
+  open_data_active_datasets: {
+    columns: OPEN_DATA_ACTIVE_DATASETS_COLUMNS,
+    uniqueConstraints: [["dataset_key"]],
+    foreignKeys: [
+      { column: "dataset_key", referencedTable: "open_data_dataset_versions", referencedColumn: "dataset_key" },
+      { column: "dataset_version_id", referencedTable: "open_data_dataset_versions", referencedColumn: "id" },
+    ],
+  },
+  open_data_import_runs: {
+    columns: OPEN_DATA_IMPORT_RUNS_COLUMNS,
+    uniqueConstraints: [["run_id"]],
+  },
+};
 
 const READINESS_REQUIRED_SCHEMA: Record<ReadinessService, ReadinessSchema> = {
   user: {
+    ...OPEN_DATA_READINESS_SCHEMA,
     backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
     situation_submissions: {
       columns: SITUATION_SUBMISSIONS_COLUMNS,
@@ -155,6 +246,7 @@ const READINESS_REQUIRED_SCHEMA: Record<ReadinessService, ReadinessSchema> = {
     },
   },
   municipality: {
+    ...OPEN_DATA_READINESS_SCHEMA,
     backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
     situation_submissions: {
       columns: SITUATION_SUBMISSIONS_COLUMNS,
@@ -265,3 +357,4 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
 
 export * from "./persistence";
 export * from "./crisis-needs";
+export * from "./open-data";

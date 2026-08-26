@@ -52,6 +52,9 @@ const needs = new Set([
   "medical",
   "language",
   "daily_life",
+  // Honest "no current need" answers are stored but never aggregated: the
+  // Crisis View whitelist simply has no such category.
+  "none",
 ]);
 const japaneseLevels = new Set(["none", "beginner", "daily", "advanced"]);
 const ageGroups = new Set(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
