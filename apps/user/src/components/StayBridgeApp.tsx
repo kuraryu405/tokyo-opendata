@@ -481,7 +481,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
@@ -517,14 +517,14 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, showStart, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
   return <>
     <section className="hero">
       <div className="hero-copy">
         <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
         <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
         <p className="lede">{t.intro}</p>
-        <div className="hero-actions">{showStart && <button className="primary-button" disabled={disabled} onClick={start}>{t.start}<span aria-hidden>→</span></button>}<button className="secondary-button" disabled={disabled} onClick={demo}>{t.demo}</button></div>
+        <div className="hero-actions">{showStart && <button className="primary-button" disabled={disabled} onClick={start}>{t.start}<span aria-hidden>→</span></button>}{showDemo && <button className="secondary-button" disabled={disabled} onClick={demo}>{t.demo}</button>}</div>
         <div className="trust-row"><span>{t.noLogin}</span><span>{t.noAddress}</span><span>{t.official}</span></div>
       </div>
       <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
