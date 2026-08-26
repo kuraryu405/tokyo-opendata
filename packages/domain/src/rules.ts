@@ -3,8 +3,12 @@ import { getPublishableActionCatalogEntry, type ActionId } from "./action-catalo
 
 export type StayAnswerCode = "known" | "unknown" | "documents";
 
-/** The request boundary must inject the Tokyo calendar date used by every rule. */
-export type RuleContext = { asOfDate: string; stayAnswer: StayAnswerCode };
+/**
+ * asOfDate pins answer-dependent rule evaluation. publicationDate may advance
+ * independently so stale catalog entries can fail closed without rewriting the
+ * assessment result; callers that do not need that split keep the old behavior.
+ */
+export type RuleContext = { asOfDate: string; publicationDate?: string; stayAnswer: StayAnswerCode };
 
 export const ruleIds = [
   "R-STAY-DEADLINE-PAST", "R-CONSULT-DEADLINE-PAST",
@@ -23,7 +27,7 @@ export type RuleId = (typeof ruleIds)[number];
 export type RuleSafety = "check_only" | "consult_only" | "resource_listing_only";
 
 type DeadlineState = "missing" | "past" | "today" | "future";
-type RuntimeContext = RuleContext & { deadlineState: DeadlineState };
+type RuntimeContext = RuleContext & { publicationDate: string; deadlineState: DeadlineState };
 type Match = false | readonly string[];
 
 export type ActionRule = {
@@ -140,7 +144,14 @@ const compareMatches = (left: MatchedRule, right: MatchedRule) =>
 export function generateActions(situation: Situation, context: RuleContext): Action[] {
   const asOfDate = toCalendarDate(context.asOfDate);
   if (!asOfDate) throw new Error("RuleContext.asOfDate must be a valid YYYY-MM-DD calendar date");
-  const runtimeContext: RuntimeContext = { ...context, asOfDate, deadlineState: resolveDeadlineState(situation, { ...context, asOfDate }) };
+  const publicationDate = toCalendarDate(context.publicationDate ?? context.asOfDate);
+  if (!publicationDate) throw new Error("RuleContext.publicationDate must be a valid YYYY-MM-DD calendar date");
+  const runtimeContext: RuntimeContext = {
+    ...context,
+    asOfDate,
+    publicationDate,
+    deadlineState: resolveDeadlineState(situation, { ...context, asOfDate }),
+  };
   const matchesByAction = new Map<ActionId, MatchedRule[]>();
 
   for (const candidate of actionRules) {
@@ -162,7 +173,7 @@ export function generateActions(situation: Situation, context: RuleContext): Act
   for (const [actionId, matches] of matchesByAction) {
     const ranked = [...matches].sort(compareMatches);
     const winner = ranked[0];
-    const catalogEntry = getPublishableActionCatalogEntry(actionId, asOfDate);
+    const catalogEntry = getPublishableActionCatalogEntry(actionId, publicationDate);
     if (!winner || !catalogEntry) continue;
     actions.push({
       id: catalogEntry.id,

@@ -57,7 +57,7 @@ import {
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
-import { formatAssessmentDateForLocale } from "../assessment-date";
+import { formatAssessmentDateForLocale, getTokyoAssessmentDate } from "../assessment-date";
 import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
@@ -113,6 +113,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
   const [hasUnreadableSession, setHasUnreadableSession] = useState(false);
   const [isDemoSituation, setIsDemoSituation] = useState(false);
+  // Keep the request's assessment date pinned for answer-dependent rules while
+  // independently advancing the Tokyo date used only for catalog publication.
+  const [publicationToday, setPublicationToday] = useState(assessmentDate);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
@@ -200,6 +203,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   }, [locale]);
 
   useEffect(() => {
+    const refresh = () => {
+      const today = getTokyoAssessmentDate();
+      setPublicationToday((previous) => (previous === today ? previous : today));
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!pathname) return;
     const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
     if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
@@ -257,10 +273,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
-    return generateActions(situation, { asOfDate: assessmentDate, stayAnswer }).filter((action) =>
+    return generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer }).filter((action) =>
       action.sourceIds.length > 0 && action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId])),
     );
-  }, [assessmentComplete, assessmentDate, situation, stayAnswer]);
+  }, [assessmentComplete, assessmentDate, publicationToday, situation, stayAnswer]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
