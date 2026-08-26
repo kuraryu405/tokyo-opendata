@@ -10,6 +10,10 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: staybridge-worker-release
+  cancel-in-progress: false
+
 jobs:
   detect:
     if: >-
@@ -71,14 +75,15 @@ jobs:
           CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
         run: node scripts/cd/resolve-release-config.mjs
 
-  deploy-user:
+  stage-user:
     needs: detect
-    if: ${{ needs.detect.outputs.user == 'true' }}
+    if: ${{ needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true' }}
     uses: ./.github/workflows/deploy-worker.yml
     with:
       service: user
       app_directory: apps/user
       revision: ${{ needs.detect.outputs.revision }}
+      phase: staging
       staging_worker: ${{ needs.detect.outputs.user_staging_worker }}
       production_worker: ${{ needs.detect.outputs.user_production_worker }}
       staging_environment: staging
@@ -93,14 +98,15 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  deploy-municipality:
+  stage-municipality:
     needs: detect
-    if: ${{ needs.detect.outputs.municipality == 'true' }}
+    if: ${{ needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true' }}
     uses: ./.github/workflows/deploy-worker.yml
     with:
       service: municipality
       app_directory: apps/municipality
       revision: ${{ needs.detect.outputs.revision }}
+      phase: staging
       staging_worker: ${{ needs.detect.outputs.municipality_staging_worker }}
       production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
       staging_environment: staging
@@ -116,16 +122,61 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   external-e2e:
-    needs: [detect, deploy-user, deploy-municipality]
+    needs: [detect, stage-user, stage-municipality]
     if: >-
-      always() &&
       needs.detect.result == 'success' &&
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
-      (needs.deploy-user.result == 'success' || needs.deploy-user.result == 'skipped') &&
-      (needs.deploy-municipality.result == 'success' || needs.deploy-municipality.result == 'skipped')
+      needs.stage-user.result == 'success' &&
+      needs.stage-municipality.result == 'success'
     uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@a78ac48a824f61f5208b92a2a3858b32fa437c98 # main@a78ac48
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
-      user_url: ${{ needs.detect.outputs.user_production_verification_url }}
-      municipality_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      user_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      municipality_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
       evidence_mode: false
+
+  promote-user:
+    needs: [detect, external-e2e]
+    if: ${{ needs.detect.outputs.user == 'true' && needs.external-e2e.result == 'success' }}
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      service: user
+      app_directory: apps/user
+      revision: ${{ needs.detect.outputs.revision }}
+      phase: production
+      staging_worker: ${{ needs.detect.outputs.user_staging_worker }}
+      production_worker: ${{ needs.detect.outputs.user_production_worker }}
+      staging_environment: staging
+      production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
+      staging_verification_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.user_production_verification_url }}
+      staging_counterpart_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
+      production_counterpart_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  promote-municipality:
+    needs: [detect, external-e2e]
+    if: ${{ needs.detect.outputs.municipality == 'true' && needs.external-e2e.result == 'success' }}
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      service: municipality
+      app_directory: apps/municipality
+      revision: ${{ needs.detect.outputs.revision }}
+      phase: production
+      staging_worker: ${{ needs.detect.outputs.municipality_staging_worker }}
+      production_worker: ${{ needs.detect.outputs.municipality_production_worker }}
+      staging_environment: staging
+      production_environment: production
+      staging_database_id: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+      production_database_id: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
+      staging_verification_url: ${{ needs.detect.outputs.municipality_staging_verification_url }}
+      production_verification_url: ${{ needs.detect.outputs.municipality_production_verification_url }}
+      staging_counterpart_url: ${{ needs.detect.outputs.user_staging_verification_url }}
+      production_counterpart_url: ${{ needs.detect.outputs.user_production_verification_url }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -3,8 +3,12 @@ import { getPublishableActionCatalogEntry, type ActionId } from "./action-catalo
 
 export type StayAnswerCode = "known" | "unknown" | "documents";
 
-/** The request boundary must inject the Tokyo calendar date used by every rule. */
-export type RuleContext = { asOfDate: string; stayAnswer: StayAnswerCode };
+/**
+ * asOfDate pins answer-dependent rule evaluation. publicationDate may advance
+ * independently so stale catalog entries can fail closed without rewriting the
+ * assessment result; callers that do not need that split keep the old behavior.
+ */
+export type RuleContext = { asOfDate: string; publicationDate?: string; stayAnswer: StayAnswerCode };
 
 export const ruleIds = [
   "R-STAY-DEADLINE-PAST", "R-CONSULT-DEADLINE-PAST",
@@ -16,14 +20,14 @@ export const ruleIds = [
   "R-STAY-NEED", "R-CONSULT-NEED", "R-HOUSING-UNSTABLE", "R-HOUSING-HOTEL", "R-HOUSING-NEED",
   "R-EDUCATION-SCHOOL-AGE-RETURN", "R-EDUCATION-NEED", "R-CHILD-SCHOOL-AGE-RETURN",
   "R-CHILDCARE-NEED", "R-MEDICAL-NEED", "R-WORK-EMPLOYMENT-NEED",
-  "R-LIVING-COST-NEED", "R-LANGUAGE-LEVEL", "R-LANGUAGE-NEED",
+  "R-LIVING-COST-NEED", "R-DAILY-LIFE-NEED", "R-LANGUAGE-LEVEL", "R-LANGUAGE-NEED",
 ] as const;
 
 export type RuleId = (typeof ruleIds)[number];
 export type RuleSafety = "check_only" | "consult_only" | "resource_listing_only";
 
 type DeadlineState = "missing" | "past" | "today" | "future";
-type RuntimeContext = RuleContext & { deadlineState: DeadlineState };
+type RuntimeContext = RuleContext & { publicationDate: string; deadlineState: DeadlineState };
 type Match = false | readonly string[];
 
 export type ActionRule = {
@@ -51,6 +55,7 @@ const reasonText: Record<string, string> = {
   MEDICAL_NEED: "You indicated that medical support may be needed.",
   EMPLOYMENT_NEED: "You indicated concern about work; eligibility must be checked first.",
   LIVING_COST_NEED: "You indicated concern about meeting immediate living costs.",
+  DAILY_LIFE_NEED: "You indicated a daily-life concern, so official living guidance is shown.",
   LANGUAGE_BARRIER: "Language support may make official and local consultations easier.",
   KNOWN_STAY_DEADLINE: "You entered a stay deadline, so an official check should be planned by that date.",
   STAY_DEADLINE_PASSED: "The stay deadline you entered has passed, so contact an official service immediately.",
@@ -111,6 +116,7 @@ export const actionRules: readonly ActionRule[] = [
   rule({ id: "R-MEDICAL-NEED", conditions: "medical selected", exclusions: "none", actionId: "CHECK_MEDICAL_OPTIONS", priority: 70, reasonCode: "MEDICAL_NEED", safety: "resource_listing_only", match: (s) => hasNeed(s, "medical") && ["needs=medical"] }),
   rule({ id: "R-WORK-EMPLOYMENT-NEED", conditions: "employment selected", exclusions: "none", actionId: "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH", priority: 65, reasonCode: "EMPLOYMENT_NEED", safety: "check_only", match: (s) => hasNeed(s, "employment") && ["needs=employment"] }),
   rule({ id: "R-LIVING-COST-NEED", conditions: "living cost selected", exclusions: "none", actionId: "CHECK_LIVING_COST_SUPPORT", priority: 78, reasonCode: "LIVING_COST_NEED", safety: "consult_only", match: (s) => hasNeed(s, "living_cost") && ["needs=living_cost"] }),
+  rule({ id: "R-DAILY-LIFE-NEED", conditions: "daily life selected", exclusions: "none", actionId: "FIND_DAILY_LIFE_GUIDANCE", priority: 62, reasonCode: "DAILY_LIFE_NEED", safety: "consult_only", match: (s) => hasNeed(s, "daily_life") && ["needs=daily_life"] }),
   rule({ id: "R-LANGUAGE-LEVEL", conditions: "Japanese none/beginner", exclusions: "daily/advanced", actionId: "FIND_LANGUAGE_SUPPORT", priority: 60, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => (s.japaneseLevel === "none" || s.japaneseLevel === "beginner") && [`japaneseLevel=${s.japaneseLevel}`] }),
   rule({ id: "R-LANGUAGE-NEED", conditions: "language selected", exclusions: "none", actionId: "FIND_LANGUAGE_SUPPORT", priority: 65, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => hasNeed(s, "language") && ["needs=language"] }),
 ];
@@ -138,7 +144,14 @@ const compareMatches = (left: MatchedRule, right: MatchedRule) =>
 export function generateActions(situation: Situation, context: RuleContext): Action[] {
   const asOfDate = toCalendarDate(context.asOfDate);
   if (!asOfDate) throw new Error("RuleContext.asOfDate must be a valid YYYY-MM-DD calendar date");
-  const runtimeContext: RuntimeContext = { ...context, asOfDate, deadlineState: resolveDeadlineState(situation, { ...context, asOfDate }) };
+  const publicationDate = toCalendarDate(context.publicationDate ?? context.asOfDate);
+  if (!publicationDate) throw new Error("RuleContext.publicationDate must be a valid YYYY-MM-DD calendar date");
+  const runtimeContext: RuntimeContext = {
+    ...context,
+    asOfDate,
+    publicationDate,
+    deadlineState: resolveDeadlineState(situation, { ...context, asOfDate }),
+  };
   const matchesByAction = new Map<ActionId, MatchedRule[]>();
 
   for (const candidate of actionRules) {
@@ -160,7 +173,7 @@ export function generateActions(situation: Situation, context: RuleContext): Act
   for (const [actionId, matches] of matchesByAction) {
     const ranked = [...matches].sort(compareMatches);
     const winner = ranked[0];
-    const catalogEntry = getPublishableActionCatalogEntry(actionId, asOfDate);
+    const catalogEntry = getPublishableActionCatalogEntry(actionId, publicationDate);
     if (!winner || !catalogEntry) continue;
     actions.push({
       id: catalogEntry.id,
