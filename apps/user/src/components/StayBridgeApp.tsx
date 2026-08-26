@@ -58,7 +58,7 @@ import {
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
 import { formatAssessmentDateForLocale } from "../assessment-date";
-import { resolveMunicipalityAppUrl } from "../municipality-url";
+import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
@@ -68,6 +68,7 @@ import {
   parseSavedSituationCredentials,
   saveSituationSubmission,
   type PendingSituationSubmission,
+  serializeSavedSituationCredentials,
   type SavedRecordCredentials,
 } from "../consented-persistence";
 import { getPersistenceCopy, type PersistenceCopy } from "../persistence-copy";
@@ -76,7 +77,7 @@ type Screen = StayBridgeScreen;
 type CopyState = "idle" | "copied" | "error";
 type UserCopy = PublicUserMessages["ui"];
 type SituationPersistenceState =
-  | { status: "idle" | "declined" | "saving" | "error" | "deleted" }
+  | { status: "idle" | "declined" | "saving" | "error" | "deleted" | "corrupt" }
   | { status: "saved" | "deleting" | "delete-error"; credentials: SavedRecordCredentials };
 type ConversationConsentState = "idle" | "accepted" | "declined";
 
@@ -99,7 +100,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const { locale, screen, query } = parsedRoute.route;
   const step = query.step ?? 0;
   const localFilter = query.filter ?? "all";
-  const municipalityAppUrl = resolveMunicipalityAppUrl();
   const [situation, setSituation] = useState<Situation>(createInitialSituation);
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
@@ -115,7 +115,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
   const t = getUserMessages(locale).ui;
   const hasSavedSituationCredentials = "credentials" in situationPersistence;
-  const hasProtectedSituationSubmission = hasSavedSituationCredentials || hasPendingSituationSubmission;
+  const hasCorruptSavedSituationCredentials = situationPersistence.status === "corrupt";
+  const hasProtectedSituationSubmission = hasSavedSituationCredentials
+    || hasCorruptSavedSituationCredentials
+    || hasPendingSituationSubmission;
 
   useEffect(() => {
     try {
@@ -128,12 +131,27 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         setAnsweredSteps(storedSession.answeredSteps);
         setIsDemoSituation(storedSession.provenance === "demo");
       }
-      const savedCredentials = parseSavedSituationCredentials(
+      const savedCredentialsResult = parseSavedSituationCredentials(
         sessionStorage.getItem(SAVED_SITUATION_CREDENTIALS_KEY),
       );
-      if (savedCredentials) {
-        setSituationPersistence({ status: "saved", credentials: savedCredentials });
+      if (savedCredentialsResult.status === "valid") {
+        setSituationPersistence({ status: "saved", credentials: savedCredentialsResult.credentials });
+        if (savedCredentialsResult.needsMigration) {
+          sessionStorage.setItem(
+            SAVED_SITUATION_CREDENTIALS_KEY,
+            serializeSavedSituationCredentials(savedCredentialsResult.credentials),
+          );
+        }
         sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+      } else if (savedCredentialsResult.status === "corrupt") {
+        setSituationPersistence({ status: "corrupt" });
+        const pendingSecrets = parseSituationSubmissionSecrets(
+          sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
+        );
+        if (pendingSecrets) {
+          situationSubmissionSecrets.current = pendingSecrets;
+          setHasPendingSituationSubmission(true);
+        }
       } else {
         const parsedPending = parsePendingSituationSubmission(
           sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
@@ -281,10 +299,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const focusSituationPersistence = () => {
     if (screen !== "status") router.replace(buildStayBridgePath({ locale, screen: "status" }));
-    window.setTimeout(() => document.getElementById(hasSavedSituationCredentials ? "saved-situation-credentials" : "situation-persistence")?.focus(), 0);
+    const targetId = situationPersistence.status === "corrupt"
+      ? "corrupt-saved-situation-credentials"
+      : hasSavedSituationCredentials ? "saved-situation-credentials" : "situation-persistence";
+    window.setTimeout(() => document.getElementById(targetId)?.focus(), 0);
   };
 
   const clearData = () => {
+    if (!storageReady) return;
     if (hasProtectedSituationSubmission) {
       focusSituationPersistence();
       return;
@@ -339,6 +361,39 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
   };
 
+  const discardCorruptLocalData = () => {
+    if (situationPersistence.status !== "corrupt") return;
+    try {
+      sessionStorage.removeItem(SAVED_SITUATION_CREDENTIALS_KEY);
+    } catch {
+      setStorageError(true);
+      return;
+    }
+    if (hasPendingSituationSubmission) {
+      setSituationPersistence({ status: "error" });
+      return;
+    }
+    skipNextSessionWrite.current = true;
+    try {
+      sessionStorage.removeItem("staybridge.session");
+      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+    } catch {
+      setStorageError(true);
+      return;
+    }
+    setSituation(createInitialSituation());
+    setStayAnswer("unknown");
+    setFamilyAnswers([]);
+    setAnsweredSteps([]);
+    setCopyState("idle");
+    setSituationPersistence({ status: "idle" });
+    setConversationConsent("idle");
+    setIsDemoSituation(false);
+    situationSubmissionSecrets.current = null;
+    setHasPendingSituationSubmission(false);
+    router.replace(buildStayBridgePath({ locale, screen: "landing" }));
+  };
+
   const openAction = (destination: ActionDestination) => {
     go(destination.screen, destination.screen === "local" ? { filter: destination.filter } : {});
   };
@@ -370,7 +425,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       const credentials = await saveSituationSubmission(submission);
       let replacedPending = false;
       try {
-        sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, JSON.stringify(credentials));
+        sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, serializeSavedSituationCredentials(credentials));
         sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
         replacedPending = true;
       } catch {
@@ -424,11 +479,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       {storageError && <output className="app-alert">{t.storageError}</output>}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppUrl} />}
+          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} disabled={!storageReady} start={() => go("check")} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} roadmap={() => go("roadmap")} edit={editSituation} />}
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
           {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
@@ -437,7 +492,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       </main>
       <footer className="site-footer">
         <div><span className="brand-mark">SB</span><strong>StayBridge Tokyo</strong><p>{t.footer}</p></div>
-        <button className="text-button" onClick={clearData}>{t.clear}</button>
+        <button className="text-button" disabled={!storageReady} onClick={clearData}>{t.clear}</button>
       </footer>
     </div>
   );
@@ -526,7 +581,13 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     }
     if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
     if (step === 8) {
-      const nextNeeds = situation.needs.includes(value as NeedCategory) ? situation.needs.filter((n) => n !== value) : [...situation.needs, value as NeedCategory];
+      // 「特になし」is exclusive: choosing it clears real needs, and any real
+      // need clears it, so nobody must fake a category to finish the flow.
+      const nextNeeds = value === "none"
+        ? situation.needs.includes("none") ? [] : ["none" as NeedCategory]
+        : situation.needs.includes(value as NeedCategory)
+          ? situation.needs.filter((n) => n !== value)
+          : [...situation.needs.filter((n) => n !== "none"), value as NeedCategory];
       setSituation({ ...situation, needs: nextNeeds });
       markAnswered(nextNeeds.length > 0);
       return;
@@ -565,9 +626,9 @@ function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
 }
 
-function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, persistence, isDemo, persist, declinePersistence, deletePersistence, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; roadmap: () => void; edit: () => void }) {
+function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, persistence, hasPendingSituationSubmission, isDemo, persist, declinePersistence, deletePersistence, discardCorruptLocalData, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; hasPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; roadmap: () => void; edit: () => void }) {
   const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps);
-  return <section className="result-page narrow-page"><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><SituationPersistenceConsent locale={locale} state={persistence} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} /><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
+  return <section className="result-page narrow-page"><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><SituationPersistenceConsent locale={locale} state={persistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} discardCorruptLocalData={discardCorruptLocalData} /><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
 }
 
 function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
@@ -576,13 +637,17 @@ function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setCon
     const last = all[all.length - 1];
     return [...all, { ...group, offset: last ? last.offset + last.actions.length : 0 }];
   }, []);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><span>○</span><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><span className="aside-icon">⌁</span><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><span className="aside-icon">◎</span><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
-function SituationPersistenceConsent({ locale, state, isDemo, persist, decline, deleteRecord }: { locale: Locale; state: SituationPersistenceState; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void }) {
+function SituationPersistenceConsent({ locale, state, hasPendingSituationSubmission, isDemo, persist, decline, deleteRecord, discardCorruptLocalData }: { locale: Locale; state: SituationPersistenceState; hasPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void }) {
   const copy = getPersistenceCopy(locale);
   const busy = state.status === "saving" || state.status === "deleting";
-  return <section id="situation-persistence" className="consent-card" aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
+  return <section id="situation-persistence" className="consent-card" aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : state.status === "corrupt" ? <CorruptSavedCredentials copy={copy} hasPendingSituationSubmission={hasPendingSituationSubmission} discardLocalData={discardCorruptLocalData} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
+}
+
+function CorruptSavedCredentials({ copy, hasPendingSituationSubmission, discardLocalData }: { copy: PersistenceCopy; hasPendingSituationSubmission: boolean; discardLocalData: () => void }) {
+  return <div id="corrupt-saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.corruptCredentialsTitle}</h3><p>{copy.corruptCredentialsBody}</p><p className="consent-warning">{hasPendingSituationSubmission ? copy.corruptCredentialsPendingWarning : copy.corruptCredentialsDiscardWarning}</p><div className="consent-actions"><button className="secondary-button" onClick={discardLocalData}>{hasPendingSituationSubmission ? copy.discardOnlyCorruptCredentials : copy.discardCorruptLocalData}</button></div></div>;
 }
 
 function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentState) => void }) {
@@ -623,7 +688,7 @@ function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { l
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
   const filters: LocalFilter[] = ["all", "school", "medical", "child_support", "public_facility"];
-  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">⌖ {t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs">{filters.map((item) => <button aria-pressed={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} locale={locale} t={t} />)}</div> : <div className="empty-state"><span>⌖</span><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
+  return <section className="content-page"><div className="page-heading local-heading"><span className="section-label">{t.sectionLocalAction}</span><h1>{t.localTitle}</h1><p>{t.localIntro}</p><div className="location-pill">{t.localFallback}</div></div><div className="page-actions" aria-label={t.localNavigationLabel}><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button><button className="primary-button" onClick={() => go("help")}>{t.continueToHelp}<span aria-hidden>→</span></button></div><div className="filter-tabs">{filters.map((item) => <button aria-pressed={filter === item} className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{t[item as keyof UserCopy] as string}</button>)}</div>{resources.length ? <div className="resource-grid">{resources.map((resource) => <ResourceCard key={resource.id} resource={resource} locale={locale} t={t} />)}</div> : <div className="empty-state"><h2>{t.noResources}</h2><button className="secondary-button" onClick={() => setFilter("all")}>{t.all}</button></div>}</section>;
 }
 
 function ResourceCard({ resource, locale, t }: { resource: LocalResource & { id: LocalResourceId }; locale: Locale; t: UserCopy }) {
@@ -645,7 +710,7 @@ function HumanSupport({ locale, t, needs, visitPurpose, summary }: { locale: Loc
     .map((id) => sourceRegistry[id])
     .filter((source): source is DataSource => Boolean(source))
     .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><span className="aside-icon">▤</span><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
 }
 
 function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {
@@ -668,7 +733,7 @@ function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, 
       setCopyState("error");
     }
   };
-  return <section className="summary-page"><div className="page-heading"><span className="section-label">{t.sectionConsultationSummary}</span><h1>{t.summaryTitle}</h1></div><div className="summary-toolbar"><button className="secondary-button" onClick={copyText}>{copyState === "copied" ? `✓ ${t.copied}` : `▣ ${t.copy}`}</button><button className="secondary-button" onClick={() => window.print()}>⌑ {t.print}</button><span>◎ {t.showMode}</span>{copyState === "error" && <p className="inline-error" role="alert">{t.copyError}</p>}</div><article className="summary-sheet"><header><span className="brand-mark">SB</span><div><strong>StayBridge Tokyo</strong><small>{t.summarySheetLabel}</small></div><time>{summaryDate}</time></header><section><span className="sheet-label">{t.summarySheetSections[0]}</span><div><h2>{t.current}</h2>{items.length ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <p>{t.noEnteredInfo}</p>}</div></section><section><span className="sheet-label">{t.summarySheetSections[1]}</span><div><h2>{t.questions}</h2>{asks.length ? <ol>{asks.map((item) => <li key={item}>{item}</li>)}</ol> : <p>{t.noSelectedNeeds}</p>}</div></section></article></section>;
+  return <section className="summary-page"><div className="page-heading"><span className="section-label">{t.sectionConsultationSummary}</span><h1>{t.summaryTitle}</h1></div><div className="summary-toolbar"><button className="secondary-button" onClick={copyText}>{copyState === "copied" ? `✓ ${t.copied}` : t.copy}</button><button className="secondary-button" onClick={() => window.print()}>{t.print}</button><span>{t.showMode}</span>{copyState === "error" && <p className="inline-error" role="alert">{t.copyError}</p>}</div><article className="summary-sheet"><header><span className="brand-mark">SB</span><div><strong>StayBridge Tokyo</strong><small>{t.summarySheetLabel}</small></div><time>{summaryDate}</time></header><section><span className="sheet-label">{t.summarySheetSections[0]}</span><div><h2>{t.current}</h2>{items.length ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <p>{t.noEnteredInfo}</p>}</div></section><section><span className="sheet-label">{t.summarySheetSections[1]}</span><div><h2>{t.questions}</h2>{asks.length ? <ol>{asks.map((item) => <li key={item}>{item}</li>)}</ol> : <p>{t.noSelectedNeeds}</p>}</div></section></article></section>;
 }
 
 export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: StayAnswer, familyAnswers: FamilyAnswers, answeredSteps: number[]) {

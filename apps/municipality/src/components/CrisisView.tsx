@@ -3,16 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import { dataGaps, kitaMyanmarProfile, localResources, sourceRegistry, type DataSource } from "@staybridge/data";
 import type { CrisisNeedsData } from "@staybridge/worker-runtime";
+import { userAppRoute } from "../user-url";
 
 export const municipalityChangesMadeCopy = "東京都北区Open DataをStayBridge用に一部選定・正規化しています";
 
 export function getMunicipalityChangesMade(adaptation: DataSource["adaptation"]): string | undefined {
   return adaptation === "selected_and_normalized" ? municipalityChangesMadeCopy : undefined;
 }
-
-const userAppUrl =
-  process.env.NEXT_PUBLIC_USER_APP_URL?.replace(/\/+$/, "") ||
-  "http://localhost:3000";
 
 const checklist = [
   { group: "情報提供", items: ["ミャンマー語・英語で案内できる情報を確認", "最新の在留関連公式情報への導線を確認", "外国人相談窓口への情報共有状況を確認"] },
@@ -64,6 +61,8 @@ type Period = keyof typeof periodLabels;
 type View = keyof typeof viewLabels;
 type NeedsState = { kind: "loading" } | { kind: "error" } | { kind: "ready"; data: CrisisNeedsData };
 
+export const CRISIS_NEEDS_REQUEST_TIMEOUT_MS = 10_000;
+
 function CrisisNeedsPanel() {
   const [period, setPeriod] = useState<Period>("30d");
   const [view, setView] = useState<View>("needs");
@@ -75,17 +74,31 @@ function CrisisNeedsPanel() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const timeoutId = window.setTimeout(() => {
+      if (!active) return;
+      controller.abort();
+      setState({ requestKey, value: { kind: "error" } });
+    }, CRISIS_NEEDS_REQUEST_TIMEOUT_MS);
     const params = new URLSearchParams({ municipality: "13117", period, view });
     fetch(`/api/crisis/needs?${params}`, { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as { ok?: boolean; data?: CrisisNeedsData };
         if (!response.ok || !body.ok || !body.data) throw new Error("Crisis needs request failed");
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
         setState({ requestKey, value: { kind: "ready", data: body.data } });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setState({ requestKey, value: { kind: "error" } });
+        if (!active || controller.signal.aborted) return;
+        window.clearTimeout(timeoutId);
+        setState({ requestKey, value: { kind: "error" } });
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [period, requestKey, view]);
 
   return <section className="crisis-section crisis-needs-section" data-testid="crisis-voluntary-needs" aria-labelledby="crisis-needs-title">
@@ -143,9 +156,9 @@ export function CrisisView() {
 
   return <div className="crisis-shell">
     <header className="crisis-header">
-      <a className="brand" href={userAppUrl}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
+      <a className="brand" href={userAppRoute}><span className="brand-mark">SB</span><span>StayBridge <b>Tokyo</b></span></a>
       <div className="admin-label"><span /> 自治体・支援者向け確認画面</div>
-      <a className="back-to-service" href={userAppUrl}>本人向け画面へ ↗</a>
+      <a className="back-to-service" href={userAppRoute}>本人向け画面へ ↗</a>
     </header>
     <main className="crisis-main">
       <section className="crisis-intro">

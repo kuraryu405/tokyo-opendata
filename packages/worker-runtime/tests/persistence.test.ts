@@ -369,6 +369,11 @@ test("allows only the deletion-token holder to delete either record type", async
     env(database),
   );
   assert.equal(rejected?.status, 404);
+  assert.equal(rejected?.headers.get("content-type"), "application/json; charset=UTF-8");
+  assert.deepEqual(await rejected?.json(), {
+    ok: false,
+    error: { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
+  });
 
   const deleted = await handleConsentedPersistenceRequest(
     new Request(`https://staybridge.example/api/situation-submissions/${createdBody.data.id}`, {

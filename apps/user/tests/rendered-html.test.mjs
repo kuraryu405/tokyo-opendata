@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render(pathname = "/", origin = "http://localhost") {
-  const requestOrigin = new URL(origin);
+async function loadBuiltWorker(key) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
-  const { default: worker } = await import(workerUrl.href);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
+  return (await import(workerUrl.href)).default;
+}
+
+async function render(pathname = "/", origin = "http://localhost", counterpartAppUrl) {
+  const requestOrigin = new URL(origin);
+  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -23,15 +27,14 @@ async function render(pathname = "/", origin = "http://localhost") {
           throw new Error("Image binding should not be used during page rendering");
         },
       },
+      ...(counterpartAppUrl ? { COUNTERPART_APP_URL: counterpartAppUrl } : {}),
     },
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
 
 async function callBuiltWorker(request) {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("api-test", `${process.pid}-${Date.now()}-${request.method}`);
-  const { default: worker } = await import(workerUrl.href);
+  const worker = await loadBuiltWorker(`api-${request.method}-${new URL(request.url).pathname}`);
   return worker.fetch(request, {
     STAYBRIDGE_DB: {},
     PERSISTENCE_RATE_LIMITER: { limit: async () => ({ success: true }) },
@@ -39,6 +42,25 @@ async function callBuiltWorker(request) {
     IMAGES: { input() { throw new Error("Image binding should not be used during API tests"); } },
   }, { waitUntil() {}, passThroughOnException() {} });
 }
+
+test("built user Worker serves the verified Open Data fallback without owning sync", async () => {
+  const worker = await loadBuiltWorker("open-data-worker-contract");
+  assert.equal(worker.scheduled, undefined);
+
+  const response = await callBuiltWorker(new Request(
+    "http://localhost/api/open-data/resources?municipality=Kita&category=medical",
+  ));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.data.origin, "bundled");
+  assert.equal(body.data.resources.length, 3);
+
+  const syncResponse = await callBuiltWorker(new Request(
+    "http://localhost/internal/open-data/sync",
+    { method: "POST" },
+  ));
+  assert.equal(syncResponse.status, 404);
+});
 
 test("redirects the root URL to the slashless Japanese landing route in one step", async () => {
   const response = await render("/");
@@ -88,13 +110,19 @@ test("server-renders each reviewed locale with its SSR html lang", async () => {
   }
 });
 
-test("derives absolute social image URLs from the incoming production host", async () => {
-  const response = await render("/ja", "https://staybridge.example");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /property="og:image" content="https:\/\/staybridge\.example\/og\.png"/i);
-  assert.match(html, /name="twitter:image" content="https:\/\/staybridge\.example\/og\.png"/i);
-  assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
+test("derives social image metadata from each request environment", async () => {
+  for (const origin of [
+    "https://staybridge-user-staging.example",
+    "https://staybridge-user-production.example",
+  ]) {
+    const response = await render("/ja", origin);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const escapedOrigin = origin.replaceAll(".", "\\.").replaceAll("/", "\\/");
+    assert.match(html, new RegExp(`property="og:image" content="${escapedOrigin}\\/og\\.png"`, "i"));
+    assert.match(html, new RegExp(`name="twitter:image" content="${escapedOrigin}\\/og\\.png"`, "i"));
+    assert.doesNotMatch(html, /localhost:3000\/og\.png/i);
+  }
 });
 
 test("routes support chat through rate limiting and untrusted transcript inference", async () => {
@@ -181,7 +209,7 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
 test("links to the municipality app through the local default URL", async () => {
   const response = await render("/ja");
   const html = await response.text();
-  assert.match(html, /href="http:\/\/localhost:3001"/i);
+  assert.match(html, /href="\/crisis"/i);
 });
 
 test("server-renders each URL-driven reviewed route", async () => {
@@ -232,10 +260,19 @@ test("redirects draft locales and invalid route queries canonically", async () =
   assert.equal(new URL(invalidResponse.headers.get("location") ?? "", "http://localhost").search, "?filter=all");
 });
 
-test("redirects the legacy crisis path to the municipality app", async () => {
-  const response = await render("/crisis");
-  assert.ok([307, 308].includes(response.status));
-  assert.equal(response.headers.get("location"), "http://localhost:3001/");
+test("resolves the municipality redirect from the deployed environment", async () => {
+  for (const [userOrigin, municipalityOrigin] of [
+    ["https://staybridge-user-staging.example", "https://staybridge-municipality-staging.example"],
+    ["https://staybridge-user-production.example", "https://staybridge-municipality-production.example"],
+  ]) {
+    const response = await render("/crisis", userOrigin, municipalityOrigin);
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get("location"), `${municipalityOrigin}/`);
+  }
+
+  const missingConfiguration = await render("/crisis", "https://staybridge-user-staging.example");
+  assert.equal(missingConfiguration.status, 503);
+  assert.equal(missingConfiguration.headers.get("cache-control"), "no-store");
 });
 
 test("routes the compiled Worker persistence API without exposing a conversation list", async () => {

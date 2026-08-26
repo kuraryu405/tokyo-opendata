@@ -1,4 +1,4 @@
-name: Deploy one Worker
+name: Deploy one Worker phase
 
 on:
   workflow_call:
@@ -10,6 +10,9 @@ on:
         required: true
         type: string
       revision:
+        required: true
+        type: string
+      phase:
         required: true
         type: string
       staging_worker:
@@ -36,13 +39,12 @@ on:
       production_verification_url:
         required: true
         type: string
-      counterpart_url:
-        required: false
+      staging_counterpart_url:
+        required: true
         type: string
-    outputs:
-      production_url:
-        description: Production URL that passed the release health check
-        value: ${{ jobs.production.outputs.production_url }}
+      production_counterpart_url:
+        required: true
+        type: string
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: true
@@ -53,7 +55,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: worker-release-${{ inputs.service }}
+  group: worker-release-${{ inputs.service }}-${{ inputs.phase }}
   cancel-in-progress: false
 
 jobs:
@@ -61,26 +63,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      staging_worker: ${{ steps.resolve.outputs.staging_worker }}
-      production_worker: ${{ steps.resolve.outputs.production_worker }}
-      staging_verification_url: ${{ steps.resolve.outputs.staging_verification_url }}
-      production_verification_url: ${{ steps.resolve.outputs.production_verification_url }}
+      worker: ${{ steps.resolve.outputs.worker }}
+      environment: ${{ steps.resolve.outputs.environment }}
+      verification_url: ${{ steps.resolve.outputs.verification_url }}
+      counterpart_url: ${{ steps.resolve.outputs.counterpart_url }}
     steps:
       - id: resolve
-        name: Resolve and validate release configuration
+        name: Resolve and validate release phase
         shell: bash
         env:
           SERVICE: ${{ inputs.service }}
           APP_DIRECTORY: ${{ inputs.app_directory }}
           REVISION: ${{ inputs.revision }}
-          STAGING_WORKER_INPUT: ${{ inputs.staging_worker }}
-          PRODUCTION_WORKER_INPUT: ${{ inputs.production_worker }}
+          PHASE: ${{ inputs.phase }}
+          STAGING_WORKER: ${{ inputs.staging_worker }}
+          PRODUCTION_WORKER: ${{ inputs.production_worker }}
           STAGING_ENVIRONMENT: ${{ inputs.staging_environment }}
           PRODUCTION_ENVIRONMENT: ${{ inputs.production_environment }}
           STAGING_DATABASE_ID: ${{ inputs.staging_database_id }}
           PRODUCTION_DATABASE_ID: ${{ inputs.production_database_id }}
           STAGING_VERIFICATION_URL: ${{ inputs.staging_verification_url }}
           PRODUCTION_VERIFICATION_URL: ${{ inputs.production_verification_url }}
+          STAGING_COUNTERPART_URL: ${{ inputs.staging_counterpart_url }}
+          PRODUCTION_COUNTERPART_URL: ${{ inputs.production_counterpart_url }}
         run: |
           set -euo pipefail
           case "$SERVICE:$APP_DIRECTORY" in
@@ -91,16 +96,6 @@ jobs:
             echo "Revision must be a full commit SHA." >&2
             exit 1
           }
-
-          staging_worker="$STAGING_WORKER_INPUT"
-          production_worker="$PRODUCTION_WORKER_INPUT"
-          for worker in "$staging_worker" "$production_worker"; do
-            [[ "$worker" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || {
-              echo "Invalid Worker name: $worker" >&2
-              exit 1
-            }
-          done
-
           [ "$STAGING_ENVIRONMENT" = "staging" ] && [ "$PRODUCTION_ENVIRONMENT" = "production" ] || {
             echo "Release environments must be staging and production." >&2
             exit 1
@@ -125,16 +120,49 @@ jobs:
               exit 1
             }
           done
-          [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* ]] || {
-            echo "Verification URLs must use HTTPS." >&2
+
+          for worker in "$STAGING_WORKER" "$PRODUCTION_WORKER"; do
+            [[ "$worker" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || {
+              echo "Invalid Worker name: $worker" >&2
+              exit 1
+            }
+          done
+          [[ "$STAGING_VERIFICATION_URL" == https://* && "$PRODUCTION_VERIFICATION_URL" == https://* && \
+            "$STAGING_COUNTERPART_URL" == https://* && "$PRODUCTION_COUNTERPART_URL" == https://* ]] || {
+            echo "Site and counterpart URLs must use HTTPS." >&2
+            exit 1
+          }
+          [ "${STAGING_VERIFICATION_URL%/}" != "${PRODUCTION_VERIFICATION_URL%/}" ] && \
+            [ "${STAGING_COUNTERPART_URL%/}" != "${PRODUCTION_COUNTERPART_URL%/}" ] || {
+            echo "Staging and production URLs must be environment-specific." >&2
             exit 1
           }
 
+          case "$PHASE" in
+            staging)
+              worker="$STAGING_WORKER"
+              environment="$STAGING_ENVIRONMENT"
+              verification_url="${STAGING_VERIFICATION_URL%/}"
+              counterpart_url="${STAGING_COUNTERPART_URL%/}"
+              ;;
+            production)
+              worker="$PRODUCTION_WORKER"
+              environment="$PRODUCTION_ENVIRONMENT"
+              verification_url="${PRODUCTION_VERIFICATION_URL%/}"
+              counterpart_url="${PRODUCTION_COUNTERPART_URL%/}"
+              ;;
+            *) echo "Phase must be staging or production." >&2; exit 1 ;;
+          esac
+          if [[ -n "$counterpart_url" && "$counterpart_url" != https://* ]]; then
+            echo "Counterpart URL must use HTTPS." >&2
+            exit 1
+          fi
+
           {
-            echo "staging_worker=$staging_worker"
-            echo "production_worker=$production_worker"
-            echo "staging_verification_url=${STAGING_VERIFICATION_URL%/}"
-            echo "production_verification_url=${PRODUCTION_VERIFICATION_URL%/}"
+            echo "worker=$worker"
+            echo "environment=$environment"
+            echo "verification_url=$verification_url"
+            echo "counterpart_url=$counterpart_url"
           } >> "$GITHUB_OUTPUT"
 
   d1_identity:
@@ -168,15 +196,13 @@ jobs:
             d1-inventory.json "$STAGING_DATABASE_ID" "$PRODUCTION_DATABASE_ID"
 
   build:
+    if: ${{ inputs.phase == 'staging' }}
     needs: [configuration, d1_identity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       APP_DIRECTORY: ${{ inputs.app_directory }}
       APP_REVISION: ${{ inputs.revision }}
-      NEXT_PUBLIC_SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
-      NEXT_PUBLIC_MUNICIPALITY_APP_URL: ${{ inputs.service == 'user' && inputs.counterpart_url || '' }}
-      NEXT_PUBLIC_USER_APP_URL: ${{ inputs.service == 'municipality' && inputs.counterpart_url || '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -188,7 +214,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build deployable output once
+      - name: Build the phase-specific deployable output
         run: pnpm --filter "@staybridge/${{ inputs.service }}" run build
       - name: Validate and package the SHA artifact
         id: package
@@ -211,17 +237,19 @@ jobs:
           retention-days: 7
 
   staging:
+    if: ${{ inputs.phase == 'staging' }}
     needs: [configuration, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
-      name: ${{ inputs.staging_environment }}
-      url: ${{ needs.configuration.outputs.staging_verification_url }}
+      name: ${{ needs.configuration.outputs.environment }}
+      url: ${{ needs.configuration.outputs.verification_url }}
     env:
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
-      WORKER_NAME: ${{ needs.configuration.outputs.staging_worker }}
-      SITE_URL: ${{ needs.configuration.outputs.staging_verification_url }}
+      WORKER_NAME: ${{ needs.configuration.outputs.worker }}
+      SITE_URL: ${{ needs.configuration.outputs.verification_url }}
+      COUNTERPART_URL: ${{ needs.configuration.outputs.counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -236,7 +264,7 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: release-artifact
-      - name: Verify and extract the exact build artifact
+      - name: Verify and extract the exact staging artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -274,38 +302,34 @@ jobs:
           }
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           pnpm dlx wrangler@4.92.0 versions upload \
-            --config "$config" \
-            --name "$WORKER_NAME" \
-            --tag "$REVISION" \
+            --config "$config" --name "$WORKER_NAME" --tag "$REVISION" \
             --message "${SERVICE} staging ${REVISION}" \
-            --var "APP_REVISION:${REVISION}"
+            --var "APP_REVISION:${REVISION}" \
+            --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
           pnpm dlx wrangler@4.92.0 versions list \
             --config "$config" --name "$WORKER_NAME" --json > staging-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded staging-versions.json "$REVISION")
           pnpm dlx wrangler@4.92.0 versions deploy "${version_id}@100%" \
-            --config "$config" \
-            --name "$WORKER_NAME" \
-            --message "${SERVICE} staging ${REVISION}" \
-            --yes
-          pnpm dlx wrangler@4.92.0 triggers deploy \
-            --config "$config" --name "$WORKER_NAME"
+            --config "$config" --name "$WORKER_NAME" \
+            --message "${SERVICE} staging ${REVISION}" --yes
+          pnpm dlx wrangler@4.92.0 triggers deploy --config "$config" --name "$WORKER_NAME"
       - name: Smoke test staging
         run: node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" "$REVISION"
 
   production:
-    needs: [configuration, build, staging]
+    if: ${{ inputs.phase == 'production' }}
+    needs: [configuration, d1_identity]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: ${{ inputs.production_environment }}
-      url: ${{ needs.configuration.outputs.production_verification_url }}
-    outputs:
-      production_url: ${{ steps.release_result.outputs.production_url }}
+      name: ${{ needs.configuration.outputs.environment }}
+      url: ${{ needs.configuration.outputs.verification_url }}
     env:
       SERVICE: ${{ inputs.service }}
       REVISION: ${{ inputs.revision }}
-      WORKER_NAME: ${{ needs.configuration.outputs.production_worker }}
-      SITE_URL: ${{ needs.configuration.outputs.production_verification_url }}
+      WORKER_NAME: ${{ needs.configuration.outputs.worker }}
+      SITE_URL: ${{ needs.configuration.outputs.verification_url }}
+      COUNTERPART_URL: ${{ needs.configuration.outputs.counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -320,7 +344,7 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: release-artifact
-      - name: Verify and extract the exact build artifact
+      - name: Verify and extract the exact production artifact
         shell: bash
         run: |
           set -euo pipefail
@@ -358,12 +382,18 @@ jobs:
             exit 1
           }
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
-          previous=""
-          if pnpm dlx wrangler@4.92.0 deployments status \
-            --config "$config" --name "$WORKER_NAME" --json > previous-deployment.json 2>/dev/null; then
-            previous=$(node scripts/cd/wrangler-state.mjs current previous-deployment.json)
-          fi
+          pnpm dlx wrangler@4.92.0 deployments status \
+            --config "$config" --name "$WORKER_NAME" --json > previous-deployment.json
+          previous=$(node scripts/cd/wrangler-state.mjs current previous-deployment.json)
+          [[ -n "$previous" ]] || {
+            echo "Automatic production promotion requires an existing rollback version. Bootstrap the first production deployment explicitly after reviewing staging acceptance." >&2
+            exit 1
+          }
+          pnpm dlx wrangler@4.92.0 versions list \
+            --config "$config" --name "$WORKER_NAME" --json > previous-versions.json
+          previous_revision=$(node scripts/cd/wrangler-state.mjs revision previous-versions.json "$previous")
           echo "version_id=$previous" >> "$GITHUB_OUTPUT"
+          echo "revision=$previous_revision" >> "$GITHUB_OUTPUT"
       - name: Upload and deploy the production Worker Version
         shell: bash
         env:
@@ -373,21 +403,17 @@ jobs:
           set -euo pipefail
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           pnpm dlx wrangler@4.92.0 versions upload \
-            --config "$config" \
-            --name "$WORKER_NAME" \
-            --tag "$REVISION" \
+            --config "$config" --name "$WORKER_NAME" --tag "$REVISION" \
             --message "${SERVICE} production ${REVISION}" \
-            --var "APP_REVISION:${REVISION}"
+            --var "APP_REVISION:${REVISION}" \
+            --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
           pnpm dlx wrangler@4.92.0 versions list \
             --config "$config" --name "$WORKER_NAME" --json > production-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded production-versions.json "$REVISION")
           pnpm dlx wrangler@4.92.0 versions deploy "${version_id}@100%" \
-            --config "$config" \
-            --name "$WORKER_NAME" \
-            --message "${SERVICE} production ${REVISION}" \
-            --yes
-          pnpm dlx wrangler@4.92.0 triggers deploy \
-            --config "$config" --name "$WORKER_NAME"
+            --config "$config" --name "$WORKER_NAME" \
+            --message "${SERVICE} production ${REVISION}" --yes
+          pnpm dlx wrangler@4.92.0 triggers deploy --config "$config" --name "$WORKER_NAME"
       - name: Smoke test production
         id: production_smoke
         continue-on-error: true
@@ -399,23 +425,23 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIOUS_VERSION: ${{ steps.previous.outputs.version_id }}
+          PREVIOUS_REVISION: ${{ steps.previous.outputs.revision }}
         run: |
           set -euo pipefail
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           pnpm dlx wrangler@4.92.0 rollback "$PREVIOUS_VERSION" \
-            --config "$config" \
-            --name "$WORKER_NAME" \
-            --message "Automatic rollback after failed health check for ${REVISION}" \
-            --yes
+            --config "$config" --name "$WORKER_NAME" \
+            --message "Automatic rollback after failed health check for ${REVISION}" --yes
           pnpm dlx wrangler@4.92.0 deployments status \
             --config "$config" --name "$WORKER_NAME" --json > rollback-deployment.json
-          node scripts/cd/wrangler-state.mjs assert-active \
-            rollback-deployment.json "$PREVIOUS_VERSION"
+          node scripts/cd/wrangler-state.mjs assert-active rollback-deployment.json "$PREVIOUS_VERSION"
+          if [[ -n "$PREVIOUS_REVISION" ]]; then
+            node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" "$PREVIOUS_REVISION"
+          else
+            node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" --any-revision
+          fi
       - name: Fail after production smoke and rollback handling
         if: ${{ always() && steps.production_smoke.outcome == 'failure' }}
         run: |
-          echo "Production health failed. Rollback was attempted when a previous version existed." >&2
+          echo "Production health failed. Automatic rollback to the previous version ran before this failure; confirm the active Worker version before retrying." >&2
           exit 1
-      - id: release_result
-        name: Record the healthy production URL
-        run: echo "production_url=$SITE_URL" >> "$GITHUB_OUTPUT"

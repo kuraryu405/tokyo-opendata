@@ -63,14 +63,25 @@ const deletionTokenPattern = /^[A-Za-z0-9_-]{43}$/u;
 export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-credentials";
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
 export const PENDING_SITUATION_SUBMISSION_VERSION = 1 as const;
+export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
 
 export type SavedRecordCredentials = {
   id: string;
   deletionToken: string;
 };
 
+export type SavedSituationCredentialsParseResult =
+  | { status: "absent" }
+  | { status: "valid"; credentials: SavedRecordCredentials; needsMigration: boolean }
+  | { status: "corrupt" };
+
+export type SituationSubmissionSecrets = {
+  idempotencyKey: string;
+  deletionToken: string;
+};
+
 export type SituationSubmissionRequest = {
-  consent: { accepted: true; version: typeof SITUATION_CONSENT_VERSION };
+  consent: { accepted: true, version: typeof SITUATION_CONSENT_VERSION };
   idempotencyKey: string;
   deletionToken: string;
   answers: {
@@ -126,13 +137,39 @@ export function parsePendingSituationSubmission(value: string | null): PendingSi
   }
 }
 
-export function parseSavedSituationCredentials(value: string | null): SavedRecordCredentials | null {
-  if (!value) return null;
+export function parseSavedSituationCredentials(value: string | null): SavedSituationCredentialsParseResult {
+  if (value === null) return { status: "absent" };
   try {
-    return parseSavedSituationCredentialsValue(JSON.parse(value));
+    const parsed = JSON.parse(value) as unknown;
+    const legacyCredentials = parseSavedSituationCredentialsValue(parsed);
+    if (legacyCredentials) {
+      return { status: "valid", credentials: legacyCredentials, needsMigration: true };
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { status: "corrupt" };
+    const stored = parsed as Record<string, unknown>;
+    if (
+      Object.keys(stored).length !== 3
+      || stored.version !== SAVED_SITUATION_CREDENTIALS_VERSION
+    ) return { status: "corrupt" };
+    const credentials = parseSavedSituationCredentialsValue({
+      id: stored.id,
+      deletionToken: stored.deletionToken,
+    });
+    return credentials
+      ? { status: "valid", credentials, needsMigration: false }
+      : { status: "corrupt" };
   } catch {
-    return null;
+    return { status: "corrupt" };
   }
+}
+
+export function serializeSavedSituationCredentials(credentials: SavedRecordCredentials): string {
+  const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
+  if (!validatedCredentials) throw new Error("INVALID_SAVED_SITUATION_CREDENTIALS");
+  return JSON.stringify({
+    version: SAVED_SITUATION_CREDENTIALS_VERSION,
+    ...validatedCredentials,
+  });
 }
 
 export async function saveSituationSubmission(
@@ -161,10 +198,10 @@ export async function deleteSituationSubmission(
     method: "DELETE",
     headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
   });
-  // A prior DELETE may have succeeded even if its response was lost. Because
-  // this call uses the exact locally-held random ID and token, 404 is a safe
-  // idempotent completion for the client credential lifecycle.
-  if (response.status === 404) return;
+  // A prior DELETE may have succeeded even if its response was lost. Only the
+  // Worker's deletion-specific not-found envelope proves idempotent completion;
+  // routing, proxy, and malformed 404 responses must preserve the credentials.
+  if (response.status === 404 && await isCanonicalNotFoundResponse(response)) return;
   const body = await readSuccessBody(response);
   if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
 }
@@ -269,4 +306,20 @@ async function readSuccessBody(response: Response): Promise<Record<string, unkno
   const envelope = value as Record<string, unknown>;
   if (envelope.ok !== true || !envelope.data || typeof envelope.data !== "object") return null;
   return envelope.data as Record<string, unknown>;
+}
+
+async function isCanonicalNotFoundResponse(response: Response): Promise<boolean> {
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") return false;
+
+  const value = await response.json().catch(() => null);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const envelope = value as Record<string, unknown>;
+  if (Object.keys(envelope).length !== 2 || envelope.ok !== false) return false;
+  if (!envelope.error || typeof envelope.error !== "object" || Array.isArray(envelope.error)) return false;
+
+  const error = envelope.error as Record<string, unknown>;
+  return Object.keys(error).length === 2
+    && error.code === "DELETION_NOT_FOUND"
+    && typeof error.message === "string";
 }
