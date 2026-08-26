@@ -25,9 +25,9 @@ const baseData = {
 const availableData = (overrides: Record<string, unknown> = {}) => ({
   ...baseData,
   view: "needs" as const,
-  respondentCount: 10,
+  submissionCount: 10,
   hasSuppressedCategories: false,
-  categories: [{ key: "medical", respondentCount: 5 }],
+  categories: [{ key: "medical", submissionCount: 5 }],
   lastUpdatedAt: "2026-08-23",
   ...overrides,
 });
@@ -44,7 +44,7 @@ describe("Crisis View suppression rendering", () => {
     vi.unstubAllGlobals();
   });
 
-  it("withholds the respondent total when an exclusive axis is suppressed", async () => {
+  it("withholds the submission total when an exclusive axis is suppressed", async () => {
     vi.stubGlobal("fetch", vi.fn<(input: string | URL) => Promise<Response>>().mockImplementation(async (input) => {
       const view = new URL(input.toString(), "http://localhost").searchParams.get("view");
       if (view === "accommodation") {
@@ -62,12 +62,12 @@ describe("Crisis View suppression rendering", () => {
     const user = userEvent.setup();
     render(<CrisisView />);
 
-    expect(await screen.findByText("回答者数 10件以上")).toBeTruthy();
+    expect(await screen.findByText("回答件数 10件以上")).toBeTruthy();
 
     await user.selectOptions(screen.getByRole("combobox", { name: "表示軸" }), "accommodation");
 
-    expect(await screen.findByText("回答者数 —")).toBeTruthy();
-    expect(screen.queryByText(/回答者数 \d/)).toBeNull();
+    expect(await screen.findByText("回答件数 —")).toBeTruthy();
+    expect(screen.queryByText(/回答件数 \d/)).toBeNull();
     expect(screen.getByText("件数が少ない区分は表示を控えています。")).toBeTruthy();
     expect(screen.getByText("表示できる区分はありません。件数が少ない数値は表示を控えています。")).toBeTruthy();
     expect(screen.queryByText("0")).toBeNull();
@@ -169,7 +169,7 @@ describe("Crisis View suppression rendering", () => {
       if (view === "needs") return firstResponse;
       return Promise.resolve(jsonResponse(availableData({
         view: "accommodation",
-        categories: [{ key: "unstable", respondentCount: 5 }],
+        categories: [{ key: "unstable", submissionCount: 5 }],
       })));
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -184,7 +184,7 @@ describe("Crisis View suppression rendering", () => {
     expect(screen.getByText("不安定")).toBeTruthy();
 
     await act(async () => {
-      resolveFirst?.(jsonResponse(availableData({ categories: [{ key: "medical", respondentCount: 20 }] })));
+      resolveFirst?.(jsonResponse(availableData({ categories: [{ key: "medical", submissionCount: 20 }] })));
       await Promise.resolve();
       await Promise.resolve();
     });

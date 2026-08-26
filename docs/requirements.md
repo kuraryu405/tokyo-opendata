@@ -18,7 +18,7 @@
 - Situation回答の保存対象は自治体コード、選択式回答、粗い時間・年齢区分に限定し、国籍、正確な日付・住所、自由記述を含めない。
 - LLM会話は#62のserver生成経路からだけ作成し、NFKC正規化・マスキング済み本文、サーバー固定のモデルID、trusted registryで検証済みのsource ID、作成日時だけを保存する。公開作成・一覧APIを提供せず、#59のUIは保存同意preferenceだけを扱う。
 - 保存後に表示する記録IDと削除コードの保有者が、Situation回答・会話を個別に削除できる。
-- 自治体Workerは、同意済みSituation回答だけを対象に、自治体13117・東京暦の期間・単一allowlist軸でk=5匿名集計を返せる。会話・個票を読取らず、5件未満の全体・カテゴリ数を返さない。
+- 自治体Workerは、同意済みSituation回答だけを対象に、自治体13117・東京暦の期間・単一allowlist軸で、最小公開件数k=5のsubmission単位集計を返せる。会話・個票を読取らず、5件未満の全体・カテゴリ数を返さない。
 
 ## Non-functional / Data requirements
 

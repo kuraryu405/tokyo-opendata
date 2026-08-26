@@ -22,7 +22,7 @@ Situation Check回答とLLM会話は別同意・別version・別テーブルで�
 
 ## Crisis View
 
-自治体単位の集計に限定し、個人位置・住所・追跡・個人リスク推定を表示しない。国籍データはセンシティブな文脈で使われうるため、支援準備以外の用途や能力・不足の断定を避ける。自治体Workerの固定`GET /api/crisis/needs`は、同意済み` situation_submissions `だけを対象にし、全体・カテゴリともk=5未満を抑制する。会話本文、conversation ID、source ID、会話集計、モデル応答、Situation個票をCrisis ViewのAPIや画面へ返さず、query・SQLとも会話テーブルに触れない。最終更新は個人時刻でなくJST日付へ粗視化し、回答者数とともにk以上の場合だけ返す。任意回答の匿名集計はOpen Data、人口、支援不足、優先度、サービス提供能力の指標ではない。
+自治体単位の集計に限定し、個人位置・住所・追跡・個人リスク推定を表示しない。国籍データはセンシティブな文脈で使われうるため、支援準備以外の用途や能力・不足の断定を避ける。自治体Workerの固定`GET /api/crisis/needs`は、同意済み` situation_submissions `だけを対象にし、全体・カテゴリともk=5未満を抑制する。会話本文、conversation ID、source ID、会話集計、モデル応答、Situation個票をCrisis ViewのAPIや画面へ返さず、query・SQLとも会話テーブルに触れない。最終更新は個人時刻でなくJST日付へ粗視化し、回答件数とともに最小公開件数以上の場合だけ返す。この閾値は人物単位のk-anonymityではなく、少数データをそのまま公開しないためのsparse-data suppressionであり、集計単位は人物ではなくsubmissionである。任意回答の集計はOpen Data、人口、支援不足、優先度、サービス提供能力の指標ではない。
 
 ## Freshness
 

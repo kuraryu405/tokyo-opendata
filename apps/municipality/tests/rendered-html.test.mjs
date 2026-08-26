@@ -16,7 +16,7 @@ async function render(pathname = "/", origin = "http://localhost", database, wit
       },
     }),
     withEnvironment ? {
-      STAYBRIDGE_DB: database ?? { prepare: () => ({ bind: () => ({ first: async () => ({ respondent_count: 0, last_updated_at: null }) }) }) },
+      STAYBRIDGE_DB: database ?? { prepare: () => ({ bind: () => ({ first: async () => ({ submission_count: 0, last_updated_at: null }) }) }) },
       ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
       IMAGES: {
         input() {
@@ -87,8 +87,8 @@ test("serves the built municipality Worker crisis aggregate route before app ren
       queries.push(query);
       return {
         bind() { return this; },
-        async first() { return { respondent_count: 5, last_updated_at: "2026-08-23T10:00:00.000Z" }; },
-        async all() { return { results: [{ category: "medical", respondent_count: 5 }] }; },
+        async first() { return { submission_count: 5, last_updated_at: "2026-08-23T10:00:00.000Z" }; },
+        async all() { return { results: [{ category: "medical", submission_count: 5 }] }; },
       };
     },
   };
@@ -97,9 +97,9 @@ test("serves the built municipality Worker crisis aggregate route before app ren
   const body = await response.json();
   assert.equal(body.ok, true);
   assert.equal(body.data.availability, "available");
-  assert.equal(body.data.respondentCount, 5);
+  assert.equal(body.data.submissionCount, 5);
   assert.equal(body.data.hasSuppressedCategories, false);
-  assert.deepEqual(body.data.categories, [{ key: "medical", respondentCount: 5 }]);
+  assert.deepEqual(body.data.categories, [{ key: "medical", submissionCount: 5 }]);
   assert.ok(queries.every((query) => !/conversation/i.test(query)));
 });
 
