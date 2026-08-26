@@ -327,8 +327,11 @@ test("persists only allowlisted situation values with hashed tokens and idempote
 
   const conflictingBody = situationBody();
   conflictingBody.answers.visitPurpose = "work";
+  // A conflicting replay must still present a valid one-time capability;
+  // capability failures (400) take precedence before any duplicate check.
+  const conflictCapability = await issueCapability(environment);
   const conflict = await handleConsentedPersistenceRequest(
-    jsonRequest("/api/situation-submissions", conflictingBody),
+    jsonRequest("/api/situation-submissions", { ...conflictingBody, capability: conflictCapability }),
     env(database),
   );
   assert.equal(conflict?.status, 409);
