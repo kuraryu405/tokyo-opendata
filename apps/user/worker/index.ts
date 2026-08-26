@@ -4,9 +4,11 @@ import handler from "vinext/server/app-router-entry";
 import {
   createHealthResponse,
   createMethodNotAllowedResponse,
+  createOpenDataResourcesResponse,
   createReadinessResponse,
   handleConsentedPersistenceRequest,
   handleOpenDataResourcesRequest,
+  type OpenDataResourceResponse,
   type PersistenceEnv,
   type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
@@ -45,6 +47,11 @@ const worker = {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
         rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
+        verifiedGrounding: async (): Promise<OpenDataResourceResponse | null> => {
+          const response = await createOpenDataResourcesResponse(env, null);
+          const body = await response.json() as { ok?: boolean; data?: OpenDataResourceResponse };
+          return body.ok && body.data ? body.data : null;
+        },
       });
     }
 

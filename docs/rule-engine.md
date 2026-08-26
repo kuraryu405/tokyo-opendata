@@ -87,3 +87,7 @@
 - 全Rule branch、priority、同点tie-break、Action重複排除、過去/当日/将来、不正日付、unknown、prefer-not-to-say、no-card境界をunit testする。
 - 代表ケースは `packages/domain/tests/fixtures/rule-golden.ts` でAction ID、Rule ID、timing、priority、reason codeをgolden固定する。
 - UI integrationでRule ID・採用回答コード・Sourceが同じカード内に表示されること、回答変更・reload・restartで最新カードへ再評価されることを確認する。
+## AI相談との関係
+
+`POST /api/support-chat` のAI案内はRule Engineの代替ではなく補助導線である。Rule ID・Action Cardの選定は引き続き `packages/domain/src/rules.ts` の固定ルールだけが行い、AIの出力がAction選定へ干渉しない。AIは検証済みOpen Dataのfactと既存Actionへの導線を案内できても、新しいRuleやカードを生成・変更できない。制度・安全性の判断を求める質問は、AIより先に決定的な公式窓口handoffへ分岐する。
+

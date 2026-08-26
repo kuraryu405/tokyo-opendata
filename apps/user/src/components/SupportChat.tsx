@@ -7,6 +7,43 @@ import type { Locale } from "./staybridge-session";
 
 const SUPPORT_CHAT_TIMEOUT_MS = 15_000;
 
+export type SupportChatGroundingSourceView = {
+  id: string;
+  title: string;
+  publisher: string;
+  sourceUrl: string;
+  dataUpdatedAt: string;
+  fetchedAt: string;
+  coverageNote: string;
+};
+
+export type SupportChatGroundingView = {
+  status: "current" | "stale";
+  uncertainty: string;
+  sources: SupportChatGroundingSourceView[];
+};
+
+const groundingCopy = {
+  ja: {
+    heading: "回答の根拠データ",
+    updated: "データ更新日",
+    fetched: "取得日",
+    stale: "検証済みキャッシュが古いため、施設名など具体情報は案内していません。",
+  },
+  en: {
+    heading: "Grounding data for this answer",
+    updated: "Data updated",
+    fetched: "Fetched",
+    stale: "The verified cache is stale, so no specific facility names are cited.",
+  },
+  my: {
+    heading: "အဖြေ၏ အထောက်အထားဒေတာ",
+    updated: "ဒေတာ နောက်ဆုံးရွှေ့",
+    fetched: "ရယူသည့်နေ့",
+    stale: "စိစစ်ထားသော cache မှာ ရှေးကျနေသဖြင့် အဆောက်အအုံအမည်များ ဖော်ပြမထားပါ။",
+  },
+} as const;
+
 const chatCopy = {
   ja: {
     title: "AI相談アシスタント",
@@ -52,7 +89,7 @@ const chatCopy = {
   },
 } as const;
 
-type ChatEntry = SupportChatMessage & { id: string };
+type ChatEntry = SupportChatMessage & { id: string; grounding?: SupportChatGroundingView };
 
 class ChatRequestError extends Error {
   constructor(readonly code: string) {
@@ -68,6 +105,34 @@ const readErrorCode = async (response: Response): Promise<string> => {
     return "";
   }
 };
+
+function isGroundingView(value: unknown): value is SupportChatGroundingView {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if ((record.status !== "current" && record.status !== "stale") || typeof record.uncertainty !== "string") return false;
+  if (!Array.isArray(record.sources)) return false;
+  return record.sources.every((source) => {
+    if (!source || typeof source !== "object") return false;
+    const entry = source as Record<string, unknown>;
+    return typeof entry.id === "string" && typeof entry.title === "string"
+      && typeof entry.publisher === "string" && typeof entry.sourceUrl === "string"
+      && typeof entry.dataUpdatedAt === "string" && typeof entry.fetchedAt === "string"
+      && typeof entry.coverageNote === "string";
+  });
+}
+
+function GroundingNote({ grounding, locale }: { grounding: SupportChatGroundingView; locale: Locale }) {
+  const g = groundingCopy[locale];
+  return <div className="chat-grounding" data-testid="chat-grounding">
+    <small>{g.heading}{grounding.status === "stale" ? ` — ${g.stale}` : ""}</small>
+    {grounding.sources.map((source) => <details key={source.id}>
+      <summary>{source.title}（{source.publisher}）</summary>
+      <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.sourceUrl}</a>
+      <span>{g.updated}: {source.dataUpdatedAt} / {g.fetched}: {source.fetchedAt}</span>
+      <p>{grounding.uncertainty || source.coverageNote}</p>
+    </details>)}
+  </div>;
+}
 
 export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
@@ -91,10 +156,11 @@ export function SupportChat({ locale }: { locale: Locale }) {
     else log.scrollTop = log.scrollHeight;
   }, [messages.length, pending]);
 
-  const createEntry = (role: SupportChatMessage["role"], content: string): ChatEntry => ({
+  const createEntry = (role: SupportChatMessage["role"], content: string, grounding?: SupportChatGroundingView): ChatEntry => ({
     id: `${role}-${nextMessageId.current++}`,
     role,
     content,
+    ...(grounding ? { grounding } : {}),
   });
 
   const sendMessage = async (event?: FormEvent, suggestedQuestion?: string) => {
@@ -123,11 +189,12 @@ export function SupportChat({ locale }: { locale: Locale }) {
         signal: controller.signal,
       });
       if (!response.ok) throw new ChatRequestError(await readErrorCode(response));
-      const body = await response.json() as { reply?: unknown };
+      const body = await response.json() as { reply?: unknown; grounding?: unknown };
       if (typeof body.reply !== "string" || !body.reply.trim()) throw new Error("Support chat returned no reply");
       const reply = body.reply.trim();
+      const grounding = isGroundingView(body.grounding) ? body.grounding : undefined;
       if (activeRequestId.current !== requestId) return;
-      setMessages((current) => [...current, createEntry("assistant", reply)]);
+      setMessages((current) => [...current, createEntry("assistant", reply, grounding)]);
     } catch (requestError) {
       if (activeRequestId.current !== requestId) return;
       setMessages((current) => current.filter((message) => message.id !== userMessage.id));
@@ -166,7 +233,7 @@ export function SupportChat({ locale }: { locale: Locale }) {
     <div className="support-chat-panel" id={panelId}>
       <p className="chat-disclosure">{t.disclosure}</p>
       {messages.length === 0 && !pending && <div className="chat-suggestions">{t.suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => void sendMessage(undefined, suggestion)}>{suggestion}<span aria-hidden="true">→</span></button>)}</div>}
-      {messages.length > 0 && <div className="chat-log" aria-live="polite" ref={chatLogRef}>{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p></article>)}</div>}
+      {messages.length > 0 && <div className="chat-log" aria-live="polite" ref={chatLogRef}>{messages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><small>{message.role === "user" ? t.you : t.assistant}</small><p>{message.content}</p>{message.role === "assistant" && message.grounding && <GroundingNote grounding={message.grounding} locale={locale} />}</article>)}</div>}
       {pending && <output className="chat-pending" aria-live="polite"><span aria-hidden="true" />{t.pending}</output>}
       {error && <p className="chat-error" role="alert">{error === "HIGH_RISK_IDENTIFIER" ? t.identifierError : t.error}</p>}
       <form className="chat-form" onSubmit={sendMessage}>

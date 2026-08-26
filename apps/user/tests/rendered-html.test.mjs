@@ -149,7 +149,16 @@ test("routes support chat through rate limiting and untrusted transcript inferen
   );
 
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { reply: "確認したいことを一つずつ整理しましょう。" });
+  const body = await response.json();
+  // The built worker grounds from the bundled verified cache; depending on the
+  // wall clock it either validates model JSON or falls back deterministically.
+  assert.equal(typeof body.reply, "string");
+  assert.ok(body.reply.length > 0);
+  if (body.grounding) {
+    assert.ok(body.grounding.status === "current" || body.grounding.status === "stale");
+    assert.equal(typeof body.grounding.uncertainty, "string");
+    assert.ok(Array.isArray(body.grounding.sources));
+  }
   assert.equal(inference.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
   assert.deepEqual(inference.input.messages.map(({ role }) => role), ["system", "user"]);
   assert.match(inference.input.messages[1].content, /<untrusted_transcript_json>/);

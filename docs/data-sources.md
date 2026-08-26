@@ -29,3 +29,7 @@ Action CardはSource Registryのstable IDだけを保持する。カタログ完
 コネクタは上記2 URLへのGETだけを許可し、query、redirect、異なるhost/path、異なるmethodを拒否する。CSV 1 MiB、ZIP 8 MiB、各request 30秒、Content-Type、HTTP status、ZIP境界・展開後総量・CRC32、CSV quoting・列数・field 1 KiBをfail-closedで検証する。既存selectionの12 identityが各1件そろうことを完全性条件とし、current-schoolの名称・現行住所checkも再利用する。1件でも欠落・重複・driftがあればD1へstageせず、active datasetを切り替えない。
 
 検証後は既存の `school`、`medical`、`child_support`、`public_facility` Common Schemaへ正規化する。raw CSV/ZIP、未知field、説明・命令文、元データにない空き・受入可否・対応言語をD1へ保存しない。現在の公式school CSVはidentity/address contractに不一致があるため、手動syncは失敗し、既存activeまたは同梱8件cacheを維持する。公式CSVが現行contractを満たした場合だけ12件版をactive化する。
+## AI案内による検証済みデータの利用
+
+AI Support Preparationは、#61の検証済み北区施設キャッシュ(D1 active version、障害時は同梱cache)だけをgrounding sourceに使う。modelへ渡すのは正規化済みfield(id, category, municipality, name, address, sourceId)のallowlistのみで、raw CSV/ZIP、未知field、URLをpromptへ含めない。キャッシュのfetchedAtが48時間を超えるとfacility factを注入せず、stale handoff表示へ切り替える。回答には使用したsourceのURL・提供者(title/publisher)・データ更新日(dataUpdatedAt)・取得日(fetchedAt)・coverage noteを出典として表示し、出典のないOpen Data由来の具体的主張を表示しない。
+

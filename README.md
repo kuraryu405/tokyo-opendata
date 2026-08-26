@@ -59,6 +59,7 @@ Thanks to everyone who has contributed code through a merged pull request.
 - 氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は入力しないよう画面で案内し、モデルにも要求・反復させない制約を与えます。
 - Workerは同一オリジン、JSON、1メッセージ800文字、履歴7件、本文25,000 bytesを検証します。`cf-connecting-ip` 単位で60秒あたり20回に制限し、応答には `Cache-Control: no-store` を付けます。
 - Workers AI未接続、推論失敗、空応答、レート超過時はチャット内に公式相談先を使う案内を表示します。AI障害によってロードマップなどの主要機能は停止しません。
+- 回答の根拠には#61の検証済み北区施設キャッシュだけを使います。modelにtoolや外部アクセスはなく、在留・難民・就労・就学・給付・母国の安全などの判断質問は推論前に公式窓口への案内へ分岐し、それ以外も検証済みfactと実際に使用したsource IDだけを受理します。出典(source URL・提供者・データ更新日・取得日・coverage note)を回答下に表示し、キャッシュが48時間より古い場合は施設名を案内せずstale表示にします。
 
 本番WorkerではCDがデプロイ成果物へ `AI` bindingを注入し、stagingとproductionでnamespaceを分離した `SUPPORT_CHAT_RATE_LIMITER` bindingと併用します。通常のローカル設定には `AI` bindingを含めないため、ローカル起動・ビルド・テストはremote AIへ接続せず、Cloudflare認証を必要としません。実推論を意図的に試す場合だけ `STAYBRIDGE_REMOTE_AI=1` を設定します。自動テストは課金と外部依存を避けるためAI・rate-limit bindingsをmockします。
 

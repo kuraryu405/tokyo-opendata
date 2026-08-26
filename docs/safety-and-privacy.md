@@ -8,7 +8,9 @@ StayBridge Tokyo は在留延長、在留資格変更、難民・補完的保護
 
 主要導線はRule Engineで動作し、Actionは採用回答コード、安定したRule ID、Action ID、Source Registry出典を追跡できる。Action Cardの本文・注意事項・CTAはレビュー期限を持つ静的カタログで管理し、実行時に生成しない。未レビュー、期限切れ、出典不明のカードは表示せず、公式相談先へfallbackする。AIは公式窓口で何を伝え、何を確認するかの整理だけに使い、在留・就労・就学・給付などの可否や母国の安全性は判定させない。AI出力が固定ルールのカードを削除・上書き・並べ替えることはなく、AI障害時も同じRoadmap、理由、Local Action、Handoffを表示する。
 
-AIチャットにはSituation Checkの回答を自動送信しない。ユーザーがチャット欄へ入力した会話だけをCloudflare Workers AIへ送信し、公開routeは推論結果を返すだけでD1へ自動保存しない。クライアントが付けた `assistant` roleも信頼せず、全履歴を区切られたJSON transcriptとして単一のuser messageへ格納する。入力前に個人情報を記載しないよう明示し、氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は求めない。サーバー側では同一オリジン、入力長・履歴件数、レート制限を検証し、rate-limit bindingがない場合は推論せず503を返す。Roadmapの会話保存同意は将来の保存設定であり、現時点で会話が保存済みとは表示しない。
+AIチャットにはSituation Checkの回答を自動送信しない。ユーザーがチャット欄へ入力した会話だけをCloudflare Workers AIへ送信し、公開routeは推論結果を返すだけでD1へ自動保存しない。会話保存への同意契約は#118に従い、本導線自体は会話本文をD1へ書かない。
+
+AI案内のgroundingは#61の検証済みOpen Dataキャッシュに限定され、modelにはtool・API・network権限を与えない。在留可否、難民・補完的保護、就労可否、就学可否、給付資格、母国の安全性はmodelに判断させず、該当質問(ja/en/my)は推論前に決定的な公式窓口handoffへ分岐する。model出力の`usedSourceIds`は実際に注入したsource IDのsubsetのみ受理し、未知ID・invalid JSON・欠落は決定的な引用付き回答へfail-closedする。回答UIはsource URL・提供者・データ更新日・取得日・coverage noteを表示する。クライアントが付けた `assistant` roleも信頼せず、全履歴を区切られたJSON transcriptとして単一のuser messageへ格納する。入力前に個人情報を記載しないよう明示し、氏名、連絡先、旅券・在留カード番号、正確な住所、政治・宗教・迫害に関する情報は求めない。サーバー側では同一オリジン、入力長・履歴件数、レート制限を検証し、rate-limit bindingがない場合は推論せず503を返す。Roadmapの会話保存同意は将来の保存設定であり、現時点で会話が保存済みとは表示しない。
 
 ## Minimal data
 

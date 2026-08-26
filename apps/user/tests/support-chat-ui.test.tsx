@@ -70,4 +70,37 @@ describe("SupportChat conversation log autoscroll", () => {
     expect(screen.queryByText("窓口で確認してください。")).toBeNull();
     expect(document.querySelector(".chat-log")).toBeNull();
   });
+
+  it("renders grounding sources with provider, dates, and coverage under the reply", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockImplementation(async () => new Response(JSON.stringify({
+      reply: "北区中央診療所を確認できます。",
+      grounding: {
+        status: "current",
+        uncertainty: "掲載は一部選定施設のみです。",
+        sources: [{
+          id: "kita_medical_checkup",
+          title: "北区 医療機関一覧",
+          publisher: "北区",
+          sourceUrl: "https://example.city.kita.tokyo.jp/open/medical.csv",
+          dataUpdatedAt: "2026-04-01",
+          fetchedAt: "2026-08-23T10:00:00.000Z",
+          coverageNote: "掲載は一部選定施設のみです。",
+        }],
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    const user = userEvent.setup();
+    render(<SupportChat locale="ja" />);
+
+    const input = screen.getByRole("textbox", { name: "相談したいこと" });
+    await user.type(input, "近くの医療機関は？");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+
+    const note = await screen.findByTestId("chat-grounding");
+    expect(note.textContent).toContain("回答の根拠データ");
+    expect(note.textContent).toContain("北区 医療機関一覧（北区）");
+    expect(note.textContent).toContain("https://example.city.kita.tokyo.jp/open/medical.csv");
+    expect(note.textContent).toContain("データ更新日: 2026-04-01");
+    expect(note.textContent).toContain("取得日: 2026-08-23T10:00:00.000Z");
+    expect(note.textContent).toContain("掲載は一部選定施設のみです。");
+  });
 });
