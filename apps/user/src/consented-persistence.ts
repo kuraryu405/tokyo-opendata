@@ -175,10 +175,13 @@ export function serializeSavedSituationCredentials(credentials: SavedRecordCrede
 export async function saveSituationSubmission(
   submission: PendingSituationSubmission,
 ): Promise<SavedRecordCredentials> {
+  // The one-time capability is acquired per attempt and never stored with the
+  // versioned pending request.
+  const capability = await issueSituationSubmissionCapability();
   const response = await fetch("/api/situation-submissions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(submission.request),
+    body: JSON.stringify({ ...submission.request, capability }),
   });
   const body = await readSuccessBody(response);
   const credentials = parseSavedSituationCredentialsValue({
@@ -187,6 +190,17 @@ export async function saveSituationSubmission(
   });
   if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
   return credentials;
+}
+
+async function issueSituationSubmissionCapability(): Promise<string> {
+  const response = await fetch("/api/situation-submission-capabilities", { method: "POST" });
+  const body = await readSuccessBody(response);
+  if (
+    typeof body?.capability !== "string"
+    || body.capability.length < 32
+    || body.capability.length > 1_024
+  ) throw new Error("SITUATION_CAPABILITY_FAILED");
+  return body.capability;
 }
 
 export async function deleteSituationSubmission(

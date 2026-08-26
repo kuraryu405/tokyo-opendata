@@ -8,15 +8,18 @@ export interface RevisionEnv {
 
 export interface BackendEnv extends RevisionEnv {
   STAYBRIDGE_DB: D1Database;
+  SITUATION_CAPABILITY_SECRET?: string;
 }
 
 export interface ApiError {
   code:
+    | "CAPABILITY_REQUIRED"
     | "CONSENT_REQUIRED"
     | "DELETION_NOT_FOUND"
     | "DUPLICATE_CONFLICT"
     | "HIGH_RISK_IDENTIFIER"
     | "INVALID_REQUEST"
+    | "INVALID_CAPABILITY"
     | "METHOD_NOT_ALLOWED"
     | "NOT_FOUND"
     | "PAYLOAD_TOO_LARGE"
@@ -117,6 +120,17 @@ const SITUATION_SUBMISSIONS_COLUMNS = [
   "idempotency_key_hash",
   "payload_hash",
   "created_at",
+  "contribution_state",
+  "capability_nonce_hash",
+] as const;
+const SITUATION_SUBMISSION_CAPABILITIES_COLUMNS = [
+  "nonce_hash",
+  "capability_version",
+  "scope",
+  "expires_at",
+  "issued_at",
+  "consumed_at",
+  "consumed_idempotency_key_hash",
 ] as const;
 const CONVERSATIONS_COLUMNS = [
   "id",
@@ -233,7 +247,11 @@ const READINESS_REQUIRED_SCHEMA: Record<ReadinessService, ReadinessSchema> = {
     backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
     situation_submissions: {
       columns: SITUATION_SUBMISSIONS_COLUMNS,
-      uniqueConstraints: [["idempotency_key_hash"]],
+      uniqueConstraints: [["idempotency_key_hash"], ["capability_nonce_hash"]],
+    },
+    situation_submission_capabilities: {
+      columns: SITUATION_SUBMISSION_CAPABILITIES_COLUMNS,
+      uniqueConstraints: [["nonce_hash"]],
     },
     conversations: {
       columns: CONVERSATIONS_COLUMNS,
@@ -250,16 +268,24 @@ const READINESS_REQUIRED_SCHEMA: Record<ReadinessService, ReadinessSchema> = {
     backend_metadata: { columns: BACKEND_METADATA_COLUMNS },
     situation_submissions: {
       columns: SITUATION_SUBMISSIONS_COLUMNS,
-      uniqueConstraints: [["idempotency_key_hash"]],
+      uniqueConstraints: [["idempotency_key_hash"], ["capability_nonce_hash"]],
     },
   },
 };
 
 export async function createReadinessResponse(
-  env: Pick<BackendEnv, "STAYBRIDGE_DB"> | undefined,
+  env: Pick<BackendEnv, "STAYBRIDGE_DB" | "SITUATION_CAPABILITY_SECRET"> | undefined,
   service: ReadinessService,
 ): Promise<Response> {
   try {
+    if (
+      service === "user"
+      && (
+        typeof env?.SITUATION_CAPABILITY_SECRET !== "string"
+        || env.SITUATION_CAPABILITY_SECRET.length < 32
+        || env.SITUATION_CAPABILITY_SECRET.length > 512
+      )
+    ) throw new Error("Situation capability signing is unavailable");
     const binding = env?.STAYBRIDGE_DB;
     if (!binding) {
       throw new Error("D1 binding is unavailable");
@@ -357,4 +383,5 @@ function withApiHeaders(init: ResponseInit): ResponseInit {
 
 export * from "./persistence";
 export * from "./crisis-needs";
+export * from "./capability";
 export * from "./open-data";

@@ -81,9 +81,9 @@ pnpm --filter @staybridge/user exec wrangler deploy --dry-run --config dist/serv
 
 人口・施設は、公的なOpen Dataから一部レコードを選定・正規化し、デモ安定性のためローカルへキャッシュしています。北区の施設データは[北区オープンデータ](https://www.city.kita.lg.jp/city-information/disclosure/1014461.html)のCC BY 4.0データセットに由来し、カード上でも変更内容を表示します。現行性を検証できない学校レコードは cache から除外しています。収録件数は全件数・受入可否・空き・支援能力を表しません。Persona Aと回答状態は `demo fixture` であり、実在人物ではありません。区分、出典、制約は [docs/data-sources.md](docs/data-sources.md) に記録します。
 
-Situation Check回答とLLM会話は別同意・別テーブルです。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
+Situation Check回答とLLM会話は別同意・別テーブルです。Situationは同一originへ発行した短命・署名済み・one-time capabilityを必須とし、検証済み回答だけを`accepted`として保存します。検証不能な既存行は`quarantined`として公開集計から除外します。明示同意がある場合だけ、サーバーで最小化・NFKC正規化・マスキングまたは拒否した後の内容をD1へ保存します。会話作成は#62が生成したassistant本文とprovenanceをserver-internal境界から渡す場合だけ可能で、#59の公開HTTP routeと同意設定UIだけでは会話を保存しません。デモfixtureは保存できません。期限付き自動削除という従来条件は廃止し、マスキング済みデータは無期限保持とします。記録IDと削除コードの保有者は削除できます。削除コードはD1ではSHA-256 hashだけを保存し、削除まで同じタブの`sessionStorage`にも保持します。恒久ユーザーID、アカウント、Cookie横断追跡、学習・二次利用、Crisis Viewへの会話本文公開は行いません。詳細は [安全とプライバシー](docs/safety-and-privacy.md) と [Workers・D1バックエンド基盤](docs/backend-d1.md) を参照してください。
 
-自治体Workerだけの `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` は、同意済み`situation_submissions`を自治体・期間・1軸で匿名集計します。`municipality`、`period`（`7d` / `30d` / `90d`）、`view`（`needs` / `return_status` / `departure_window` / `accommodation`）は各1個のallowlistのみを受け付けます。5件未満の全体・カテゴリは数値を返さず、会話・個票を読取りません。これはOpen Dataでも母集団・不足・優先度・支援能力の指標でもありません。
+自治体Workerだけの `GET /api/crisis/needs?municipality=13117&period=30d&view=needs` は、同意済みかつ`accepted`の`situation_submissions`を自治体・期間・1軸で匿名集計します。`municipality`、`period`（`7d` / `30d` / `90d`）、`view`（`needs` / `return_status` / `departure_window` / `accommodation`）は各1個のallowlistのみを受け付けます。`quarantined`と5件未満の全体・カテゴリは数値を返さず、会話・個票を読取りません。これはOpen Dataでも母集団・不足・優先度・支援能力の指標でもありません。
 
 ## 安全性
 
