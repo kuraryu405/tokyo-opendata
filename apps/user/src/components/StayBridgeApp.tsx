@@ -145,11 +145,13 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
       } else if (savedCredentialsResult.status === "corrupt") {
         setSituationPersistence({ status: "corrupt" });
-        const pendingSecrets = parseSituationSubmissionSecrets(
+        const parsedPending = parsePendingSituationSubmission(
           sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
         );
-        if (pendingSecrets) {
-          situationSubmissionSecrets.current = pendingSecrets;
+        if (parsedPending.status !== "empty") {
+          pendingSituationSubmission.current = parsedPending.status === "retryable"
+            ? parsedPending.submission
+            : "incompatible";
           setHasPendingSituationSubmission(true);
         }
       } else {
@@ -389,7 +391,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
-    situationSubmissionSecrets.current = null;
+    pendingSituationSubmission.current = null;
     setHasPendingSituationSubmission(false);
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
