@@ -64,6 +64,8 @@ export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-crede
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
 export const PENDING_SITUATION_SUBMISSION_VERSION = 1 as const;
 export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
+/** Matches the Crisis View request budget so no consented persistence call can stay busy forever. */
+export const SITUATION_SUBMISSION_TIMEOUT_MS = 10_000;
 export const SITUATION_PERSISTENCE_PREFERENCE_KEY = "staybridge.situation-persistence-preference";
 
 /**
@@ -185,22 +187,26 @@ export function serializeSavedSituationCredentials(credentials: SavedRecordCrede
 
 export async function saveSituationSubmission(
   submission: PendingSituationSubmission,
+  requestSignal?: AbortSignal,
 ): Promise<SavedRecordCredentials> {
   // The one-time capability is acquired per attempt and never stored with the
   // versioned pending request.
   const capability = await issueSituationSubmissionCapability();
-  const response = await fetch("/api/situation-submissions", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...submission.request, capability }),
-  });
-  const body = await readSuccessBody(response);
-  const credentials = parseSavedSituationCredentialsValue({
-    id: body?.id,
-    deletionToken: submission.request.deletionToken,
-  });
-  if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
-  return credentials;
+  return withSubmissionTimeout(async (signal) => {
+    const response = await fetch("/api/situation-submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...submission.request, capability }),
+      signal,
+    });
+    const body = await readSuccessBody(response);
+    const credentials = parseSavedSituationCredentialsValue({
+      id: body?.id,
+      deletionToken: submission.request.deletionToken,
+    });
+    if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
+    return credentials;
+  }, requestSignal);
 }
 
 async function issueSituationSubmissionCapability(): Promise<string> {
@@ -216,19 +222,46 @@ async function issueSituationSubmissionCapability(): Promise<string> {
 
 export async function deleteSituationSubmission(
   credentials: SavedRecordCredentials,
+  requestSignal?: AbortSignal,
 ): Promise<void> {
   const validatedCredentials = parseSavedSituationCredentialsValue(credentials);
   if (!validatedCredentials) throw new Error("SITUATION_DELETION_FAILED");
-  const response = await fetch(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
-  });
-  // A prior DELETE may have succeeded even if its response was lost. Only the
-  // Worker's deletion-specific not-found envelope proves idempotent completion;
-  // routing, proxy, and malformed 404 responses must preserve the credentials.
-  if (response.status === 404 && await isCanonicalNotFoundResponse(response)) return;
-  const body = await readSuccessBody(response);
-  if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+  await withSubmissionTimeout(async (signal) => {
+    const response = await fetch(`/api/situation-submissions/${encodeURIComponent(validatedCredentials.id)}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
+      signal,
+    });
+    // A prior DELETE may have succeeded even if its response was lost. Only the
+    // Worker's deletion-specific not-found envelope proves idempotent completion;
+    // routing, proxy, and malformed 404 responses must preserve the credentials.
+    if (response.status === 404 && await isCanonicalNotFoundResponse(response)) return;
+    const body = await readSuccessBody(response);
+    if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
+  }, requestSignal);
+}
+
+/**
+ * Covers the complete request lifecycle, including response-body decoding.
+ * The optional caller signal lets a component abort work that is no longer
+ * needed when it unmounts, while the internal deadline guarantees a finite
+ * wait even when either fetch or response.json() never settles.
+ */
+async function withSubmissionTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  requestSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (requestSignal?.aborted) controller.abort();
+  else requestSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timer = setTimeout(() => controller.abort(), SITUATION_SUBMISSION_TIMEOUT_MS);
+  try {
+    return await operation(controller.signal);
+  } finally {
+    clearTimeout(timer);
+    requestSignal?.removeEventListener("abort", abortFromCaller);
+  }
 }
 
 function parsePendingSituationSubmissionValue(value: unknown): PendingSituationSubmission | null {
