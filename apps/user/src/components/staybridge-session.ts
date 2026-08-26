@@ -64,6 +64,7 @@ const needCategories = new Set<NeedCategory>([
   "employment",
   "language",
   "daily_life",
+  "none",
 ]);
 const stayAnswers = new Set<StayAnswer>(["known", "unknown", "documents"]);
 const familyAnswers = new Set<FamilyAnswer>(["none", "children", "spouse", "other"]);
