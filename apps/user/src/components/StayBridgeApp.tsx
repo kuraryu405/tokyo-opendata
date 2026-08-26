@@ -62,6 +62,8 @@ import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
+  SITUATION_PERSISTENCE_PREFERENCE_KEY,
+  readSituationPersistencePreference,
   createPendingSituationSubmission,
   deleteSituationSubmission,
   parsePendingSituationSubmission,
@@ -164,6 +166,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
             : "incompatible";
           setHasPendingSituationSubmission(true);
           setSituationPersistence({ status: "error" });
+        } else if (
+          readSituationPersistencePreference(sessionStorage.getItem(SITUATION_PERSISTENCE_PREFERENCE_KEY)) === "declined"
+        ) {
+          setSituationPersistence({ status: "declined" });
         }
       }
     } catch {
@@ -328,6 +334,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setIsDemoSituation(false);
     pendingSituationSubmission.current = null;
     try {
+      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
     } catch {
       setStorageError(true);
@@ -356,6 +363,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setIsDemoSituation(false);
     pendingSituationSubmission.current = null;
     try {
+      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
     } catch {
       setStorageError(true);
@@ -378,6 +386,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     skipNextSessionWrite.current = true;
     try {
       sessionStorage.removeItem("staybridge.session");
+      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
     } catch {
       setStorageError(true);
@@ -437,6 +446,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         pendingSituationSubmission.current = null;
         setHasPendingSituationSubmission(false);
       }
+      try {
+        sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
+      } catch {
+        setStorageError(true);
+      }
       setSituationPersistence({ status: "saved", credentials });
     } catch {
       setSituationPersistence({ status: "error" });
@@ -455,6 +469,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }
       pendingSituationSubmission.current = null;
       setHasPendingSituationSubmission(false);
+      try {
+        sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
+      } catch {
+        setStorageError(true);
+      }
       setSituationPersistence({ status: "deleted" });
     } catch {
       setSituationPersistence({ status: "delete-error", credentials });
@@ -485,7 +504,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
+            try {
+              sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
+            } catch {
+              // Forgetting a decline is acceptable; it only re-asks consent.
+            }
+            setSituationPersistence({ status: "declined" });
+          }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
           {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}

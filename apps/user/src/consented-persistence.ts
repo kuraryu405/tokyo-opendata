@@ -64,6 +64,17 @@ export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-crede
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
 export const PENDING_SITUATION_SUBMISSION_VERSION = 1 as const;
 export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
+export const SITUATION_PERSISTENCE_PREFERENCE_KEY = "staybridge.situation-persistence-preference";
+
+/**
+ * An explicit decline is honored for the lifetime of the answer session it
+ * belongs to, so reloading does not re-ask the same consent question.
+ * Anything unreadable simply means "no remembered preference": the worst case
+ * is one repeated consent prompt, never a saved record.
+ */
+export function readSituationPersistencePreference(value: string | null): "declined" | null {
+  return value === "declined" ? "declined" : null;
+}
 
 export type SavedRecordCredentials = {
   id: string;
