@@ -554,12 +554,12 @@ describe("StayBridge client flow", () => {
     sessionStorage.setItem("staybridge.pending-situation-submission", storedPending);
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
-    await user.click(screen.getByRole("button", { name: "同意して保存" }));
-
+    // An unreadable pending value is protected fail-closed: the corrupt-pending
+    // section replaces the normal consent actions until it is explicitly discarded.
+    await screen.findByRole("heading", { name: "未完了の保存情報を確認できません" });
+    expect(screen.queryByRole("button", { name: "同意して保存" })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
   });
