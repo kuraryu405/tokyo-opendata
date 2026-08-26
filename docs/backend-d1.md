@@ -81,3 +81,5 @@ Situation POSTは`application/json`、48,000 byte以下を必須とし、同一o
 `situation_submissions`、`conversations`、`conversation_messages`は分離し、未マスキング本文やraw requestは保存しません。削除コード・idempotency keyはSHA-256 hashだけをD1へ保存します。`expires_at`と期限削除jobは持たず、検査通過後の同意済みデータは無期限保持です。保存・削除APIは回答本文やD1例外をログ出力せず、失敗時は一般化したエラーだけを返します。
 
 staging/production の smoke test は liveness と readiness の両方を確認します。readiness が 503 の場合は、対象環境の Worker Binding が `STAYBRIDGE_DB` か、DB ID が対象環境のものか、D1 が利用可能かを Cloudflare 側で確認します。レスポンスに内部詳細を追加して調査しないでください。
+
+binding・var・secretの環境別の一覧と出所(wrangler.jsonc / CD注入 / 手動登録)は [ランタイム設定リファレンス](runtime-configuration.md) にまとめる。

@@ -400,6 +400,7 @@ export const consultationSourcesByNeed: Record<NeedCategory, readonly SupportSou
   employment: ["TOKYO_LABOR_CONSULT", "TOKYO_FOREIGN_WORKERS_HANDBOOK", "TOKYO_CAREER_CONSULT", "HELLO_WORK_TOKYO_FOREIGNER"],
   language: ["TIPS_JAPANESE"],
   daily_life: ["TIPS_LIVING_GUIDE", "TIPS_PROCEDURES", "TIPS_LIFE_GUIDE_JP", "KEISHICHO_FOREIGN_RESIDENT_MANUAL"],
+  none: [],
 };
 
 /** Always-available human-handoff desks, rendered in their own section. */
