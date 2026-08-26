@@ -41,7 +41,7 @@ export const viMessages = {
     ["Bạn có biết mình có thể ở Nhật Bản trong bao lâu không?", "Bạn vẫn có thể tiếp tục ngay cả khi không biết tên tình trạng cư trú.", [["known", "Tôi biết"], ["unknown", "Tôi không biết"], ["documents", "Tôi muốn kiểm tra giấy tờ"]]],
     ["Có người thân nào đang ở cùng bạn tại Nhật Bản không?", "Nếu có trẻ em đi cùng, hãy chọn cả độ tuổi của trẻ.", [["none", "Không"], ["children", "Có trẻ em đi cùng"], ["spouse", "Vợ/chồng tôi đi cùng"], ["other", "Có người thân khác đi cùng"]]],
     ["Hiện bạn đang ở đâu?", "Chúng tôi không hỏi vị trí chính xác.", [["hotel", "Khách sạn hoặc chỗ ở"], ["family_or_friend", "Nhà người thân hoặc bạn bè"], ["rental", "Nhà thuê"], ["temporary_facility", "Cơ sở tạm thời"], ["unstable", "Tôi lo về nơi có thể ở"], ["prefer_not_to_say", "Không muốn trả lời"]]],
-    ["Hiện bạn đang lo lắng về điều gì?", "Chọn tất cả mục phù hợp.", [["stay", "Tôi có thể ở lại bao lâu"], ["consultation", "Nơi để hỏi hỗ trợ"], ["accommodation", "Chỗ ở"], ["living_cost", "Chi phí sinh hoạt"], ["employment", "Việc làm"], ["education", "Trường học và giáo dục"], ["childcare", "Cuộc sống hằng ngày của con tôi"], ["medical", "Chăm sóc y tế"], ["daily_life", "Cuộc sống hằng ngày"], ["language", "Tiếng Nhật"]]],
+    ["Hiện bạn đang lo lắng về điều gì?", "Chọn tất cả mục phù hợp.", [["stay", "Tôi có thể ở lại bao lâu"], ["consultation", "Nơi để hỏi hỗ trợ"], ["accommodation", "Chỗ ở"], ["living_cost", "Chi phí sinh hoạt"], ["employment", "Việc làm"], ["education", "Trường học và giáo dục"], ["childcare", "Cuộc sống hằng ngày của con tôi"], ["medical", "Chăm sóc y tế"], ["daily_life", "Cuộc sống hằng ngày"], ["language", "Tiếng Nhật"], ["none", "Không có mục nào"]]],
     ["Bạn có thể nói tiếng Nhật đến mức nào?", "Điều này giúp chúng tôi sắp xếp hỗ trợ ngôn ngữ khi tư vấn.", [["none", "Hầu như không nói được"], ["beginner", "Nói được một chút"], ["daily", "Có thể giao tiếp hằng ngày"], ["advanced", "Có thể nói tốt"]]],
   ],
   actions: {
@@ -73,7 +73,7 @@ export const viMessages = {
     KNOWN_STAY_DEADLINE: "Hướng dẫn này được hiển thị vì bạn đã nhập hạn lưu trú, để bạn có thể xác nhận với cơ quan chính thức trước ngày đó.",
     STAY_DEADLINE_PASSED: "Hướng dẫn liên hệ ngay với cơ quan chính thức được hiển thị vì hạn lưu trú bạn đã nhập đã qua.",
   },
-  needs: { stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
+  needs: { none: "Không có mục nào", stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
 } as const satisfies UserMessages;
 
 export const thMessages = {
@@ -117,7 +117,7 @@ export const thMessages = {
     ["คุณทราบหรือไม่ว่าคุณสามารถอยู่ในญี่ปุ่นได้นานเท่าใด?", "คุณทำต่อได้แม้ไม่ทราบชื่อสถานะการพำนัก.", [["known", "ฉันทราบ"], ["unknown", "ฉันไม่ทราบ"], ["documents", "ฉันต้องการตรวจสอบเอกสาร"]]],
     ["มีสมาชิกครอบครัวอยู่กับคุณในญี่ปุ่นหรือไม่?", "หากมีเด็กอยู่ด้วย โปรดเลือกอายุของเด็กด้วย.", [["none", "ไม่มี"], ["children", "มีเด็กอยู่ด้วย"], ["spouse", "คู่สมรสอยู่ด้วย"], ["other", "มีสมาชิกครอบครัวคนอื่นอยู่ด้วย"]]],
     ["ขณะนี้คุณพักอยู่ที่ใด?", "เราไม่ถามตำแหน่งที่แน่นอน.", [["hotel", "โรงแรมหรือที่พัก"], ["family_or_friend", "บ้านครอบครัวหรือเพื่อน"], ["rental", "บ้านเช่า"], ["temporary_facility", "สถานที่ชั่วคราว"], ["unstable", "ฉันกังวลว่าจะพักที่ไหนได้"], ["prefer_not_to_say", "ไม่ต้องการตอบ"]]],
-    ["ขณะนี้คุณกังวลเรื่องใด?", "เลือกได้ทุกข้อที่ตรงกับคุณ.", [["stay", "ฉันจะอยู่ได้อีกนานเท่าใด"], ["consultation", "จะขอความช่วยเหลือได้ที่ไหน"], ["accommodation", "ที่พัก"], ["living_cost", "ค่าใช้จ่ายในการดำรงชีวิต"], ["employment", "งาน"], ["education", "โรงเรียนและการศึกษา"], ["childcare", "ชีวิตประจำวันของลูก"], ["medical", "การรักษาพยาบาล"], ["daily_life", "ชีวิตประจำวัน"], ["language", "ภาษาญี่ปุ่น"]]],
+    ["ขณะนี้คุณกังวลเรื่องใด?", "เลือกได้ทุกข้อที่ตรงกับคุณ.", [["stay", "ฉันจะอยู่ได้อีกนานเท่าใด"], ["consultation", "จะขอความช่วยเหลือได้ที่ไหน"], ["accommodation", "ที่พัก"], ["living_cost", "ค่าใช้จ่ายในการดำรงชีวิต"], ["employment", "งาน"], ["education", "โรงเรียนและการศึกษา"], ["childcare", "ชีวิตประจำวันของลูก"], ["medical", "การรักษาพยาบาล"], ["daily_life", "ชีวิตประจำวัน"], ["language", "ภาษาญี่ปุ่น"], ["none", "ไม่มี"]]],
     ["คุณพูดภาษาญี่ปุ่นได้มากน้อยเพียงใด?", "ข้อมูลนี้ช่วยให้เราจัดการสนับสนุนด้านภาษาเมื่อปรึกษา.", [["none", "แทบพูดไม่ได้"], ["beginner", "พูดได้เล็กน้อย"], ["daily", "สนทนาในชีวิตประจำวันได้"], ["advanced", "พูดได้ดี"]]],
   ],
   actions: {
@@ -149,5 +149,5 @@ export const thMessages = {
     KNOWN_STAY_DEADLINE: "แสดงคำแนะนำนี้เพราะคุณป้อนกำหนดการพำนัก เพื่อให้คุณยืนยันกับหน่วยงานทางการก่อนวันดังกล่าว.",
     STAY_DEADLINE_PASSED: "แสดงคำแนะนำให้ติดต่อหน่วยงานทางการทันที เพราะกำหนดการพำนักที่คุณป้อนได้ผ่านไปแล้ว.",
   },
-  needs: { stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
+  needs: { none: "ไม่มี", stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
 } as const satisfies UserMessages;
