@@ -554,7 +554,6 @@ describe("StayBridge client flow", () => {
     sessionStorage.setItem("staybridge.pending-situation-submission", storedPending);
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     // An unreadable pending value is protected fail-closed: the corrupt-pending
