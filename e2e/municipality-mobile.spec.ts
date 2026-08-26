@@ -29,9 +29,9 @@ async function fulfillNeeds(route: Route) {
         countBucketSize: 5,
         coverageNote: "Browser regression fixture.",
         limitations: ["Browser regression fixture."],
-        categories: [{ key: category, respondentCount: 10 }],
+        categories: [{ key: category, submissionCount: 10 }],
         hasSuppressedCategories: false,
-        respondentCount: 10,
+        submissionCount: 10,
         lastUpdatedAt: "2026-08-24"
       }
     })

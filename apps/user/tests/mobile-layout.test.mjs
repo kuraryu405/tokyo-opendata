@@ -141,3 +141,15 @@ test("keeps all reviewed navigation labels visible at a 390px physical width wit
     await context.close();
   }
 });
+
+test("shows the verified Open Data update date through the real Local Action journey", async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await openRoute(context, "ja");
+
+  await page.getByRole("button", { name: "近くの支援", exact: true }).click();
+  const resourceCard = page.locator("article.resource-card").filter({ hasText: "おうじキッズクリニック" });
+  await resourceCard.getByText("出典を見る", { exact: true }).click();
+
+  await assert.doesNotReject(resourceCard.getByText("データ更新: 2024-10-31", { exact: true }).waitFor());
+  await context.close();
+});

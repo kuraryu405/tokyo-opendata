@@ -6,6 +6,7 @@ import {
   createMethodNotAllowedResponse,
   createReadinessResponse,
   handleConsentedPersistenceRequest,
+  handleOpenDataResourcesRequest,
   type PersistenceEnv,
   type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
@@ -67,6 +68,10 @@ const worker = {
 
     if (url.pathname === "/readyz") {
       return createMethodNotAllowedResponse();
+    }
+
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
     }
 
     const persistenceResponse = await handleConsentedPersistenceRequest(request, env);

@@ -41,7 +41,7 @@ export const zhCNMessages = {
     ["你知道自己可以在日本停留多久吗？", "即使不知道在留资格名称也可以继续。", [["known", "知道"], ["unknown", "不知道"], ["documents", "想查看证件"]]],
     ["有家人和你一起在日本吗？", "如果有儿童同行，也请选择其年龄。", [["none", "没有"], ["children", "有儿童同行"], ["spouse", "配偶同行"], ["other", "有其他家人同行"]]],
     ["你现在住在哪里？", "我们不会询问准确地点。", [["hotel", "酒店或住宿设施"], ["family_or_friend", "家人或朋友家"], ["rental", "租赁住宅"], ["temporary_facility", "临时设施"], ["unstable", "担心之后没有住处"], ["prefer_not_to_say", "不愿回答"]]],
-    ["你目前担心哪些事情？", "可选择所有符合的项目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪里求助"], ["accommodation", "之后的住处"], ["living_cost", "生活费"], ["employment", "工作"], ["education", "儿童的学校和教育"], ["childcare", "儿童的日常生活"], ["medical", "医疗"], ["daily_life", "日常生活"], ["language", "日语"]]],
+    ["你目前担心哪些事情？", "可选择所有符合的项目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪里求助"], ["accommodation", "之后的住处"], ["living_cost", "生活费"], ["employment", "工作"], ["education", "儿童的学校和教育"], ["childcare", "儿童的日常生活"], ["medical", "医疗"], ["daily_life", "日常生活"], ["language", "日语"], ["none", "都没有"]]],
     ["你会说多少日语？", "用于安排咨询时可能需要的语言支持。", [["none", "几乎不会"], ["beginner", "会一点"], ["daily", "能进行日常会话"], ["advanced", "可以顺畅交流"]]],
   ],
   actions: {
@@ -52,7 +52,7 @@ export const zhCNMessages = {
     CHECK_MEDICAL_OPTIONS: { title: "确认可以就医的地点", desc: "提前查看附近医疗机构，以便需要时知道去哪里求助。", cta: "查看附近医疗机构" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "先确认是否可以工作", desc: "找工作前，请向官方窗口确认目前的在留情况是否允许工作。", cta: "查看官方支持" },
     FIND_LANGUAGE_SUPPORT: { title: "确认口译和简明日语支持", desc: "查找可用的语言支持，以便在咨询时准确说明你的情况。", cta: "查看咨询联系方式" },
-    CHECK_BEFORE_STAY_DEADLINE: { title: "在期限前检查证件并安排咨询", desc: "在你输入的日期前，安排检查现有证件并联系官方窗口的时间。", cta: "查看官方支持" },
+    CHECK_BEFORE_STAY_DEADLINE: { title: "在期限前检查证件并安排咨询", desc: "在你输入的日期前，安排检查现有证件并联系官方窗口的时间。", cta: "查看官方支持" }, FIND_DAILY_LIFE_GUIDANCE: { title: "查看日常生活官方指南", desc: "通过官方生活指南，整理在东京生活所需的手续和日常信息。", cta: "查看官方指南" },
     CHECK_CHILD_LOCAL_SUPPORT: { title: "查找儿童可使用的当地资源", desc: "确认儿童可以安心活动的公共场所和社区资源。", cta: "查看儿童活动场所" },
     CHECK_LIVING_COST_SUPPORT: { title: "咨询近期生活费", desc: "向官方支持窗口个别确认你的情况可使用哪些咨询或支援。", cta: "查看咨询联系方式" },
   },
@@ -68,12 +68,12 @@ export const zhCNMessages = {
     CHILDCARE_NEED: "你与年幼儿童同行，并选择了儿童照护或日常生活支持方面的担忧。",
     MEDICAL_NEED: "你选择了医疗作为目前的担忧。",
     EMPLOYMENT_NEED: "你选择了工作或生活费，因此在找工作前先显示工作资格确认。",
-    LIVING_COST_NEED: "你选择了近期生活费方面的担忧，因此这里显示官方咨询渠道。",
+    LIVING_COST_NEED: "你选择了近期生活费方面的担忧，因此这里显示官方咨询渠道。", DAILY_LIFE_NEED: "你选择了日常生活方面的困扰，因此这里显示官方生活指南。",
     LANGUAGE_BARRIER: "在官方咨询时，语言支持可能有助于你准确说明情况。",
     KNOWN_STAY_DEADLINE: "你输入了停留期限，因此这里提醒你在该日期前向官方窗口确认。",
     STAY_DEADLINE_PASSED: "你输入的停留期限已经过去，因此请立即向官方窗口确认当前情况。",
   },
-  needs: { stay: "可以在日本停留多久", consultation: "所需手续与官方咨询", accommodation: "住宿与日常生活", living_cost: "生活费方面的帮助", employment: "是否可以工作", education: "儿童教育", childcare: "儿童的日常生活", medical: "可以就医的地点", language: "语言支持", daily_life: "日常生活" },
+  needs: { none: "都没有", stay: "可以在日本停留多久", consultation: "所需手续与官方咨询", accommodation: "住宿与日常生活", living_cost: "生活费方面的帮助", employment: "是否可以工作", education: "儿童教育", childcare: "儿童的日常生活", medical: "可以就医的地点", language: "语言支持", daily_life: "日常生活" },
 } as const satisfies UserMessages;
 
 export const zhTWMessages = {
@@ -117,7 +117,7 @@ export const zhTWMessages = {
     ["你知道自己可以在日本停留多久嗎？", "即使不知道在留資格名稱也可以繼續。", [["known", "知道"], ["unknown", "不知道"], ["documents", "想查看證件"]]],
     ["有家人和你一起在日本嗎？", "如果有兒童同行，也請選擇其年齡。", [["none", "沒有"], ["children", "有兒童同行"], ["spouse", "配偶同行"], ["other", "有其他家人同行"]]],
     ["你現在住在哪裡？", "我們不會詢問精確地點。", [["hotel", "飯店或住宿設施"], ["family_or_friend", "家人或朋友家"], ["rental", "租賃住宅"], ["temporary_facility", "臨時設施"], ["unstable", "擔心之後沒有住處"], ["prefer_not_to_say", "不願回答"]]],
-    ["你目前擔心哪些事情？", "可選擇所有符合的項目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪裡求助"], ["accommodation", "之後的住處"], ["living_cost", "生活費"], ["employment", "工作"], ["education", "兒童的學校與教育"], ["childcare", "兒童的日常生活"], ["medical", "醫療"], ["daily_life", "日常生活"], ["language", "日語"]]],
+    ["你目前擔心哪些事情？", "可選擇所有符合的項目。", [["stay", "可以在日本停留多久"], ["consultation", "可以去哪裡求助"], ["accommodation", "之後的住處"], ["living_cost", "生活費"], ["employment", "工作"], ["education", "兒童的學校與教育"], ["childcare", "兒童的日常生活"], ["medical", "醫療"], ["daily_life", "日常生活"], ["language", "日語"], ["none", "都沒有"]]],
     ["你會說多少日語？", "用於安排諮詢時可能需要的語言支援。", [["none", "幾乎不會"], ["beginner", "會一點"], ["daily", "能進行日常會話"], ["advanced", "可以順暢交流"]]],
   ],
   actions: {
@@ -128,7 +128,7 @@ export const zhTWMessages = {
     CHECK_MEDICAL_OPTIONS: { title: "確認可以就醫的地點", desc: "預先查看附近醫療機構，以便需要時知道去哪裡求助。", cta: "查看附近醫療機構" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "先確認是否可以工作", desc: "找工作前，請向官方窗口確認目前的在留情況是否允許工作。", cta: "查看官方支援" },
     FIND_LANGUAGE_SUPPORT: { title: "確認口譯與簡明日語支援", desc: "尋找可用的語言支援，以便在諮詢時準確說明你的情況。", cta: "查看諮詢聯絡方式" },
-    CHECK_BEFORE_STAY_DEADLINE: { title: "在期限前檢查證件並安排諮詢", desc: "在你輸入的日期前，安排檢查現有證件並聯絡官方窗口的時間。", cta: "查看官方支援" },
+    CHECK_BEFORE_STAY_DEADLINE: { title: "在期限前檢查證件並安排諮詢", desc: "在你輸入的日期前，安排檢查現有證件並聯絡官方窗口的時間。", cta: "查看官方支援" }, FIND_DAILY_LIFE_GUIDANCE: { title: "查看日常生活官方指南", desc: "透過官方生活指南，整理在東京生活所需的手續與日常資訊。", cta: "查看官方指南" },
     CHECK_CHILD_LOCAL_SUPPORT: { title: "尋找兒童可使用的當地資源", desc: "確認兒童可以安心活動的公共場所和社區資源。", cta: "查看兒童活動場所" },
     CHECK_LIVING_COST_SUPPORT: { title: "諮詢近期生活費", desc: "向官方支援窗口個別確認你的情況可使用哪些諮詢或支援。", cta: "查看諮詢聯絡方式" },
   },
@@ -144,12 +144,12 @@ export const zhTWMessages = {
     CHILDCARE_NEED: "你與年幼兒童同行，並選擇了兒童照護或日常生活支援方面的擔憂。",
     MEDICAL_NEED: "你選擇了醫療作為目前的擔憂。",
     EMPLOYMENT_NEED: "你選擇了工作或生活費，因此在找工作前先顯示工作資格確認。",
-    LIVING_COST_NEED: "你選擇了近期生活費方面的擔憂，因此這裡顯示官方諮詢管道。",
+    LIVING_COST_NEED: "你選擇了近期生活費方面的擔憂，因此這裡顯示官方諮詢管道。", DAILY_LIFE_NEED: "你選擇了日常生活方面的困擾，因此這裡顯示官方生活指南。",
     LANGUAGE_BARRIER: "在官方諮詢時，語言支援可能有助於你準確說明情況。",
     KNOWN_STAY_DEADLINE: "你輸入了停留期限，因此這裡提醒你在該日期前向官方窗口確認。",
     STAY_DEADLINE_PASSED: "你輸入的停留期限已經過去，因此請立即向官方窗口確認目前情況。",
   },
-  needs: { stay: "可以在日本停留多久", consultation: "所需手續與官方諮詢", accommodation: "住宿與日常生活", living_cost: "生活費方面的協助", employment: "是否可以工作", education: "兒童教育", childcare: "兒童的日常生活", medical: "可以就醫的地點", language: "語言支援", daily_life: "日常生活" },
+  needs: { none: "都沒有", stay: "可以在日本停留多久", consultation: "所需手續與官方諮詢", accommodation: "住宿與日常生活", living_cost: "生活費方面的協助", employment: "是否可以工作", education: "兒童教育", childcare: "兒童的日常生活", medical: "可以就醫的地點", language: "語言支援", daily_life: "日常生活" },
 } as const satisfies UserMessages;
 
 export const koMessages = {
@@ -193,7 +193,7 @@ export const koMessages = {
     ["일본에 언제까지 머물 수 있는지 알고 있습니까?", "체류자격 명칭을 몰라도 계속할 수 있습니다.", [["known", "알고 있음"], ["unknown", "모름"], ["documents", "서류를 확인하고 싶음"]]],
     ["일본에 함께 있는 가족이 있습니까?", "아동이 함께 있다면 나이도 선택하세요.", [["none", "없음"], ["children", "아동이 함께 있음"], ["spouse", "배우자가 함께 있음"], ["other", "다른 가족이 함께 있음"]]],
     ["지금 어디에 머물고 있습니까?", "정확한 위치는 묻지 않습니다.", [["hotel", "호텔 또는 숙박시설"], ["family_or_friend", "가족 또는 지인의 집"], ["rental", "임대주택"], ["temporary_facility", "임시시설"], ["unstable", "앞으로 머물 곳이 불안정함"], ["prefer_not_to_say", "답변하지 않음"]]],
-    ["현재 무엇이 걱정됩니까?", "해당하는 항목을 모두 선택하세요.", [["stay", "일본에 얼마나 머물 수 있는지"], ["consultation", "도움을 어디에 요청할지"], ["accommodation", "앞으로 머물 곳"], ["living_cost", "생활비"], ["employment", "일"], ["education", "아동의 학교와 교육"], ["childcare", "아동의 일상생활"], ["medical", "의료"], ["daily_life", "일상생활"], ["language", "일본어"]]],
+    ["현재 무엇이 걱정됩니까?", "해당하는 항목을 모두 선택하세요.", [["stay", "일본에 얼마나 머물 수 있는지"], ["consultation", "도움을 어디에 요청할지"], ["accommodation", "앞으로 머물 곳"], ["living_cost", "생활비"], ["employment", "일"], ["education", "아동의 학교와 교육"], ["childcare", "아동의 일상생활"], ["medical", "의료"], ["daily_life", "일상생활"], ["language", "일본어"], ["none", "해당 없음"]]],
     ["일본어를 어느 정도 할 수 있습니까?", "상담 시 필요한 언어 지원을 정리하는 데 사용합니다.", [["none", "거의 못함"], ["beginner", "조금 할 수 있음"], ["daily", "일상 대화 가능"], ["advanced", "편안하게 대화 가능"]]],
   ],
   actions: {
@@ -204,7 +204,7 @@ export const koMessages = {
     CHECK_MEDICAL_OPTIONS: { title: "진료받을 곳 확인하기", desc: "필요할 때 어디에 도움을 요청할지 알 수 있도록 가까운 의료기관을 미리 확인하세요.", cta: "가까운 의료기관 보기" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "먼저 취업 가능 여부 확인", desc: "구직 전에 현재 체류 상황에서 일할 수 있는지 공식 창구에 확인하세요.", cta: "공식 지원 보기" },
     FIND_LANGUAGE_SUPPORT: { title: "통역과 쉬운 일본어 지원 확인", desc: "상담에서 상황을 정확히 설명할 수 있도록 이용 가능한 언어 지원을 찾으세요.", cta: "상담 연락처 보기" },
-    CHECK_BEFORE_STAY_DEADLINE: { title: "기한 전에 서류와 상담 일정 확인", desc: "입력한 날짜 전에 보유 서류를 검토하고 공식 창구에 연락할 시점을 정하세요.", cta: "공식 지원 보기" },
+    CHECK_BEFORE_STAY_DEADLINE: { title: "기한 전에 서류와 상담 일정 확인", desc: "입력한 날짜 전에 보유 서류를 검토하고 공식 창구에 연락할 시점을 정하세요.", cta: "공식 지원 보기" }, FIND_DAILY_LIFE_GUIDANCE: { title: "일상생활 공식 안내 확인", desc: "공식 생활 가이드로 도쿄 생활에 필요한 절차와 일상 정보를 정리합니다.", cta: "공식 안내 보기" },
     CHECK_CHILD_LOCAL_SUPPORT: { title: "아동과 이용할 지역 자원 찾기", desc: "아동이 안심하고 시간을 보낼 수 있는 공공시설과 지역 자원을 확인하세요.", cta: "아동 활동 공간 보기" },
     CHECK_LIVING_COST_SUPPORT: { title: "당장의 생활비 상담하기", desc: "현재 상황에서 이용할 수 있는 상담이나 지원이 있는지 공식 지원 창구에 개별적으로 확인하세요.", cta: "상담 연락처 보기" },
   },
@@ -220,10 +220,10 @@ export const koMessages = {
     CHILDCARE_NEED: "어린 아동과 함께 있으며 보육 또는 아동의 일상생활 지원을 걱정거리로 선택했습니다.",
     MEDICAL_NEED: "의료를 현재의 걱정거리로 선택했습니다.",
     EMPLOYMENT_NEED: "일 또는 생활비를 선택했으므로 구직 전에 취업 가능 여부 확인을 먼저 표시합니다.",
-    LIVING_COST_NEED: "당장의 생활비를 걱정거리로 선택했으므로 공식 상담 경로를 표시합니다.",
+    LIVING_COST_NEED: "당장의 생활비를 걱정거리로 선택했으므로 공식 상담 경로를 표시합니다.", DAILY_LIFE_NEED: "일상생활에서의 어려움을 선택했으므로 공식 생활 안내를 표시합니다.",
     LANGUAGE_BARRIER: "공식 상담에서 상황을 설명할 때 언어 지원이 도움이 될 수 있습니다.",
     KNOWN_STAY_DEADLINE: "체류 기한을 입력했으므로 그 날짜 전에 공식 창구에 확인할 수 있도록 표시합니다.",
     STAY_DEADLINE_PASSED: "입력한 체류 기한이 지났으므로 지금 공식 창구에 현재 상황을 확인하도록 안내합니다.",
   },
-  needs: { stay: "일본에 얼마나 머물 수 있는지", consultation: "필요한 절차와 공식 상담", accommodation: "숙박과 일상생활", living_cost: "생활비 지원", employment: "일할 수 있는지", education: "아동 교육", childcare: "아동의 일상생활", medical: "진료받을 곳", language: "언어 지원", daily_life: "일상생활" },
+  needs: { none: "해당 없음", stay: "일본에 얼마나 머물 수 있는지", consultation: "필요한 절차와 공식 상담", accommodation: "숙박과 일상생활", living_cost: "생활비 지원", employment: "일할 수 있는지", education: "아동 교육", childcare: "아동의 일상생활", medical: "진료받을 곳", language: "언어 지원", daily_life: "일상생활" },
 } as const satisfies UserMessages;
