@@ -132,10 +132,10 @@ export async function deleteSituationSubmission(
     method: "DELETE",
     headers: { authorization: `Bearer ${validatedCredentials.deletionToken}` },
   });
-  // A prior DELETE may have succeeded even if its response was lost. Because
-  // this call uses the exact locally-held random ID and token, 404 is a safe
-  // idempotent completion for the client credential lifecycle.
-  if (response.status === 404) return;
+  // A prior DELETE may have succeeded even if its response was lost. Only the
+  // Worker's deletion-specific not-found envelope proves idempotent completion;
+  // routing, proxy, and malformed 404 responses must preserve the credentials.
+  if (response.status === 404 && await isCanonicalNotFoundResponse(response)) return;
   const body = await readSuccessBody(response);
   if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
 }
@@ -167,4 +167,20 @@ async function readSuccessBody(response: Response): Promise<Record<string, unkno
   const envelope = value as Record<string, unknown>;
   if (envelope.ok !== true || !envelope.data || typeof envelope.data !== "object") return null;
   return envelope.data as Record<string, unknown>;
+}
+
+async function isCanonicalNotFoundResponse(response: Response): Promise<boolean> {
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json") return false;
+
+  const value = await response.json().catch(() => null);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const envelope = value as Record<string, unknown>;
+  if (Object.keys(envelope).length !== 2 || envelope.ok !== false) return false;
+  if (!envelope.error || typeof envelope.error !== "object" || Array.isArray(envelope.error)) return false;
+
+  const error = envelope.error as Record<string, unknown>;
+  return Object.keys(error).length === 2
+    && error.code === "DELETION_NOT_FOUND"
+    && typeof error.message === "string";
 }

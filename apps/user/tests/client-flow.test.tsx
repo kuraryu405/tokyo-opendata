@@ -493,7 +493,7 @@ describe("StayBridge client flow", () => {
     await waitFor(() => expect(navigation.path()).toBe("/ja/help"));
   });
 
-  it("treats a 404 deletion retry as completion for the locally held credential", async () => {
+  it("treats a canonical deletion 404 retry as completion for the locally held credential", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
     sessionStorage.setItem("staybridge.saved-situation-credentials", JSON.stringify({
@@ -502,7 +502,7 @@ describe("StayBridge client flow", () => {
     }));
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       ok: false,
-      error: { code: "NOT_FOUND", message: "not found" },
+      error: { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
     }), { status: 404, headers: { "content-type": "application/json" } })));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
