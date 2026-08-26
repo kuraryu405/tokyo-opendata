@@ -4,16 +4,26 @@ import {
   createMethodNotAllowedResponse,
   type BackendEnv,
 } from "./index";
+import {
+  createCapabilityNonce,
+  issueSignedCapability,
+  verifySignedCapability,
+  type SignedCapabilityClaims,
+} from "./capability";
 
 export const SITUATION_CONSENT_VERSION = "situation-2026-08-23" as const;
 export const CONVERSATION_CONSENT_VERSION = "conversation-2026-08-23" as const;
+export const SITUATION_CAPABILITY_VERSION = 1 as const;
 
 const MAX_BODY_BYTES = 48_000;
 const MAX_MESSAGES = 20;
 const MAX_MESSAGE_LENGTH = 2_000;
 const MAX_SOURCE_IDS = 12;
+const SITUATION_CAPABILITY_TTL_SECONDS = 5 * 60;
+const SITUATION_CAPABILITY_SCOPE = "situation:submit";
 
 const situationPath = "/api/situation-submissions";
+const situationCapabilityPath = "/api/situation-submission-capabilities";
 const conversationPath = "/api/conversations";
 
 const visitPurposes = new Set([
@@ -52,6 +62,9 @@ const needs = new Set([
   "medical",
   "language",
   "daily_life",
+  // Honest "no current need" answers are stored but never aggregated: the
+  // Crisis View whitelist simply has no such category.
+  "none",
 ]);
 const japaneseLevels = new Set(["none", "beginner", "daily", "advanced"]);
 const ageGroups = new Set(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
@@ -75,6 +88,12 @@ export interface PersistenceRateLimiter {
 export interface PersistenceEnv extends BackendEnv {
   PERSISTENCE_RATE_LIMITER?: PersistenceRateLimiter;
 }
+
+export type PersistenceOptions = {
+  now?: Date;
+};
+
+export type SituationContributionState = "accepted" | "quarantined";
 
 export type PersistencePolicy = {
   conversationModelId: string;
@@ -101,6 +120,7 @@ type SituationAnswers = {
 type ParsedSituationSubmission = {
   idempotencyKey: string;
   deletionToken: string;
+  capability: string;
   answers: SituationAnswers;
 };
 
@@ -117,6 +137,14 @@ type ExistingRecord = {
   deletion_token_hash: string;
 };
 
+type SituationCapabilityLedger = {
+  capability_version: number;
+  scope: string;
+  expires_at: string;
+  consumed_at: string | null;
+  consumed_idempotency_key_hash: string | null;
+};
+
 type ParseResult<T> =
   | { ok: true; value: T }
   | { ok: false; highRisk?: boolean };
@@ -124,10 +152,13 @@ type ParseResult<T> =
 export async function handleConsentedPersistenceRequest(
   request: Request,
   env: PersistenceEnv | undefined,
+  options: PersistenceOptions = {},
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const deletionRoute = parseDeletionRoute(url.pathname);
-  const routeKind = url.pathname === situationPath
+  const routeKind = url.pathname === situationCapabilityPath
+    ? "situation-capability"
+    : url.pathname === situationPath
     ? "situation"
     : url.pathname === conversationPath
       ? "conversation"
@@ -143,6 +174,14 @@ export async function handleConsentedPersistenceRequest(
     );
   }
 
+  if (routeKind === "situation-capability") {
+    if (request.method !== "POST") return createMethodNotAllowedResponse("POST");
+    if (!hasExplicitSameOrigin(request) || request.body) return invalidOriginResponse();
+    const rateLimitResponse = await enforceRateLimit(request, env, "issue:situation-capability");
+    if (rateLimitResponse) return rateLimitResponse;
+    return issueSituationSubmissionCapability(env, options.now ?? new Date());
+  }
+
   if (deletionRoute) {
     if (request.method !== "DELETE") return createMethodNotAllowedResponse("DELETE");
     const rateLimitResponse = await enforceRateLimit(request, env, `delete:${deletionRoute.kind}`);
@@ -156,6 +195,7 @@ export async function handleConsentedPersistenceRequest(
   if (routeKind === "conversation") return createMethodNotAllowedResponse("DELETE");
 
   if (request.method !== "POST") return createMethodNotAllowedResponse("POST");
+  if (!hasExplicitSameOrigin(request)) return invalidOriginResponse();
   if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") {
     return createApiErrorResponse(
       { code: "UNSUPPORTED_MEDIA_TYPE", message: "Content-Type must be application/json." },
@@ -181,9 +221,31 @@ export async function handleConsentedPersistenceRequest(
   }
 
   if (routeKind === "situation") {
+    if (!isRecord(body.value) || typeof body.value.capability !== "string") {
+      return capabilityRequiredResponse();
+    }
     const parsed = parseSituationSubmission(body.value);
     if (!parsed.ok) return invalidSubmissionResponse(parsed.highRisk);
-    return persistSituation(env.STAYBRIDGE_DB, parsed.value);
+    let capabilityClaims: SignedCapabilityClaims | null;
+    try {
+      capabilityClaims = await verifySignedCapability(
+        env.SITUATION_CAPABILITY_SECRET ?? "",
+        parsed.value.capability,
+      );
+    } catch {
+      return persistenceUnavailableResponse();
+    }
+    if (
+      !capabilityClaims
+      || capabilityClaims.version !== SITUATION_CAPABILITY_VERSION
+      || capabilityClaims.scope !== SITUATION_CAPABILITY_SCOPE
+    ) return invalidCapabilityResponse();
+    return persistSituation(
+      env.STAYBRIDGE_DB,
+      parsed.value,
+      capabilityClaims,
+      options.now ?? new Date(),
+    );
   }
 
   return null;
@@ -240,9 +302,14 @@ export function maskDetectableContactData(value: string): string {
 }
 
 function parseSituationSubmission(value: unknown): ParseResult<ParsedSituationSubmission> {
-  if (!isRecord(value) || !hasOnlyKeys(value, ["consent", "idempotencyKey", "deletionToken", "answers"])) return { ok: false };
+  if (!isRecord(value) || !hasOnlyKeys(value, ["consent", "idempotencyKey", "deletionToken", "capability", "answers"])) return { ok: false };
   if (!hasConsent(value.consent, SITUATION_CONSENT_VERSION)) return { ok: false };
-  if (!isIdempotencyKey(value.idempotencyKey) || !isDeletionToken(value.deletionToken)) return { ok: false };
+  if (
+    !isIdempotencyKey(value.idempotencyKey)
+    || !isDeletionToken(value.deletionToken)
+    || typeof value.capability !== "string"
+    || value.capability.length > 1_024
+  ) return { ok: false };
   if (!isRecord(value.answers) || !hasOnlyKeys(value.answers, [
     "municipalityCode",
     "visitPurpose",
@@ -271,6 +338,7 @@ function parseSituationSubmission(value: unknown): ParseResult<ParsedSituationSu
     value: {
       idempotencyKey: value.idempotencyKey,
       deletionToken: value.deletionToken,
+      capability: value.capability,
       answers: {
         municipalityCode,
         visitPurpose: answers.visitPurpose,
@@ -303,51 +371,256 @@ function parseConversation(value: unknown, policy: PersistencePolicy): ParseResu
   };
 }
 
-async function persistSituation(db: D1Database, submission: ParsedSituationSubmission): Promise<Response> {
-  const createdAt = new Date().toISOString();
+async function persistSituation(
+  db: D1Database,
+  submission: ParsedSituationSubmission,
+  capability: SignedCapabilityClaims,
+  now: Date,
+): Promise<Response> {
+  const createdAt = now.toISOString();
   const idempotencyHash = await sha256(submission.idempotencyKey);
   const deletionTokenHash = await sha256(submission.deletionToken);
   const payloadHash = await sha256(JSON.stringify(submission.answers));
+  const capabilityNonceHash = await sha256(capability.nonce);
+  const capabilityExpiresAt = new Date(capability.expiresAt * 1_000).toISOString();
   let duplicate: ExistingRecord | null;
   try {
     duplicate = await findExisting(db, "situation_submissions", idempotencyHash);
   } catch {
     return persistenceUnavailableResponse();
   }
-  if (duplicate) return duplicateResponse(duplicate, payloadHash, deletionTokenHash);
+  if (duplicate) {
+    if (!isExactDuplicate(duplicate, payloadHash, deletionTokenHash)) {
+      return duplicateResponse(duplicate, payloadHash, deletionTokenHash);
+    }
+    return authorizeSituationDuplicate(
+      db,
+      duplicate,
+      capability,
+      capabilityNonceHash,
+      capabilityExpiresAt,
+      idempotencyHash,
+      createdAt,
+    );
+  }
+  if (capability.expiresAt <= Math.floor(now.getTime() / 1_000)) return invalidCapabilityResponse();
 
   const id = `sit_${crypto.randomUUID()}`;
   try {
-    await db.prepare(
+    const results = await db.batch([
+      db.prepare(
       `INSERT INTO situation_submissions (
         id, consent_version, consented_at, municipality_code, visit_purpose,
         departure_window, return_status, family_age_groups_json, accommodation,
         needs_json, japanese_level, deletion_token_hash, idempotency_key_hash,
-        payload_hash, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      id,
-      SITUATION_CONSENT_VERSION,
-      createdAt,
-      submission.answers.municipalityCode,
-      submission.answers.visitPurpose,
-      submission.answers.departureWindow,
-      submission.answers.returnStatus,
-      JSON.stringify(submission.answers.familyAgeGroups),
-      submission.answers.accommodation,
-      JSON.stringify(submission.answers.needs),
-      submission.answers.japaneseLevel,
-      deletionTokenHash,
-      idempotencyHash,
-      payloadHash,
-      createdAt,
-    ).run();
-    return createApiSuccessResponse({ id, created: true, consentVersion: SITUATION_CONSENT_VERSION }, { status: 201 });
+        payload_hash, created_at, contribution_state, capability_nonce_hash
+      )
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', capability.nonce_hash
+      FROM situation_submission_capabilities AS capability
+      WHERE capability.nonce_hash = ?
+        AND capability.capability_version = ?
+        AND capability.scope = ?
+        AND capability.expires_at = ?
+        AND capability.consumed_at IS NULL
+        AND capability.expires_at > ?`,
+      ).bind(
+        id,
+        SITUATION_CONSENT_VERSION,
+        createdAt,
+        submission.answers.municipalityCode,
+        submission.answers.visitPurpose,
+        submission.answers.departureWindow,
+        submission.answers.returnStatus,
+        JSON.stringify(submission.answers.familyAgeGroups),
+        submission.answers.accommodation,
+        JSON.stringify(submission.answers.needs),
+        submission.answers.japaneseLevel,
+        deletionTokenHash,
+        idempotencyHash,
+        payloadHash,
+        createdAt,
+        capabilityNonceHash,
+        SITUATION_CAPABILITY_VERSION,
+        SITUATION_CAPABILITY_SCOPE,
+        capabilityExpiresAt,
+        createdAt,
+      ),
+      db.prepare(
+        `UPDATE situation_submission_capabilities
+         SET consumed_at = ?, consumed_idempotency_key_hash = ?
+         WHERE nonce_hash = ?
+           AND capability_version = ?
+           AND scope = ?
+           AND expires_at = ?
+           AND consumed_at IS NULL
+           AND consumed_idempotency_key_hash IS NULL
+           AND expires_at > ?`,
+      ).bind(
+        createdAt,
+        idempotencyHash,
+        capabilityNonceHash,
+        SITUATION_CAPABILITY_VERSION,
+        SITUATION_CAPABILITY_SCOPE,
+        capabilityExpiresAt,
+        createdAt,
+      ),
+    ]);
+    if ((results[0]?.meta.changes ?? 0) === 1 && (results[1]?.meta.changes ?? 0) === 1) {
+      return createApiSuccessResponse({ id, created: true, consentVersion: SITUATION_CONSENT_VERSION }, { status: 201 });
+    }
+    const racedDuplicate = await findExisting(db, "situation_submissions", idempotencyHash).catch(() => null);
+    if (racedDuplicate) {
+      if (!isExactDuplicate(racedDuplicate, payloadHash, deletionTokenHash)) {
+        return duplicateResponse(racedDuplicate, payloadHash, deletionTokenHash);
+      }
+      return authorizeSituationDuplicate(
+        db,
+        racedDuplicate,
+        capability,
+        capabilityNonceHash,
+        capabilityExpiresAt,
+        idempotencyHash,
+        createdAt,
+      );
+    }
+    return invalidCapabilityResponse();
   } catch {
     const racedDuplicate = await findExisting(db, "situation_submissions", idempotencyHash).catch(() => null);
-    if (racedDuplicate) return duplicateResponse(racedDuplicate, payloadHash, deletionTokenHash);
+    if (racedDuplicate) {
+      if (!isExactDuplicate(racedDuplicate, payloadHash, deletionTokenHash)) {
+        return duplicateResponse(racedDuplicate, payloadHash, deletionTokenHash);
+      }
+      return authorizeSituationDuplicate(
+        db,
+        racedDuplicate,
+        capability,
+        capabilityNonceHash,
+        capabilityExpiresAt,
+        idempotencyHash,
+        createdAt,
+      );
+    }
     return persistenceUnavailableResponse();
   }
+}
+
+async function authorizeSituationDuplicate(
+  db: D1Database,
+  duplicate: ExistingRecord,
+  capability: SignedCapabilityClaims,
+  capabilityNonceHash: string,
+  capabilityExpiresAt: string,
+  idempotencyHash: string,
+  now: string,
+): Promise<Response> {
+  let ledger: SituationCapabilityLedger | null;
+  try {
+    ledger = await findSituationCapability(db, capabilityNonceHash);
+  } catch {
+    return persistenceUnavailableResponse();
+  }
+  if (!matchesIssuedCapability(ledger, capability, capabilityExpiresAt)) {
+    return invalidCapabilityResponse();
+  }
+  if (ledger.consumed_at !== null) {
+    return ledger.consumed_idempotency_key_hash === idempotencyHash
+      ? duplicateResponse(duplicate, duplicate.payload_hash, duplicate.deletion_token_hash)
+      : invalidCapabilityResponse();
+  }
+  if (ledger.consumed_idempotency_key_hash !== null || ledger.expires_at <= now) {
+    return invalidCapabilityResponse();
+  }
+
+  try {
+    const result = await db.prepare(
+      `UPDATE situation_submission_capabilities
+       SET consumed_at = ?, consumed_idempotency_key_hash = ?
+       WHERE nonce_hash = ?
+         AND capability_version = ?
+         AND scope = ?
+         AND expires_at = ?
+         AND consumed_at IS NULL
+         AND consumed_idempotency_key_hash IS NULL
+         AND expires_at > ?`,
+    ).bind(
+      now,
+      idempotencyHash,
+      capabilityNonceHash,
+      capability.version,
+      capability.scope,
+      capabilityExpiresAt,
+      now,
+    ).run();
+    if ((result.meta.changes ?? 0) === 1) {
+      return duplicateResponse(duplicate, duplicate.payload_hash, duplicate.deletion_token_hash);
+    }
+    const racedLedger = await findSituationCapability(db, capabilityNonceHash);
+    return matchesIssuedCapability(racedLedger, capability, capabilityExpiresAt)
+      && racedLedger?.consumed_idempotency_key_hash === idempotencyHash
+      ? duplicateResponse(duplicate, duplicate.payload_hash, duplicate.deletion_token_hash)
+      : invalidCapabilityResponse();
+  } catch {
+    return persistenceUnavailableResponse();
+  }
+}
+
+function matchesIssuedCapability(
+  ledger: SituationCapabilityLedger | null,
+  capability: SignedCapabilityClaims,
+  capabilityExpiresAt: string,
+): ledger is SituationCapabilityLedger {
+  return ledger !== null
+    && ledger.capability_version === capability.version
+    && ledger.scope === capability.scope
+    && ledger.expires_at === capabilityExpiresAt;
+}
+
+async function issueSituationSubmissionCapability(
+  env: PersistenceEnv,
+  now: Date,
+): Promise<Response> {
+  const secret = env.SITUATION_CAPABILITY_SECRET ?? "";
+  const expiresAtSeconds = Math.floor(now.getTime() / 1_000) + SITUATION_CAPABILITY_TTL_SECONDS;
+  const claims: SignedCapabilityClaims = {
+    version: SITUATION_CAPABILITY_VERSION,
+    expiresAt: expiresAtSeconds,
+    nonce: createCapabilityNonce(),
+    scope: SITUATION_CAPABILITY_SCOPE,
+  };
+  let capability: string;
+  try {
+    capability = await issueSignedCapability(secret, claims);
+    const results = await env.STAYBRIDGE_DB.batch([
+      env.STAYBRIDGE_DB.prepare(
+        `DELETE FROM situation_submission_capabilities
+         WHERE nonce_hash IN (
+           SELECT nonce_hash FROM situation_submission_capabilities
+           WHERE expires_at <= ?
+           ORDER BY expires_at ASC
+           LIMIT 100
+         )`,
+      ).bind(now.toISOString()),
+      env.STAYBRIDGE_DB.prepare(
+        `INSERT INTO situation_submission_capabilities (
+          nonce_hash, capability_version, scope, expires_at, issued_at,
+          consumed_at, consumed_idempotency_key_hash
+        ) VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
+      ).bind(
+        await sha256(claims.nonce),
+        claims.version,
+        claims.scope,
+        new Date(claims.expiresAt * 1_000).toISOString(),
+        now.toISOString(),
+      ),
+    ]);
+    if ((results[1]?.meta.changes ?? 0) !== 1) throw new Error("CAPABILITY_NOT_RECORDED");
+  } catch {
+    return persistenceUnavailableResponse();
+  }
+  return createApiSuccessResponse({
+    capability,
+    expiresAt: new Date(claims.expiresAt * 1_000).toISOString(),
+  }, { status: 201 });
 }
 
 async function persistConversation(db: D1Database, conversation: ParsedConversation): Promise<Response> {
@@ -441,7 +714,7 @@ async function deleteRecord(
     }
     if ((result.meta.changes ?? 0) < 1) {
       return createApiErrorResponse(
-        { code: "NOT_FOUND", message: "No matching record was found." },
+        { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
         404,
       );
     }
@@ -457,8 +730,23 @@ async function findExisting(db: D1Database, table: "situation_submissions" | "co
   ).bind(idempotencyHash).first<ExistingRecord>();
 }
 
+async function findSituationCapability(
+  db: D1Database,
+  nonceHash: string,
+): Promise<SituationCapabilityLedger | null> {
+  return db.prepare(
+    `SELECT capability_version, scope, expires_at, consumed_at, consumed_idempotency_key_hash
+     FROM situation_submission_capabilities
+     WHERE nonce_hash = ?`,
+  ).bind(nonceHash).first<SituationCapabilityLedger>();
+}
+
+function isExactDuplicate(existing: ExistingRecord, payloadHash: string, deletionTokenHash: string): boolean {
+  return existing.payload_hash === payloadHash && existing.deletion_token_hash === deletionTokenHash;
+}
+
 function duplicateResponse(existing: ExistingRecord, payloadHash: string, deletionTokenHash: string): Response {
-  if (existing.payload_hash !== payloadHash || existing.deletion_token_hash !== deletionTokenHash) {
+  if (!isExactDuplicate(existing, payloadHash, deletionTokenHash)) {
     return createApiErrorResponse(
       { code: "DUPLICATE_CONFLICT", message: "The idempotency key was already used for a different request." },
       409,
@@ -556,6 +844,10 @@ function isSameOrigin(request: Request): boolean {
   return !origin || origin === new URL(request.url).origin;
 }
 
+function hasExplicitSameOrigin(request: Request): boolean {
+  return request.headers.get("origin") === new URL(request.url).origin;
+}
+
 async function readJsonBody(request: Request): Promise<
   | { kind: "valid"; value: unknown }
   | { kind: "invalid" }
@@ -601,6 +893,27 @@ function invalidSubmissionResponse(highRisk = false): Response {
     highRisk
       ? { code: "HIGH_RISK_IDENTIFIER", message: "Remove passport or residence-card identifiers before continuing." }
       : { code: "CONSENT_REQUIRED", message: "Valid consent and a valid request are required." },
+    400,
+  );
+}
+
+function invalidOriginResponse(): Response {
+  return createApiErrorResponse(
+    { code: "INVALID_REQUEST", message: "The request origin is not allowed." },
+    400,
+  );
+}
+
+function capabilityRequiredResponse(): Response {
+  return createApiErrorResponse(
+    { code: "CAPABILITY_REQUIRED", message: "A valid submission capability is required." },
+    400,
+  );
+}
+
+function invalidCapabilityResponse(): Response {
+  return createApiErrorResponse(
+    { code: "INVALID_CAPABILITY", message: "The submission capability is invalid or expired." },
     400,
   );
 }
