@@ -6,13 +6,16 @@ import {
   createMethodNotAllowedResponse,
   createReadinessResponse,
   handleConsentedPersistenceRequest,
+  handleOpenDataResourcesRequest,
   type PersistenceEnv,
   type PersistenceRateLimiter,
 } from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
+import { createMunicipalityAppRedirect, municipalityAppRoute } from "../src/municipality-url";
 
 interface Env extends PersistenceEnv {
   AI?: SupportChatAi;
+  COUNTERPART_APP_URL?: string;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
   ASSETS: Fetcher;
   PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
@@ -40,6 +43,10 @@ const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === municipalityAppRoute) {
+      return createMunicipalityAppRedirect(env?.COUNTERPART_APP_URL, request.url);
+    }
+
     if (url.pathname === "/api/support-chat") {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
@@ -61,6 +68,10 @@ const worker = {
 
     if (url.pathname === "/readyz") {
       return createMethodNotAllowedResponse();
+    }
+
+    if (url.pathname === "/api/open-data/resources") {
+      return handleOpenDataResourcesRequest(request, env);
     }
 
     const persistenceResponse = await handleConsentedPersistenceRequest(request, env);

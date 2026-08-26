@@ -324,6 +324,22 @@ test("persists only allowlisted situation values with hashed tokens and idempote
     ok: true,
     data: { id: firstBody.data.id, created: false },
   });
+
+  const conflictingBody = situationBody();
+  conflictingBody.answers.visitPurpose = "work";
+  const conflict = await handleConsentedPersistenceRequest(
+    jsonRequest("/api/situation-submissions", conflictingBody),
+    env(database),
+  );
+  assert.equal(conflict?.status, 409);
+  assert.deepEqual(await conflict?.json(), {
+    ok: false,
+    error: {
+      code: "DUPLICATE_CONFLICT",
+      message: "The idempotency key was already used for a different request.",
+    },
+  });
+  assert.equal(database.situations.size, 1);
 });
 
 test("rejects direct, missing-origin, malformed, expired, and unknown-version capabilities without raw persistence", async () => {
@@ -737,6 +753,11 @@ test("allows only the deletion-token holder to delete either record type", async
     env(database),
   );
   assert.equal(rejected?.status, 404);
+  assert.equal(rejected?.headers.get("content-type"), "application/json; charset=UTF-8");
+  assert.deepEqual(await rejected?.json(), {
+    ok: false,
+    error: { code: "DELETION_NOT_FOUND", message: "No matching record was found." },
+  });
 
   const deleted = await handleConsentedPersistenceRequest(
     new Request(`https://staybridge.example/api/situation-submissions/${createdBody.data.id}`, {

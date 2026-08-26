@@ -19,6 +19,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "滞在期限はパスポート・在留カードなどの公式書類で確認し、期限前に公式案内や相談窓口で必要な手続きを確認しましょう。",
     CHECK_CHILD_LOCAL_SUPPORT: "受け入れ年齢や定員は施設ごとに異なります。訪問前に各施設へ確認しましょう。",
     CHECK_LIVING_COST_SUPPORT: "利用できる相談や支援、対象条件は個別の状況によって異なります。公式相談窓口へ確認してください。",
+    FIND_DAILY_LIFE_GUIDANCE: "公式ガイドは一般的な手続を説明するものです。必要な書類や条件は個別の状況によって異なるため、不明点は支援窓口へ確認してください。",
   },
   en: {
     CHECK_STAY_STATUS: "Available procedures depend on your individual status. Confirm them with an official support service.",
@@ -31,6 +32,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "Check the date on your passport, residence card, or other official documents. Before the deadline, confirm the required steps with an official information source or support desk.",
     CHECK_CHILD_LOCAL_SUPPORT: "Accepted ages and capacity differ by facility. Check with each facility before visiting.",
     CHECK_LIVING_COST_SUPPORT: "Available support and eligibility depend on individual circumstances. Confirm them with an official support service.",
+    FIND_DAILY_LIFE_GUIDANCE: "Official guides describe general procedures. Required documents and conditions depend on your individual situation, so confirm details with a support service.",
   },
   my: {
     CHECK_STAY_STATUS: "အသုံးပြုနိုင်သည့် လုပ်ငန်းစဉ်များသည် သင်၏တစ်ဦးချင်း နေထိုင်မှုအခြေအနေပေါ် မူတည်ပါသည်။ တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။",
@@ -43,6 +45,7 @@ export const actionNotices = {
     CHECK_BEFORE_STAY_DEADLINE: "နေထိုင်ခွင့်နောက်ဆုံးရက်ကို နိုင်ငံကူးလက်မှတ်၊ နေထိုင်ခွင့်ကတ် သို့မဟုတ် အခြားတရားဝင်စာရွက်စာတမ်းများဖြင့် စစ်ဆေးပါ။ နောက်ဆုံးရက်မတိုင်မီ လိုအပ်သည့်လုပ်ငန်းစဉ်ကို တရားဝင်အချက်အလက် သို့မဟုတ် အကူအညီဌာနတွင် အတည်ပြုပါ။",
     CHECK_CHILD_LOCAL_SUPPORT: "လက်ခံအသက်နှင့် လူအရေအတွက်သည် နေရာအလိုက် ကွာခြားပါသည်။ မသွားမီ နေရာတစ်ခုချင်းစီတွင် အတည်ပြုပါ။",
     CHECK_LIVING_COST_SUPPORT: "ရနိုင်သောအကူအညီနှင့် သတ်မှတ်ချက်များသည် တစ်ဦးချင်းအခြေအနေပေါ် မူတည်ပါသည်။ တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။",
+    FIND_DAILY_LIFE_GUIDANCE: "တရားဝင်လမ်းညွှန်များသည် ယေဘုယျလုပ်ထုံးလုပ်နည်းကို ရှင်းပြထားပါသည်။ လိုအပ်သော စာရွက်စာတမ်းနှင့် သတ်မှတ်ချက်များသည် တစ်ဦးချင်းအခြေအနေပေါ် မူတည်ပြီး ကွာခြားနိုင်ပါသည်။",
   },
 } as const satisfies ActionNoticeCatalog;
 

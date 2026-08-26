@@ -32,6 +32,12 @@ export type PersistenceCopy = {
   copyCredentials: string;
   credentialsCopied: string;
   credentialsCopyFailed: string;
+  corruptCredentialsTitle: string;
+  corruptCredentialsBody: string;
+  corruptCredentialsDiscardWarning: string;
+  corruptCredentialsPendingWarning: string;
+  discardCorruptLocalData: string;
+  discardOnlyCorruptCredentials: string;
 };
 
 const copy = {
@@ -67,6 +73,12 @@ const copy = {
     copyCredentials: "記録IDと削除コードをコピー",
     credentialsCopied: "削除情報をコピーしました。",
     credentialsCopyFailed: "コピーできませんでした。表示された記録IDと削除コードを手動で控えてください。",
+    corruptCredentialsTitle: "削除情報を確認できません",
+    corruptCredentialsBody: "この端末の削除情報を読み取れません。サーバー記録が残っている可能性があるため、回答の変更・やり直し・端末データ消去を停止しました。",
+    corruptCredentialsDiscardWarning: "この画面からは削除情報を復元できません。下の操作はサーバー記録を削除せず、この端末の回答と保存済み削除情報だけを破棄します。",
+    corruptCredentialsPendingWarning: "別の未完了の保存情報も残っています。下の操作は壊れた削除情報だけを破棄し、回答と未完了の保存情報は保持します。",
+    discardCorruptLocalData: "サーバー記録を残して端末データだけ破棄",
+    discardOnlyCorruptCredentials: "壊れた削除情報だけ破棄",
   },
   en: {
     situationTitle: "Save Situation Check answers",
@@ -100,6 +112,12 @@ const copy = {
     copyCredentials: "Copy record ID and deletion code",
     credentialsCopied: "Deletion information copied.",
     credentialsCopyFailed: "We could not copy it. Manually save the record ID and deletion code shown above.",
+    corruptCredentialsTitle: "Deletion information cannot be verified",
+    corruptCredentialsBody: "This device cannot read the deletion information. Answer changes, restarts, and device-data clearing are blocked because the server record may remain.",
+    corruptCredentialsDiscardWarning: "This screen cannot recover the deletion information. The action below does not delete the server record; it only discards this device's answers and saved deletion information.",
+    corruptCredentialsPendingWarning: "Another unfinished save is still recoverable. The action below discards only the corrupt deletion information and keeps the answers and pending save information.",
+    discardCorruptLocalData: "Discard device data and leave server record",
+    discardOnlyCorruptCredentials: "Discard only corrupt deletion information",
   },
   my: {
     situationTitle: "Situation Check အဖြေများကို သိမ်းရန်",
@@ -133,6 +151,12 @@ const copy = {
     copyCredentials: "record ID နှင့် deletion code ကို ကူးယူရန်",
     credentialsCopied: "ဖျက်ရန်အချက်အလက်ကို ကူးယူပြီးပါပြီ။",
     credentialsCopyFailed: "မကူးယူနိုင်ပါ။ အပေါ်တွင်ပြထားသော record ID နှင့် deletion code ကို ကိုယ်တိုင်သိမ်းပါ။",
+    corruptCredentialsTitle: "ဖျက်ရန်အချက်အလက်ကို အတည်မပြုနိုင်ပါ",
+    corruptCredentialsBody: "ဤစက်ရှိ ဖျက်ရန်အချက်အလက်ကို ဖတ်မရပါ။ server record ကျန်နေနိုင်သောကြောင့် အဖြေပြင်ခြင်း၊ အစမှပြန်စခြင်းနှင့် စက်ဒေတာဖျက်ခြင်းကို ပိတ်ထားပါသည်။",
+    corruptCredentialsDiscardWarning: "ဤမျက်နှာပြင်မှ ဖျက်ရန်အချက်အလက်ကို ပြန်မရနိုင်ပါ။ အောက်ပါလုပ်ဆောင်ချက်သည် server record ကို မဖျက်ဘဲ ဤစက်ရှိ အဖြေနှင့် သိမ်းထားသောဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ပါမည်။",
+    corruptCredentialsPendingWarning: "မပြီးသေးသော အခြားသိမ်းဆည်းမှုအချက်အလက်ကို ပြန်လည်အသုံးပြုနိုင်ပါသေးသည်။ အောက်ပါလုပ်ဆောင်ချက်သည် ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ပြီး အဖြေနှင့် မပြီးသေးသောသိမ်းဆည်းမှုအချက်အလက်ကို ထိန်းထားပါမည်။",
+    discardCorruptLocalData: "server record ကိုထားပြီး စက်ဒေတာသာ စွန့်ပစ်ရန်",
+    discardOnlyCorruptCredentials: "ပျက်နေသော ဖျက်ရန်အချက်အလက်ကိုသာ စွန့်ပစ်ရန်",
   },
 } satisfies Record<Locale, PersistenceCopy>;
 

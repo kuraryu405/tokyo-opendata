@@ -25,7 +25,7 @@ pnpm db:local:verify
 pnpm dev
 ```
 
-`db:local:status` が `No migrations to apply`、`db:local:verify` が `seed_version = 1` を返せば初期化済みです。完全に空の DB で検証するときは、別の一時ディレクトリを `--persist-to` に指定して `db:local:migrate` と同じ Wrangler コマンドを実行してください。`.wrangler/` は Git 管理外です。
+`db:local:status` が `No migrations to apply`、`db:local:verify` が `seed_version = 2` を返せば初期化済みです。完全に空の DB で検証するときは、別の一時ディレクトリを `--persist-to` に指定して `db:local:migrate` と同じ Wrangler コマンドを実行してください。`.wrangler/` は Git 管理外です。
 
 ## remote 環境の作成と migration
 
@@ -54,7 +54,7 @@ production は `production` と production ID で一時設定を作りますが�
 ## API と health contract
 
 - `GET /healthz`: Worker 自体の liveness。D1 へ問い合わせません。
-- `GET /readyz`: D1の各service契約について、必要テーブルごとに副作用のない `PRAGMA table_info(...)`、`PRAGMA index_list/index_info`、`PRAGMA foreign_key_list(...)` を実行し、migrationが要求する必須column・UNIQUE・FKまで検査してreadinessを判定します。利用者 Worker は `backend_metadata`・`situation_submissions`・`situation_submission_capabilities`・`conversations`・`conversation_messages` と各migrationの全columnに加え、idempotency keyとcapability nonceのUNIQUE、conversation messageの複合UNIQUE、conversation FK、および有効な`SITUATION_CAPABILITY_SECRET`を要求します。自治体 Worker は `backend_metadata`・`situation_submissions` と各migrationの全columnに加え、idempotency keyとcapability nonceのUNIQUEを要求します。新しいmigrationでruntime必須columnまたはconstraintが増えた場合は、このコード側の契約とテストも更新します。migration前の空DBや一部だけ適用されたDBはreadinessにならず、Binding・署名secret欠落も同様に未準備として扱います。`seed_version`は判定に含めません（seed未適用でもruntimeは動作するため）。不足時は次項のD1一時障害と同じ503 `SERVICE_UNAVAILABLE`を返し、テーブル名・column名・constraint名・SQLなどの内部詳細は返しません。
+- `GET /readyz`: D1の各service契約について、必要テーブルごとに副作用のない `PRAGMA table_info(...)`、`PRAGMA index_list/index_info`、`PRAGMA foreign_key_list(...)` を実行し、migrationが要求する必須column・UNIQUE・FKまで検査してreadinessを判定します。両WorkerはOpen Dataのsource・version・resource・active pointer・import runテーブルを要求します。利用者 Worker はさらに `backend_metadata`・`situation_submissions`・`situation_submission_capabilities`・`conversations`・`conversation_messages` と各migrationの全columnに加え、idempotency keyとcapability nonceのUNIQUE、conversation messageの複合UNIQUE、conversation FK、および有効な`SITUATION_CAPABILITY_SECRET`を要求します。自治体 Worker は `backend_metadata`・`situation_submissions` と各migrationの全columnに加え、idempotency keyとcapability nonceのUNIQUEを要求します。新しいmigrationでruntime必須columnまたはconstraintが増えた場合は、このコード側の契約とテストも更新します。migration前の空DBや一部だけ適用されたDBはreadinessにならず、Binding・署名secret欠落も同様に未準備として扱います。`seed_version`は判定に含めません（seed未適用でもruntimeは動作するため）。不足時は次項のD1一時障害と同じ503 `SERVICE_UNAVAILABLE`を返し、テーブル名・column名・constraint名・SQLなどの内部詳細は返しません。
 - API 成功: `{ "ok": true, "data": ... }`
 - 入力・method エラー: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 - D1 一時障害: HTTP 503 と `SERVICE_UNAVAILABLE`。SQL、Binding ID、内部例外は返しません。
@@ -63,10 +63,10 @@ production は `production` と production ID で一時設定を作りますが�
 
 - `POST /api/situation-submission-capabilities`: 同一originの利用者Workerだけが5分間有効なversion・scope・nonce付き署名capabilityを発行。空bodyのみを受け付ける。
 - `POST /api/situation-submissions`: version付きSituation同意、厳格allowlist回答、有効なone-time capabilityを検証して保存。
-- `DELETE /api/situation-submissions/:sit_id`: `Authorization: Bearer <deletion-code>`で該当記録だけを削除。
+- `DELETE /api/situation-submissions/:sit_id`: `Authorization: Bearer <deletion-code>`で該当記録だけを削除。IDと削除コードに一致する記録がない場合は404 `DELETION_NOT_FOUND`を返す。browserはこの削除endpoint固有のenvelopeだけを冪等な削除完了として扱い、routing・proxy・不正形式の404では削除credentialsを保持する。
 - 会話作成の公開HTTP routeは#59では提供しない。`POST /api/conversations`は405で拒否し、browserが作ったassistant本文、model ID、source IDをtrusted provenanceとして保存しない。
 - server-internal `persistVerifiedConversation`だけが、#62でserver生成したassistant本文、server固定model ID、trusted Source Registryのsource IDを検証し、NFKC正規化・マスキング後に保存できる。
-- `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除。
+- `DELETE /api/conversations/:con_id`: deletion code保有者が会話とmessageを削除し、一致する記録がない場合は404 `DELETION_NOT_FOUND`を返す。
 - `GET /api/conversations`を含む一覧・取得APIは提供しない。
 
 ### 自治体 Crisis View の匿名集計API
@@ -90,4 +90,57 @@ pnpm exec wrangler secret put SITUATION_CAPABILITY_SECRET --name staybridge-user
 
 各環境で異なる値を使い、標準出力、Issue、PR、GitHub変数、Wrangler設定へ値を書かないでください。通常のWorker version uploadは既存secretを削除しません。
 
+## Open Data同期と公開API
+
+`0003_open_data_cache.sql` は既存4 Source Registry metadata、`KITA_LOCAL_FACILITIES` version、正規化resource、active pointer、import runを保存し、raw CSV/ZIPを保存しません。同期は `固定2 URLをfetch → 既存12 identityを全件validate/normalize → stage → CAS付きtransactional active switch` の順です。学校・標準ZIPのraw bytesを境界付きで連結したSHA-256をversionとし、同一inputの再実行でversion/resourceを増やしません。active pointerを同期開始後に他runが更新していた場合はstale runを失敗させ、新しいactiveへ戻しません。
+
+両Workerが次のread-only APIを提供します。
+
+```text
+GET /api/open-data/resources?municipality=Kita
+GET /api/open-data/resources?municipality=Kita&category=medical
+```
+
+`municipality=Kita` は必須、`category` は省略するか `school`、`medical`、`child_support`、`public_facility` の1個だけです。応答には `datasetKey`、`datasetVersion`、`sourceUpdatedAt`、`fetchedAt`、`origin`、source ID・出典・更新日・取得日・ライセンス・attribution・更新頻度・coverage noteの `sources`、`resources` が含まれます。D1 activeがexact 12 identityで完全なら `origin=d1`、activeがない、D1 readが失敗する、metadata・件数・正規化行が不正な場合は既存の同梱8件last-known-goodを `origin=bundled` で返します。同梱cacheで検証できない学校は0件です。公開GETから外部sourceを取得しません。
+
+手動同期は自治体Workerだけの `POST /internal/open-data/sync` です。`OPEN_DATA_SYNC_SECRET` をrequired secretとして環境ごとに登録し、値をrepository、Wrangler設定、通常変数へ置きません。ローカルは `apps/municipality/.env.example` を `.env` へコピーし、実値に置き換えます。
+
+```bash
+# local: 検証だけ
+curl -fsS -X POST \
+  -H "Authorization: Bearer ${OPEN_DATA_SYNC_SECRET}" \
+  'http://localhost:3001/internal/open-data/sync?dry_run=true'
+
+# remote: 自動deployより前に環境別secretを登録
+pnpm exec wrangler secret put OPEN_DATA_SYNC_SECRET \
+  --env staging --config apps/municipality/wrangler.jsonc
+pnpm exec wrangler secret put OPEN_DATA_SYNC_SECRET \
+  --env production --config apps/municipality/wrangler.jsonc
+```
+
+`dry_run=true` は固定元CSV/ZIPを取得・全件検証し、active versionとの差を返しますが、Source Registry、dataset、resource、import runを変更しません。queryなしのPOSTが実反映です。現在の学校CSVがcurrent identity/address contractを満たさない間は503が正しい結果で、active datasetまたは同梱cacheを維持します。12 identityが全件そろい、各source更新日がactiveより後退していない場合だけ実同期でactiveを切り替えます。Cron Triggerは本Issueでは追加せず、同期はこの認証付き手動routeだけです。
+
+stagingではmigration・seed・secret登録後に次の順で確認します。Worker名を上書きしている場合はURLを実名へ置き換えます。
+
+```bash
+USER_STAGING_URL="https://staybridge-user-staging.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev"
+MUNICIPALITY_STAGING_URL="https://staybridge-municipality-staging.${CLOUDFLARE_WORKERS_SUBDOMAIN}.workers.dev"
+OPEN_DATA_QUERY='municipality=Kita'
+
+curl -fsS -X POST -H "Authorization: Bearer ${OPEN_DATA_SYNC_SECRET}" \
+  "${MUNICIPALITY_STAGING_URL}/internal/open-data/sync?dry_run=true" |
+  jq -e '.data.dryRun == true and .data.rowCount == 12'
+curl -fsS -X POST -H "Authorization: Bearer ${OPEN_DATA_SYNC_SECRET}" \
+  "${MUNICIPALITY_STAGING_URL}/internal/open-data/sync" |
+  jq -e '.data.dryRun == false and (.data.status == "activated" or .data.status == "not_modified")'
+curl -fsS "${USER_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq -e '.data.origin == "d1" and (.data.resources | length) == 12'
+curl -fsS "${MUNICIPALITY_STAGING_URL}/api/open-data/resources?${OPEN_DATA_QUERY}" |
+  jq -e '.data.origin == "d1" and (.data.resources | length) == 12'
+```
+
+学校sourceのdriftによりdry-runが503の場合は実同期を行わず、公開GETが `origin=d1` の既存activeまたは `origin=bundled` の8件cacheを返すことを確認します。source修正後にdry-runが12件で成功した場合だけ実同期と両Worker GETを確認します。import履歴は `SELECT started_at, finished_at, status, version_hash, row_count, error_code FROM open_data_import_runs ORDER BY started_at DESC LIMIT 5` で確認できます。production migration、seed、secret登録、初回手動同期は既存のproduction変更承認手順に従います。
+
 staging/production の smoke test は liveness と readiness の両方を確認します。readiness が 503 の場合は、対象環境の Worker Binding が `STAYBRIDGE_DB` か、DB ID が対象環境のものか、D1 が利用可能かを Cloudflare 側で確認します。レスポンスに内部詳細を追加して調査しないでください。
+
+binding・var・secretの環境別の一覧と出所(wrangler.jsonc / CD注入 / 手動登録)は [ランタイム設定リファレンス](runtime-configuration.md) にまとめる。

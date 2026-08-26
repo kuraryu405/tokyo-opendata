@@ -10,7 +10,7 @@ export const assessmentOptionCodes = {
   family: ["none", "children", "spouse", "other"],
   childAge: ["0-2", "3-5", "6-11", "12-14", "15-17", "18+"],
   accommodation: ["hotel", "family_or_friend", "rental", "temporary_facility", "unstable", "prefer_not_to_say"],
-  needs: ["stay", "consultation", "accommodation", "living_cost", "employment", "education", "childcare", "medical", "daily_life", "language"],
+  needs: ["stay", "consultation", "accommodation", "living_cost", "employment", "education", "childcare", "medical", "daily_life", "language", "none"],
   japaneseLevel: ["none", "beginner", "daily", "advanced"],
 } as const;
 
@@ -60,13 +60,14 @@ export const selectionCoverage: readonly SelectionCoverage[] = [
   entry("needs", "stay", "rule_input", "Adds a check-only stay card.", ["R-STAY-NEED"]),
   entry("needs", "consultation", "rule_input", "Adds an official consultation card.", ["R-CONSULT-NEED"]),
   entry("needs", "accommodation", "rule_input", "Adds temporary-living consultation without asserting availability.", ["R-HOUSING-NEED"]),
-  entry("needs", "living_cost", "rule_input", "Adds living-cost consultation and requires checking work eligibility before job search.", ["R-LIVING-COST-NEED", "R-WORK-LIVING-COST-NEED"]),
+  entry("needs", "living_cost", "rule_input", "Adds living-cost consultation without inferring a desire or eligibility to work.", ["R-LIVING-COST-NEED"]),
   entry("needs", "employment", "rule_input", "Adds only a work-eligibility check; it never decides permission to work.", ["R-WORK-EMPLOYMENT-NEED"]),
   entry("needs", "education", "rule_input", "Adds education resources only with a school-age child.", ["R-EDUCATION-NEED"]),
   entry("needs", "childcare", "rule_input", "Adds child support only with a child under 18.", ["R-CHILDCARE-NEED"]),
   entry("needs", "medical", "rule_input", "Adds a medical resource listing without asserting service availability.", ["R-MEDICAL-NEED"]),
-  entry("needs", "daily_life", "resource_filter", "Filters official handoff information without generating or prioritizing roadmap cards."),
+  entry("needs", "daily_life", "rule_input", "Adds official daily-life guidance so the answer is not silently ignored by the roadmap.", ["R-DAILY-LIFE-NEED"]),
   entry("needs", "language", "rule_input", "Adds language-support consultation regardless of self-rated Japanese level.", ["R-LANGUAGE-NEED"]),
+  entry("needs", "none", "explicit_no_card", "Lets people finish honestly without inventing a need; exclusive with every other category."),
   ...(["none", "beginner"] as const).map((code) => entry("japaneseLevel", code, "rule_input", "Adds language-support consultation.", ["R-LANGUAGE-LEVEL"])),
   ...(["daily", "advanced"] as const).map((code) => entry("japaneseLevel", code, "explicit_no_card", "No language barrier is inferred; an explicit language concern can still match.")),
 ];

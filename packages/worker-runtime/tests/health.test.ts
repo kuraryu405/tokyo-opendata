@@ -121,7 +121,52 @@ function readinessDatabase(schema: Record<string, ReadinessTable>) {
   } as unknown as D1Database;
 }
 
+const openDataSchema = {
+  open_data_sources: {
+    columns: [
+      "source_id", "title", "publisher", "source_url", "catalog_url", "license", "license_url",
+      "terms_url", "attribution", "update_frequency", "coverage_note", "data_updated_at", "fetched_at",
+      "created_at", "updated_at",
+    ],
+    uniqueIndexes: [["source_id"]],
+  },
+  open_data_dataset_versions: {
+    columns: [
+      "id", "dataset_key", "version_hash", "source_updated_at", "fetched_at",
+      "row_count", "status", "created_at",
+    ],
+    uniqueIndexes: [["dataset_key", "version_hash"], ["dataset_key", "id"]],
+  },
+  open_data_resources: {
+    columns: [
+      "dataset_version_id", "resource_id", "ordinal", "category", "municipality",
+      "name", "address", "latitude", "longitude", "phone", "website", "source_id", "data_updated_at",
+    ],
+    uniqueIndexes: [["dataset_version_id", "resource_id"], ["dataset_version_id", "ordinal"]],
+    foreignKeys: [
+      { column: "dataset_version_id", referencedTable: "open_data_dataset_versions", referencedColumn: "id" },
+      { column: "source_id", referencedTable: "open_data_sources", referencedColumn: "source_id" },
+    ],
+  },
+  open_data_active_datasets: {
+    columns: ["dataset_key", "dataset_version_id", "activated_at"],
+    uniqueIndexes: [["dataset_key"]],
+    foreignKeys: [
+      { column: "dataset_key", referencedTable: "open_data_dataset_versions", referencedColumn: "dataset_key" },
+      { column: "dataset_version_id", referencedTable: "open_data_dataset_versions", referencedColumn: "id" },
+    ],
+  },
+  open_data_import_runs: {
+    columns: [
+      "run_id", "dataset_key", "started_at", "finished_at", "status", "dry_run",
+      "version_hash", "row_count", "error_code",
+    ],
+    uniqueIndexes: [["run_id"]],
+  },
+} as const;
+
 const municipalitySchema = {
+  ...openDataSchema,
   backend_metadata: { columns: ["key", "value", "updated_at"] },
   situation_submissions: {
     columns: [
@@ -189,7 +234,7 @@ test("reports an empty database as not ready", async () => {
   assert.equal(response.status, 503);
 });
 
-test("requires only the crisis-needs tables for the municipality service", async () => {
+test("keeps user conversation tables out of the municipality readiness contract", async () => {
   const database = readinessDatabase(municipalitySchema);
   const userResponse = await createReadinessResponse(
     { STAYBRIDGE_DB: database, SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret },
@@ -206,6 +251,20 @@ test("requires only the crisis-needs tables for the municipality service", async
     ok: true,
     data: { status: "ready" },
   });
+});
+
+test("requires the Open Data migration for both service readiness contracts", async () => {
+  const preOpenDataSchema = {
+    backend_metadata: municipalitySchema.backend_metadata,
+    situation_submissions: municipalitySchema.situation_submissions,
+  };
+  for (const service of ["user", "municipality"] as const) {
+    const response = await createReadinessResponse(
+      { STAYBRIDGE_DB: readinessDatabase(preOpenDataSchema) },
+      service,
+    );
+    assert.equal(response.status, 503, service);
+  }
 });
 
 test("rejects a partially migrated table with a missing required column", async () => {

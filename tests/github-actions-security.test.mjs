@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
+import { resolveContributorInputs } from "../scripts/contributor-inputs.mjs";
 
 const workflowsDirectory = new URL("../.github/workflows/", import.meta.url);
 const dependabotFile = new URL("../.github/dependabot.yml", import.meta.url);
@@ -100,6 +101,108 @@ test("the write-capable pull_request_target workflow never checks out PR code", 
   assert.doesNotMatch(contents, /\bcontext\.payload\.pull_request\.head\b/);
   assert.doesNotMatch(contents, /\bpullRequest\.head\b/);
   assert.doesNotMatch(contents, /^\s+(?:-\s+)?run:/m);
+});
+
+test("contributor recognition uses trusted base code and skips safely without its token", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+  const tokenGuardIndex = contents.indexOf("id: contributor_token");
+  const checkoutIndex = contents.indexOf("uses: actions/checkout@");
+
+  assert.match(contents, /^  pull_request_target:\s*$/m);
+  assert.doesNotMatch(contents, /^  pull_request:\s*$/m);
+  assert.doesNotMatch(contents, /\bgithub\.event\.pull_request\.head\b/);
+  assert.match(
+    contents,
+    /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/,
+  );
+  assert.ok(tokenGuardIndex >= 0 && tokenGuardIndex < checkoutIndex);
+  assert.match(contents, /echo "configured=false" >> "\$GITHUB_OUTPUT"/);
+  assert.match(contents, /Contributor recognition skipped/);
+  assert.match(contents, />> "\$GITHUB_STEP_SUMMARY"/);
+});
+
+test("contributor recognition exposes the write PAT only to token detection and GitHub writes", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+
+  assert.equal(
+    contents.match(/\$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/g)?.length,
+    2,
+  );
+  assert.match(contents, /persist-credentials: false/);
+  assert.doesNotMatch(
+    contents,
+    /token: \$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/,
+  );
+  assert.doesNotMatch(
+    contents,
+    /GITHUB_TOKEN: \$\{\{ secrets\.CONTRIBUTOR_AUTOMATION_TOKEN \}\}/,
+  );
+  assert.match(contents, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(
+    contents,
+    /pnpm dlx --package=all-contributors-cli@6\.26\.1 all-contributors add "\$CONTRIBUTOR" code/,
+  );
+  assert.match(
+    contents,
+    /pnpm dlx --package=all-contributors-cli@6\.26\.1 all-contributors generate/,
+  );
+  assert.doesNotMatch(
+    contents,
+    /pnpm dlx all-contributors-cli@6\.26\.1 all-contributors/,
+  );
+  assert.match(contents, /-c core\.hooksPath=\/dev\/null/);
+  assert.match(contents, /-c credential\.helper=/);
+  assert.match(contents, /-c credential\.helper='!gh auth git-credential'/);
+  assert.match(contents, /push --set-upstream origin "\$BRANCH"/);
+  assert.doesNotMatch(contents, /https:\/\/x-access-token:/);
+  assert.match(contents, /--repo "\$GITHUB_REPOSITORY"/);
+  assert.match(contents, /--base "\$DEFAULT_BRANCH"/);
+});
+
+test("contributor recognition consumes validated outputs instead of raw event input in write steps", async () => {
+  const contents = await readFile(new URL("contributors.yml", workflowsDirectory), "utf8");
+
+  assert.match(contents, /node scripts\/contributor-inputs\.mjs/);
+  assert.match(contents, /CONTRIBUTOR: \$\{\{ steps\.contributor_inputs\.outputs\.contributor \}\}/);
+  assert.match(contents, /SOURCE_PR: \$\{\{ steps\.contributor_inputs\.outputs\.source_pr \}\}/);
+  assert.match(contents, /BRANCH: \$\{\{ steps\.contributor_inputs\.outputs\.branch \}\}/);
+  assert.doesNotMatch(contents, /\$\{\{ github\.event\.pull_request\.title \}\}/);
+  assert.doesNotMatch(contents, /\$\{\{ github\.event\.pull_request\.body \}\}/);
+});
+
+test("contributor input validation rejects shell, path, and output-injection shaped values", () => {
+  assert.deepEqual(resolveContributorInputs("octocat-123", "42"), {
+    contributor: "octocat-123",
+    sourcePr: "42",
+    branch: "chore/recognize-octocat-123-42",
+  });
+
+  for (const contributor of [
+    "",
+    "-octocat",
+    "octocat-",
+    "octo--cat",
+    "octo/cat",
+    "octo cat",
+    "$(id)",
+    "octo;echo-pwned",
+    "octo\nbranch=evil",
+    "a".repeat(40),
+  ]) {
+    assert.throws(
+      () => resolveContributorInputs(contributor, "42"),
+      /Unexpected GitHub login format/,
+      contributor,
+    );
+  }
+
+  for (const sourcePr of ["", "0", "-1", "1.5", "1;echo-pwned", "1\nbranch=evil", "NaN"]) {
+    assert.throws(
+      () => resolveContributorInputs("octocat", sourcePr),
+      /Unexpected source PR number/,
+      sourcePr,
+    );
+  }
 });
 
 test("Cloudflare credentials are scoped to deployment steps", async () => {
