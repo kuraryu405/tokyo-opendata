@@ -4,44 +4,16 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildKitaMyanmarPopulationCache,
-  buildLocalResourcesCache,
   parsePopulationCsv,
   updateOpenDataCaches,
 } from "../scripts/fetch-open-data";
+import type { VerifiedKitaFacilityDataset } from "../src/kita-facility-connector";
 
 const validPopulationCsv = [
   "\uFEFF地域階層,地域コード,国・地域(人),総数,ミャンマー",
   "0,13000,東京都総数,783701,39198",
   "4,13117,北区,35296,3540",
 ].join("\r\n");
-
-const schoolCsv = [
-  "施設名,住所",
-  "豊川小学校,東京都北区豊島3丁目10番23号",
-  "浮間小学校,東京都北区浮間3丁目4番27号",
-  "十条小学校,東京都北区中十条3丁目1番6号",
-  "西が丘小学校,東京都北区西が丘1丁目12番14号",
-].join("\r\n");
-
-const standardFiles = new Map<string, Buffer>([
-  ["10_医療機関一覧.csv", Buffer.from([
-    "施設名",
-    "おうじキッズクリニック",
-    "医療法人社団リボン会小湊小児科医院",
-    "しかだこどもクリニック",
-  ].join("\n"))],
-  ["05_子育て施設一覧.csv", Buffer.from([
-    "施設名",
-    "赤羽北児童館",
-    "神谷子どもセンター",
-    "十条台子どもセンター",
-  ].join("\n"))],
-  ["01_公共施設一覧.csv", Buffer.from([
-    "施設名",
-    "赤羽会館",
-    "北とぴあ",
-  ].join("\n"))],
-]);
 
 const temporaryDirectories: string[] = [];
 
@@ -96,15 +68,39 @@ describe("open-data fetch pipeline", () => {
     expect(() => buildKitaMyanmarPopulationCache(csv, "2026-08-25")).toThrow(message);
   });
 
-  it("keeps the current multi-dataset facility path intact", () => {
-    const cache = buildLocalResourcesCache(schoolCsv, standardFiles, "2026-08-25");
-    expect(cache.resources).toHaveLength(12);
-    expect(cache.resources.map((resource) => resource.category)).toEqual([
-      "school", "school", "school", "school",
-      "medical", "medical", "medical",
-      "child_support", "child_support", "child_support",
-      "public_facility", "public_facility",
-    ]);
+  // Facility selection/validation itself lives in the verified connector
+  // (kita-facility-connector.test.ts). At this seam the dataset is already
+  // trusted, so the cache must carry it through untouched.
+  const facilityDataset: VerifiedKitaFacilityDataset = {
+    datasetKey: "KITA_LOCAL_FACILITIES",
+    datasetVersion: "sha256:test-digest",
+    sourceUpdatedAt: "2024-10-31",
+    sourceDates: { KITA_MEDICAL_INSTITUTIONS_OPEN_DATA: "2024-10-31" },
+    fetchedAt: "2026-08-25T00:00:00.000Z",
+    resources: [{
+      id: "kita-medical-oji-kids",
+      name: "おうじキッズクリニック",
+      category: "medical",
+      municipality: "Kita",
+      sourceId: "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA",
+      dataUpdatedAt: "2024-10-31",
+    }],
+  };
+
+  it("carries connector-verified facility rows into the resource cache", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "staybridge-data-fetch-"));
+    temporaryDirectories.push(directory);
+
+    const result = await updateOpenDataCaches({
+      populationCsv: validPopulationCsv,
+      facilityDataset,
+      fetchedAt: "2026-08-25",
+    }, { outputDirectory: directory });
+
+    expect(result.resourceCache.fetchedAt).toBe("2026-08-25");
+    expect(result.resourceCache.resources).toEqual(facilityDataset.resources);
+    expect(JSON.parse(await readFile(join(directory, "kita-myanmar-population.json"), "utf8"))).toEqual(result.populationCache);
+    expect(JSON.parse(await readFile(join(directory, "kita-local-resources.json"), "utf8"))).toEqual(result.resourceCache);
   });
 
   it("writes population and facility caches only after all validation succeeds", async () => {
@@ -113,13 +109,12 @@ describe("open-data fetch pipeline", () => {
 
     const result = await updateOpenDataCaches({
       populationCsv: validPopulationCsv,
-      schoolCsv,
-      standardFiles,
+      facilityDataset,
       fetchedAt: "2026-08-25",
     }, { outputDirectory: directory });
 
+    expect(result.populationCache.records[0]?.residentPopulation).toBe(3540);
     expect(JSON.parse(await readFile(join(directory, "kita-myanmar-population.json"), "utf8"))).toEqual(result.populationCache);
-    expect(JSON.parse(await readFile(join(directory, "kita-local-resources.json"), "utf8"))).toEqual(result.resourceCache);
   });
 
   it("preserves both last-known-good caches when population validation fails", async () => {
@@ -132,29 +127,9 @@ describe("open-data fetch pipeline", () => {
 
     await expect(updateOpenDataCaches({
       populationCsv: validPopulationCsv.replace("35296,3540", "35296"),
-      schoolCsv,
-      standardFiles,
+      facilityDataset,
       fetchedAt: "2026-08-25",
     }, { outputDirectory: directory })).rejects.toThrow("columns; expected");
-
-    expect(await readFile(populationPath, "utf8")).toBe("last-known-good-population");
-    expect(await readFile(resourcesPath, "utf8")).toBe("last-known-good-resources");
-  });
-
-  it("preserves both last-known-good caches when facility validation fails", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "staybridge-data-fetch-"));
-    temporaryDirectories.push(directory);
-    const populationPath = join(directory, "kita-myanmar-population.json");
-    const resourcesPath = join(directory, "kita-local-resources.json");
-    await writeFile(populationPath, "last-known-good-population", "utf8");
-    await writeFile(resourcesPath, "last-known-good-resources", "utf8");
-
-    await expect(updateOpenDataCaches({
-      populationCsv: validPopulationCsv,
-      schoolCsv: schoolCsv.replace("豊川小学校", "別の学校"),
-      standardFiles,
-      fetchedAt: "2026-08-25",
-    }, { outputDirectory: directory })).rejects.toThrow("豊川小学校 was not found");
 
     expect(await readFile(populationPath, "utf8")).toBe("last-known-good-population");
     expect(await readFile(resourcesPath, "utf8")).toBe("last-known-good-resources");

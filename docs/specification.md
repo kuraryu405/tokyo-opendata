@@ -20,7 +20,7 @@ Personal Roadmap画面では、アクションカード横の補助領域に開�
 
 ## Crisis View
 
-MVPでは対応済みの固定対象（北区・ミャンマー）について、Potential Impact、Existing Resources、Data Gap、対応検討項目を表示する。未対応の国籍・自治体を選択できるようには見せない。「不足」と断定せず、能力は要確認とする。人口統計のcoverage noteを常時示す。公式Open Dataとは別に、同意済みSituation回答の匿名集計を期間（東京暦の7/30/90日）と1軸（needs / return_status / departure_window / accommodation）で表示できる。全体とカテゴリはk=5以上だけ表示し、no_data / below_threshold / stale / error / loadingを区別する。回答者数とJST最終集計日は安全な場合だけ表示し、人口・不足・優先度・サービス提供能力の推定ではないことを常時示す。
+MVPでは対応済みの固定対象（北区・ミャンマー）について、Potential Impact、Existing Resources、Data Gap、対応検討項目を表示する。未対応の国籍・自治体を選択できるようには見せない。「不足」と断定せず、能力は要確認とする。人口統計のcoverage noteを常時示す。公式Open Dataとは別に、同意済みSituation回答の集計を期間（東京暦の7/30/90日）と1軸（needs / return_status / departure_window / accommodation）で表示できる。全体とカテゴリは最小公開件数k=5以上のときだけ表示し、no_data / below_threshold / stale / error / loadingを区別する。回答件数（submission単位）とJST最終集計日は安全な場合だけ表示し、人口・不足・優先度・サービス提供能力の推定ではないことを常時示す。
 
 ## States / i18n
 

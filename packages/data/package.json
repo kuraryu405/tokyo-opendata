@@ -7,6 +7,7 @@
     "./adapters/open-data": "./src/adapters/open-data.ts",
     "./adapters/population-cache": "./src/adapters/population-cache.ts",
     "./adapters/types": "./src/adapters/types.ts",
+    "./kita-facility-connector": "./src/kita-facility-connector.ts",
     "./normalized/kita-myanmar-population.json": "./src/normalized/kita-myanmar-population.json"
   },
   "scripts": {
@@ -16,7 +17,8 @@
     "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
   },
   "dependencies": {
-    "@staybridge/domain": "workspace:*"
+    "@staybridge/domain": "workspace:*",
+    "fflate": "0.7.4"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
