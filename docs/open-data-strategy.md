@@ -18,6 +18,12 @@
 
 短期滞在者のリアルタイム地域分布、帰国困難者数、窓口の言語・対応能力、リアルタイム相談量・施設余力は、一般に十分なOpen Dataとして利用できない。特に住民人口は短期旅行者を完全に表さない。この不確実性をUIと資料で明示する。
 
+## 検証済みD1キャッシュ
+
+外部レスポンスはuntrusted dataとして扱い、Connectorの固定allowlistと取得上限、Adapterのschema validation、NormalizerのCommon Schema変換をすべて通過した場合だけD1へstageする。dataset versionはraw bytesのSHA-256で識別し、全resource保存後のtransactional batchでactive pointerを切り替える。取得、検証、stage、active切替のどこかで失敗しても既存active datasetを維持する。
+
+利用者・自治体Workerは同じread-only公開API契約を持つ。D1にactive datasetがない、metadata・件数・正規化行が不正、またはD1 readが失敗した場合はrepository同梱の検証済みJSONを返す。公開requestから外部CSVを直接取得しない。
+
 ## Future feedback loop
 
 Situation Checkは、別同意のもとで自治体コード、選択式ニーズ、粗い時間・年齢区分だけをD1へ保存できる。これは公開データではない。Crisis Viewでは自治体Workerの固定routeが` situation_submissions `のみを、自治体13117・東京暦の7/30/90日・単一allowlist軸で集計する。全体・カテゴリはk=5以上のみを返し、個票、国籍、正確な時刻・住所、自由記述をCrisis Viewへ渡さない。

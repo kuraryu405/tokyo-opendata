@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+async function loadBuiltWorker(key) {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
+  return (await import(workerUrl.href)).default;
+}
+
 async function render(pathname = "/", origin = "http://localhost", database, withEnvironment = true, counterpartAppUrl) {
   const requestOrigin = new URL(origin);
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}-${origin}`);
-  const { default: worker } = await import(workerUrl.href);
+  const worker = await loadBuiltWorker(`${pathname}-${origin}`);
 
   return worker.fetch(
     new Request(`${origin}${pathname}`, {
@@ -28,6 +32,26 @@ async function render(pathname = "/", origin = "http://localhost", database, wit
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
+
+test("built municipality Worker owns the verified facility API and manual sync route without a schedule", async () => {
+  const worker = await loadBuiltWorker("open-data-worker-contract");
+  assert.equal(worker.scheduled, undefined);
+
+  const resources = await render(
+    "/api/open-data/resources?municipality=Kita&category=medical",
+    "http://localhost",
+    undefined,
+    false,
+  );
+  const body = await resources.json();
+  assert.equal(resources.status, 200);
+  assert.equal(body.data.origin, "bundled");
+  assert.equal(body.data.resources.length, 3);
+
+  const sync = await render("/internal/open-data/sync", "http://localhost", undefined, false);
+  assert.equal(sync.status, 405);
+  assert.equal(sync.headers.get("allow"), "POST");
+});
 
 test("server-renders the Japanese support-preparation view at the municipality root", async () => {
   const response = await render();
