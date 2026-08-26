@@ -2,6 +2,7 @@ import kitaLocalResourcesJson from "./normalized/kita-local-resources.json";
 import kitaMyanmarPopulationJson from "./normalized/kita-myanmar-population.json";
 import type { LocalResourcesCache, PopulationCache } from "./adapters/types";
 import type { NeedCategory, VisitPurpose } from "@staybridge/domain/types";
+import { KITA_FACILITY_SOURCES } from "./kita-facility-source";
 
 export type SourceType = "official_information" | "open_data";
 export type DataAdaptation = "selected_and_normalized";
@@ -18,12 +19,17 @@ export type DataSource = {
   category: string;
   dataUpdatedAt?: string;
   fetchedAt: string;
+  catalogUrl?: string;
+  termsUrl?: string;
+  attribution?: string;
+  updateFrequency?: string;
+  coverageNote?: string;
   notes?: string;
   /** Visit purposes that establish this source's audience. Omit when no purpose-based restriction applies. */
   eligibleVisitPurposes?: readonly VisitPurpose[];
   license?: string;
   licenseUrl?: string;
-  /** The bundled data is a transformed subset, not an unmodified mirror. */
+  /** Describes the transformation applied before data is published. */
   adaptation?: DataAdaptation;
 };
 
@@ -31,11 +37,32 @@ const fetchedAt = "2026-08-14";
 const fetchedAtToday = "2026-08-22";
 const kitaMyanmarPopulationCache = kitaMyanmarPopulationJson as PopulationCache;
 const kitaLocalResourcesCache = kitaLocalResourcesJson as LocalResourcesCache;
-const kitaOpenDataPageUrl = "https://www.city.kita.lg.jp/city-information/disclosure/1014461.html";
-const kitaLicenseUrl = "https://creativecommons.org/licenses/by/4.0/";
-const kitaLicense = "Creative Commons Attribution 4.0 International (CC BY 4.0)";
+
+const kitaFacilitySources = Object.fromEntries(KITA_FACILITY_SOURCES.map((source) => [source.id, {
+  id: source.id,
+  title: source.title,
+  publisher: source.publisher,
+  url: source.landingPageUrl,
+  downloadUrl: source.downloadUrl,
+  sourceType: "open_data",
+  category: source.category,
+  dataUpdatedAt: source.dataUpdatedAt,
+  fetchedAt: kitaLocalResourcesCache.fetchedAt,
+  catalogUrl: source.catalogUrl,
+  termsUrl: source.termsUrl,
+  attribution: source.attribution,
+  updateFrequency: source.updateFrequency,
+  coverageNote: source.coverageNote,
+  license: source.license,
+  licenseUrl: source.licenseUrl,
+  adaptation: "selected_and_normalized",
+  notes: source.id === "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA"
+    ? "Current identity/address checks fail closed while the published CSV still contains retired or old school records; no school row is published until the machine-readable source is current."
+    : source.coverageNote,
+} satisfies DataSource])) as Record<string, DataSource>;
 
 export const sourceRegistry: Record<string, DataSource> = {
+  ...kitaFacilitySources,
   TOKYO_FOREIGN_POPULATION_2026_01: {
     id: "TOKYO_FOREIGN_POPULATION_2026_01",
     title: "Foreign population, January 2026: municipality and nationality/region",
@@ -49,34 +76,6 @@ export const sourceRegistry: Record<string, DataSource> = {
     license: "CC BY (Tokyo Metropolitan Government Open Data Catalog)",
     adaptation: "selected_and_normalized",
     notes: "Resident Basic Register population, not a count of short-term visitors. Cached row is limited to Kita City and Myanmar for this MVP.",
-  },
-  KITA_ELEMENTARY_SCHOOLS_OPEN_DATA: {
-    id: "KITA_ELEMENTARY_SCHOOLS_OPEN_DATA", title: "区立小学校一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
-    downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/syougakkou-2.csv", sourceType: "open_data", category: "elementary schools", fetchedAt: kitaLocalResourcesCache.fetchedAt,
-    license: kitaLicense, licenseUrl: kitaLicenseUrl,
-    adaptation: "selected_and_normalized",
-    notes: "The catalog lists this CSV as Open Data under CC BY 4.0. StayBridge selects and normalizes rows only after current identity/address checks. The refresh fails closed while the published CSV still contains the retired 十条台小学校 identity and the old 西が丘小学校 address; no school rows are bundled until the machine-readable source is current. A school listing does not establish enrolment eligibility, catchment, vacancy, language support, or admission availability.",
-  },
-  KITA_MEDICAL_INSTITUTIONS_OPEN_DATA: {
-    id: "KITA_MEDICAL_INSTITUTIONS_OPEN_DATA", title: "自治体標準オープンデータセット：医療機関一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
-    downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "medical institutions", fetchedAt: kitaLocalResourcesCache.fetchedAt,
-    license: kitaLicense, licenseUrl: kitaLicenseUrl,
-    adaptation: "selected_and_normalized",
-    notes: "Rows are selected from 10_医療機関一覧.csv in the catalog's standard Open Data ZIP. Listing does not guarantee current services, appointments, hours, language support, or availability.",
-  },
-  KITA_CHILDCARE_FACILITIES_OPEN_DATA: {
-    id: "KITA_CHILDCARE_FACILITIES_OPEN_DATA", title: "自治体標準オープンデータセット：子育て施設一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
-    downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "child support facilities", fetchedAt: kitaLocalResourcesCache.fetchedAt,
-    license: kitaLicense, licenseUrl: kitaLicenseUrl,
-    adaptation: "selected_and_normalized",
-    notes: "Rows are selected from 05_子育て施設一覧.csv in the catalog's standard Open Data ZIP. They do not establish eligibility, capacity, current programmes, language support, or availability.",
-  },
-  KITA_PUBLIC_FACILITIES_OPEN_DATA: {
-    id: "KITA_PUBLIC_FACILITIES_OPEN_DATA", title: "自治体標準オープンデータセット：公共施設一覧", publisher: "東京都北区", url: kitaOpenDataPageUrl,
-    downloadUrl: "https://www.city.kita.lg.jp/_res/projects/default_project/_page_/001/014/461/hyo-jyun.zip", sourceType: "open_data", category: "public facilities", fetchedAt: kitaLocalResourcesCache.fetchedAt,
-    license: kitaLicense, licenseUrl: kitaLicenseUrl,
-    adaptation: "selected_and_normalized",
-    notes: "Rows are selected from 01_公共施設一覧.csv in the catalog's standard Open Data ZIP. They do not establish current access, programme availability, language support, or eligibility.",
   },
   TOKYO_CONSULTATION: {
     id: "TOKYO_CONSULTATION",
@@ -400,6 +399,7 @@ export const consultationSourcesByNeed: Record<NeedCategory, readonly SupportSou
   employment: ["TOKYO_LABOR_CONSULT", "TOKYO_FOREIGN_WORKERS_HANDBOOK", "TOKYO_CAREER_CONSULT", "HELLO_WORK_TOKYO_FOREIGNER"],
   language: ["TIPS_JAPANESE"],
   daily_life: ["TIPS_LIVING_GUIDE", "TIPS_PROCEDURES", "TIPS_LIFE_GUIDE_JP", "KEISHICHO_FOREIGN_RESIDENT_MANUAL"],
+  none: [],
 };
 
 /** Always-available human-handoff desks, rendered in their own section. */

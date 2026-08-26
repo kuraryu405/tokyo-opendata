@@ -18,6 +18,7 @@
 |`CHECK_BEFORE_STAY_DEADLINE`|入力期限より前の書類・公式確認を促す|before_deadline|`help`|`ISA`, `TOKYO_FRESC_STATUS_CONSULT`|high|StayBridge does not calculate, validate, or extend a stay deadline. Confirm the date and procedure with an official service.|reviewed|2026-08-23|StayBridge maintainers|2026-11-23|
 |`CHECK_CHILD_LOCAL_SUPPORT`|子どもの日常生活に役立つ公共施設を示す|next_30_days|`local:child_support`|`KITA_CHILDCARE_FACILITIES_OPEN_DATA`, `KITA_PUBLIC_FACILITIES_OPEN_DATA`|standard|Listings do not confirm eligibility, capacity, current programmes, or language support. Confirm details with each facility.|reviewed|2026-08-23|StayBridge maintainers|2027-02-23|
 |`CHECK_LIVING_COST_SUPPORT`|当面の生活費に関する公式相談へつなぐ|this_week|`help`|`FRESC`, `TOKYO_CONSULTATION`, `TOKYO_HOUSING_SUPPORT`|high|Available support and eligibility depend on individual circumstances. Confirm them with an official support service.|reviewed|2026-08-23|StayBridge maintainers|2026-11-23|
+|`FIND_DAILY_LIFE_GUIDANCE`|日々の生活の悩みを公式の生活ガイド・手続案内へつなぐ|this_week|`help`|`TIPS_LIVING_GUIDE`, `TIPS_PROCEDURES`, `TIPS_LIFE_GUIDE_JP`, `KEISHICHO_FOREIGN_RESIDENT_MANUAL`|standard|Official guides describe general procedures. Rules and required documents depend on your individual situation, so confirm them with a support service.|reviewed|2026-08-23|StayBridge maintainers|2027-02-23|
 
 ## Publication gates
 

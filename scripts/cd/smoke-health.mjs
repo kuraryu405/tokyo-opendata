@@ -71,7 +71,7 @@ export async function assertHealth(response, expectedService, expectedRevision) 
   if (
     payload.status !== "ok" ||
     payload.service !== expectedService ||
-    payload.revision !== expectedRevision
+    (expectedRevision !== null && payload.revision !== expectedRevision)
   ) {
     throw new Error(
       `unexpected health payload: ${JSON.stringify(payload)}`,
@@ -159,7 +159,7 @@ export async function smokeHealth(
         await assertReadiness(readinessResponse);
       });
       process.stdout.write(
-        `Healthy and ready ${expectedService} revision ${expectedRevision} at ${healthUrl.origin}\n`,
+        `Healthy and ready ${expectedService} revision ${expectedRevision ?? "any"} at ${healthUrl.origin}\n`,
       );
       return;
     } catch (error) {
@@ -176,9 +176,10 @@ export async function smokeHealth(
 }
 
 if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
-  const [, , baseUrl, service, revision] = process.argv;
-  if (!baseUrl || !service || !revision) {
-    throw new Error("usage: smoke-health.mjs <base-url> <service> <revision>");
+  const [, , baseUrl, service, revisionArgument] = process.argv;
+  const revision = revisionArgument === "--any-revision" ? null : revisionArgument;
+  if (!baseUrl || !service || !revisionArgument) {
+    throw new Error("usage: smoke-health.mjs <base-url> <service> <revision|--any-revision>");
   }
 
   await smokeHealth(baseUrl, service, revision, {
