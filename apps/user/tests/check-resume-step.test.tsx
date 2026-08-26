@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
+import { getUserMessages } from "@staybridge/i18n/client";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
 import { serializeStoredSession } from "../src/components/staybridge-session";
 
@@ -30,6 +31,7 @@ const navigation = vi.hoisted(() => {
       currentPath = path;
       notify();
     },
+    path: () => currentPath,
   };
 });
 
@@ -58,16 +60,6 @@ function memoryStorage(): Storage {
   };
 }
 
-function restoreCompleteUserSession() {
-  sessionStorage.setItem("staybridge.session", serializeStoredSession({
-    provenance: "user",
-    situation: demoSituation,
-    stayAnswer: "unknown",
-    familyAnswers: ["children"],
-    answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-  }));
-}
-
 beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
@@ -84,42 +76,49 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("Situation persistence malformed success responses", () => {
-  it.each([
-    "sit_invalid",
-    "sit_",
-    "sit_AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
-    "sit_11111111-1111-4111-8111-111111111111_extra",
-  ])("keeps the pending request snapshot when a success response has malformed Situation ID %s", async (id) => {
-    navigation.reset("/ja/status");
-    restoreCompleteUserSession();
-    const fetchMock = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        ok: true,
-        data: {
-          capability: `cap_${"A".repeat(43)}`,
-          expiresAt: "2026-08-24T10:05:00.000Z",
-        },
-      }), { status: 201, headers: { "content-type": "application/json" } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        ok: true,
-        data: { id, created: true },
-      }), { status: 201, headers: { "content-type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
+describe("Assessment resume entry point", () => {
+  it("starts a fresh session at the first question", async () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(await screen.findByRole("button", { name: "同意して保存" }));
-    expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as Record<string, unknown>;
-    // The stored snapshot excludes the per-attempt capability entirely.
-    const { capability: _sentCapability, ...requestWithoutCapability } = requestBody;
-    expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "null")).toEqual({
-      version: 1,
-      request: requestWithoutCapability,
-    });
-    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "削除に必要な情報" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: getUserMessages("ja").ui.start }));
+    expect(navigation.path()).toBe("/ja/check?step=0");
+  });
+
+  it("resumes a partially answered session at its first unanswered step", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1, 2, 3, 4],
+    }));
+    navigation.reset("/ja/");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const startButton = await screen.findByRole("button", { name: getUserMessages("ja").ui.start });
+    await user.click(startButton);
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=5"));
+    expect(screen.getByText(getUserMessages("ja").ui.questionLabel + " 06")).toBeTruthy();
+  });
+
+  it("uses the first actual gap after reload and preserves that progress in another locale", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: demoSituation,
+      stayAnswer: "unknown",
+      familyAnswers: [],
+      answeredSteps: [0, 1, 3, 4],
+    }));
+    navigation.reset("/en/");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    const startButton = await screen.findByRole("button", { name: getUserMessages("en").ui.start });
+    await user.click(startButton);
+
+    await waitFor(() => expect(navigation.path()).toBe("/en/check?step=2"));
+    expect(screen.getByText(getUserMessages("en").ui.questionLabel + " 03")).toBeTruthy();
   });
 });
