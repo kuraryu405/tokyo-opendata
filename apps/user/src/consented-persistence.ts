@@ -1,4 +1,13 @@
-import type { Situation } from "@staybridge/domain/types";
+import type {
+  AccommodationType,
+  ChildAgeGroup,
+  DepartureWindow,
+  JapaneseLevel,
+  NeedCategory,
+  ReturnStatus,
+  Situation,
+  VisitPurpose,
+} from "@staybridge/domain/types";
 import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
 
 const municipalityCodes: Record<string, string> = {
@@ -7,11 +16,53 @@ const municipalityCodes: Record<string, string> = {
   Toshima: "13116",
 };
 
+const visitPurposes = new Set<VisitPurpose>([
+  "tourism",
+  "visiting_family_or_friends",
+  "work",
+  "study",
+  "resident",
+  "other",
+  "unknown",
+]);
+const departureWindows = new Set<DepartureWindow>([
+  "within_7_days",
+  "within_30_days",
+  "within_3_months",
+  "no_departure_plan",
+  "unknown",
+]);
+const returnStatuses = new Set<ReturnStatus>(["possible", "difficult", "unknown"]);
+const accommodations = new Set<AccommodationType>([
+  "hotel",
+  "family_or_friend",
+  "rental",
+  "temporary_facility",
+  "unstable",
+  "prefer_not_to_say",
+]);
+const needs = new Set<NeedCategory>([
+  "stay",
+  "consultation",
+  "accommodation",
+  "living_cost",
+  "employment",
+  "education",
+  "childcare",
+  "medical",
+  "language",
+  "daily_life",
+]);
+const japaneseLevels = new Set<JapaneseLevel>(["none", "beginner", "daily", "advanced"]);
+const ageGroups = new Set<ChildAgeGroup>(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
+
 const situationRecordIdPattern = /^sit_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const idempotencyKeyPattern = /^[A-Za-z0-9_-]{16,128}$/u;
 const deletionTokenPattern = /^[A-Za-z0-9_-]{43}$/u;
 
 export const SAVED_SITUATION_CREDENTIALS_KEY = "staybridge.saved-situation-credentials";
 export const PENDING_SITUATION_SUBMISSION_KEY = "staybridge.pending-situation-submission";
+export const PENDING_SITUATION_SUBMISSION_VERSION = 1 as const;
 export const SAVED_SITUATION_CREDENTIALS_VERSION = 1;
 
 export type SavedRecordCredentials = {
@@ -29,30 +80,60 @@ export type SituationSubmissionSecrets = {
   deletionToken: string;
 };
 
-export function createSituationSubmissionSecrets(): SituationSubmissionSecrets {
+export type SituationSubmissionRequest = {
+  consent: { accepted: true, version: typeof SITUATION_CONSENT_VERSION };
+  idempotencyKey: string;
+  deletionToken: string;
+  answers: {
+    municipalityCode: string | null;
+    visitPurpose: VisitPurpose;
+    departureWindow: DepartureWindow;
+    returnStatus: ReturnStatus;
+    familyAgeGroups: ChildAgeGroup[];
+    accommodation: AccommodationType;
+    needs: NeedCategory[];
+    japaneseLevel: JapaneseLevel;
+  };
+};
+
+export type PendingSituationSubmission = {
+  version: typeof PENDING_SITUATION_SUBMISSION_VERSION;
+  request: SituationSubmissionRequest;
+};
+
+export type PendingSituationSubmissionParseResult =
+  | { status: "empty" }
+  | { status: "retryable"; submission: PendingSituationSubmission }
+  | { status: "incompatible" };
+
+export function createPendingSituationSubmission(situation: Situation): PendingSituationSubmission {
   return {
-    idempotencyKey: crypto.randomUUID(),
-    deletionToken: createDeletionToken(),
+    version: PENDING_SITUATION_SUBMISSION_VERSION,
+    request: {
+      consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
+      idempotencyKey: crypto.randomUUID(),
+      deletionToken: createDeletionToken(),
+      answers: {
+        municipalityCode: municipalityCodes[situation.currentMunicipality] ?? null,
+        visitPurpose: situation.visitPurpose,
+        departureWindow: situation.originalDepartureWindow,
+        returnStatus: situation.returnStatus,
+        familyAgeGroups: situation.familyMembers.children.map((child) => child.ageGroup),
+        accommodation: situation.accommodation,
+        needs: [...situation.needs],
+        japaneseLevel: situation.japaneseLevel,
+      },
+    },
   };
 }
 
-export function parseSituationSubmissionSecrets(value: string | null): SituationSubmissionSecrets | null {
-  if (!value) return null;
+export function parsePendingSituationSubmission(value: string | null): PendingSituationSubmissionParseResult {
+  if (value === null) return { status: "empty" };
   try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (
-      Object.keys(parsed).length !== 2
-      || typeof parsed.idempotencyKey !== "string"
-      || !/^[A-Za-z0-9_-]{16,128}$/u.test(parsed.idempotencyKey)
-      || typeof parsed.deletionToken !== "string"
-      || !/^[A-Za-z0-9_-]{43}$/u.test(parsed.deletionToken)
-    ) return null;
-    return {
-      idempotencyKey: parsed.idempotencyKey,
-      deletionToken: parsed.deletionToken,
-    };
+    const submission = parsePendingSituationSubmissionValue(JSON.parse(value));
+    return submission ? { status: "retryable", submission } : { status: "incompatible" };
   } catch {
-    return null;
+    return { status: "incompatible" };
   }
 }
 
@@ -92,32 +173,17 @@ export function serializeSavedSituationCredentials(credentials: SavedRecordCrede
 }
 
 export async function saveSituationSubmission(
-  situation: Situation,
-  secrets: SituationSubmissionSecrets,
+  submission: PendingSituationSubmission,
 ): Promise<SavedRecordCredentials> {
   const response = await fetch("/api/situation-submissions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
-      idempotencyKey: secrets.idempotencyKey,
-      deletionToken: secrets.deletionToken,
-      answers: {
-        municipalityCode: municipalityCodes[situation.currentMunicipality] ?? null,
-        visitPurpose: situation.visitPurpose,
-        departureWindow: situation.originalDepartureWindow,
-        returnStatus: situation.returnStatus,
-        familyAgeGroups: situation.familyMembers.children.map((child) => child.ageGroup),
-        accommodation: situation.accommodation,
-        needs: situation.needs,
-        japaneseLevel: situation.japaneseLevel,
-      },
-    }),
+    body: JSON.stringify(submission.request),
   });
   const body = await readSuccessBody(response);
   const credentials = parseSavedSituationCredentialsValue({
     id: body?.id,
-    deletionToken: secrets.deletionToken,
+    deletionToken: submission.request.deletionToken,
   });
   if (!credentials) throw new Error("SITUATION_PERSISTENCE_FAILED");
   return credentials;
@@ -140,17 +206,90 @@ export async function deleteSituationSubmission(
   if (!body || body.deleted !== true) throw new Error("SITUATION_DELETION_FAILED");
 }
 
-function parseSavedSituationCredentialsValue(value: unknown): SavedRecordCredentials | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const parsed = value as Record<string, unknown>;
+function parsePendingSituationSubmissionValue(value: unknown): PendingSituationSubmission | null {
+  if (!isRecordWithExactKeys(value, ["version", "request"]) || value.version !== PENDING_SITUATION_SUBMISSION_VERSION) return null;
+  const request = value.request;
+  if (!isRecordWithExactKeys(request, ["consent", "idempotencyKey", "deletionToken", "answers"])) return null;
   if (
-    Object.keys(parsed).length !== 2
-    || typeof parsed.id !== "string"
-    || !situationRecordIdPattern.test(parsed.id)
-    || typeof parsed.deletionToken !== "string"
-    || !deletionTokenPattern.test(parsed.deletionToken)
+    !isRecordWithExactKeys(request.consent, ["accepted", "version"])
+    || request.consent.accepted !== true
+    || request.consent.version !== SITUATION_CONSENT_VERSION
+    || typeof request.idempotencyKey !== "string"
+    || !idempotencyKeyPattern.test(request.idempotencyKey)
+    || typeof request.deletionToken !== "string"
+    || !deletionTokenPattern.test(request.deletionToken)
   ) return null;
-  return { id: parsed.id, deletionToken: parsed.deletionToken };
+  if (!isRecordWithExactKeys(request.answers, [
+    "municipalityCode",
+    "visitPurpose",
+    "departureWindow",
+    "returnStatus",
+    "familyAgeGroups",
+    "accommodation",
+    "needs",
+    "japaneseLevel",
+  ])) return null;
+
+  const answers = request.answers;
+  if (answers.municipalityCode !== null && (typeof answers.municipalityCode !== "string" || !/^13\d{3}$/u.test(answers.municipalityCode))) return null;
+  if (!isAllowedValue(answers.visitPurpose, visitPurposes)) return null;
+  if (!isAllowedValue(answers.departureWindow, departureWindows)) return null;
+  if (!isAllowedValue(answers.returnStatus, returnStatuses)) return null;
+  if (!isAllowedValue(answers.accommodation, accommodations)) return null;
+  if (!isAllowedValue(answers.japaneseLevel, japaneseLevels)) return null;
+  const familyAgeGroups = parseAllowedArray(answers.familyAgeGroups, ageGroups, 6);
+  const selectedNeeds = parseAllowedArray(answers.needs, needs, 10);
+  if (!familyAgeGroups || !selectedNeeds) return null;
+
+  return {
+    version: PENDING_SITUATION_SUBMISSION_VERSION,
+    request: {
+      consent: { accepted: true, version: SITUATION_CONSENT_VERSION },
+      idempotencyKey: request.idempotencyKey,
+      deletionToken: request.deletionToken,
+      answers: {
+        municipalityCode: answers.municipalityCode,
+        visitPurpose: answers.visitPurpose,
+        departureWindow: answers.departureWindow,
+        returnStatus: answers.returnStatus,
+        familyAgeGroups,
+        accommodation: answers.accommodation,
+        needs: selectedNeeds,
+        japaneseLevel: answers.japaneseLevel,
+      },
+    },
+  };
+}
+
+function parseSavedSituationCredentialsValue(value: unknown): SavedRecordCredentials | null {
+  if (!isRecordWithExactKeys(value, ["id", "deletionToken"])) return null;
+  if (
+    typeof value.id !== "string"
+    || !situationRecordIdPattern.test(value.id)
+    || typeof value.deletionToken !== "string"
+    || !deletionTokenPattern.test(value.deletionToken)
+  ) return null;
+  return { id: value.id, deletionToken: value.deletionToken };
+}
+
+function isRecordWithExactKeys(value: unknown, keys: readonly string[]): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === keys.length && keys.every((key) => key in record);
+}
+
+function isAllowedValue<T extends string>(value: unknown, allowed: ReadonlySet<T>): value is T {
+  return typeof value === "string" && allowed.has(value as T);
+}
+
+function parseAllowedArray<T extends string>(value: unknown, allowed: ReadonlySet<T>, max: number): T[] | null {
+  if (!Array.isArray(value) || value.length > max) return null;
+  const result: T[] = [];
+  for (const item of value) {
+    if (!isAllowedValue(item, allowed) || result.includes(item)) return null;
+    result.push(item);
+  }
+  return result;
 }
 
 function createDeletionToken(): string {

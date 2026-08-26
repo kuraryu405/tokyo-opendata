@@ -62,14 +62,14 @@ import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
-  createSituationSubmissionSecrets,
+  createPendingSituationSubmission,
   deleteSituationSubmission,
+  parsePendingSituationSubmission,
   parseSavedSituationCredentials,
-  parseSituationSubmissionSecrets,
   saveSituationSubmission,
+  type PendingSituationSubmission,
   serializeSavedSituationCredentials,
   type SavedRecordCredentials,
-  type SituationSubmissionSecrets,
 } from "../consented-persistence";
 import { getPersistenceCopy, type PersistenceCopy } from "../persistence-copy";
 
@@ -112,7 +112,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [isDemoSituation, setIsDemoSituation] = useState(false);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
   const skipNextSessionWrite = useRef(false);
-  const situationSubmissionSecrets = useRef<SituationSubmissionSecrets | null>(null);
+  const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
   const t = getUserMessages(locale).ui;
   const hasSavedSituationCredentials = "credentials" in situationPersistence;
   const hasCorruptSavedSituationCredentials = situationPersistence.status === "corrupt";
@@ -145,19 +145,23 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
       } else if (savedCredentialsResult.status === "corrupt") {
         setSituationPersistence({ status: "corrupt" });
-        const pendingSecrets = parseSituationSubmissionSecrets(
+        const parsedPending = parsePendingSituationSubmission(
           sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
         );
-        if (pendingSecrets) {
-          situationSubmissionSecrets.current = pendingSecrets;
+        if (parsedPending.status !== "empty") {
+          pendingSituationSubmission.current = parsedPending.status === "retryable"
+            ? parsedPending.submission
+            : "incompatible";
           setHasPendingSituationSubmission(true);
         }
       } else {
-        const pendingSecrets = parseSituationSubmissionSecrets(
+        const parsedPending = parsePendingSituationSubmission(
           sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
         );
-        if (pendingSecrets) {
-          situationSubmissionSecrets.current = pendingSecrets;
+        if (parsedPending.status !== "empty") {
+          pendingSituationSubmission.current = parsedPending.status === "retryable"
+            ? parsedPending.submission
+            : "incompatible";
           setHasPendingSituationSubmission(true);
           setSituationPersistence({ status: "error" });
         }
@@ -322,7 +326,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
-    situationSubmissionSecrets.current = null;
+    pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
     } catch {
@@ -350,7 +354,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
-    situationSubmissionSecrets.current = null;
+    pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
     } catch {
@@ -387,7 +391,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
-    situationSubmissionSecrets.current = null;
+    pendingSituationSubmission.current = null;
     setHasPendingSituationSubmission(false);
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
@@ -402,21 +406,25 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   );
 
   const persistSituation = async () => {
-    const secrets = situationSubmissionSecrets.current ?? createSituationSubmissionSecrets();
-    if (!situationSubmissionSecrets.current) {
+    if (pendingSituationSubmission.current === "incompatible") {
+      setSituationPersistence({ status: "error" });
+      return;
+    }
+    const submission = pendingSituationSubmission.current ?? createPendingSituationSubmission(situation);
+    if (!pendingSituationSubmission.current) {
       try {
-        sessionStorage.setItem(PENDING_SITUATION_SUBMISSION_KEY, JSON.stringify(secrets));
+        sessionStorage.setItem(PENDING_SITUATION_SUBMISSION_KEY, JSON.stringify(submission));
       } catch {
         setStorageError(true);
         setSituationPersistence({ status: "error" });
         return;
       }
-      situationSubmissionSecrets.current = secrets;
+      pendingSituationSubmission.current = submission;
       setHasPendingSituationSubmission(true);
     }
     setSituationPersistence({ status: "saving" });
     try {
-      const credentials = await saveSituationSubmission(situation, secrets);
+      const credentials = await saveSituationSubmission(submission);
       let replacedPending = false;
       try {
         sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, serializeSavedSituationCredentials(credentials));
@@ -426,7 +434,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         setStorageError(true);
       }
       if (replacedPending) {
-        situationSubmissionSecrets.current = null;
+        pendingSituationSubmission.current = null;
         setHasPendingSituationSubmission(false);
       }
       setSituationPersistence({ status: "saved", credentials });
@@ -445,7 +453,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       } catch {
         setStorageError(true);
       }
-      situationSubmissionSecrets.current = null;
+      pendingSituationSubmission.current = null;
       setHasPendingSituationSubmission(false);
       setSituationPersistence({ status: "deleted" });
     } catch {
@@ -477,7 +485,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => setSituationPersistence({ status: "declined" })} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} roadmap={() => go("roadmap")} edit={editSituation} />}
           {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
