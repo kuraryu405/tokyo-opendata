@@ -16,10 +16,10 @@ Worker実行時に必要なbinding・var・secretを環境別にまとめた参�
 | --- | --- | --- | --- | --- | --- | --- |
 | D1 binding | `STAYBRIDGE_DB` | ○ (remote: false) | ○ | ○ | wrangler.jsonc | Situation保存・削除がfail-closed |
 | Rate Limit binding | `PERSISTENCE_RATE_LIMITER` | ○ | ○ | ○ | wrangler.jsonc + CD注入(namespace_id) | Situation保存・削除が503 |
-| Rate Limit binding | `SUPPORT_CHAT_RATE_LIMITER` | ○ | ○ | ○ | wrangler.jsonc + CD注入(namespace_id) | AI相談がレート制限なしではなくfail-closedで拒否される |
+| Rate Limit binding | `SUPPORT_CHAT_RATE_LIMITER` | ○ | ○ | ○ | wrangler.jsonc + CD注入(namespace_id) | AI相談が503 fail-closed(無制限fallbackなし) |
 | AI binding | `AI` | 不要(通常) | ○ | ○ | CD注入 (`configure-ai-binding.mjs`) | AI相談は公式案内fallback。主要導線は継続 |
-| var | `APP_REVISION` | 不要 | ○ | ○ | CD注入 (`--var`) | ヘルスチェックのrevision一致検証が失敗する |
-| var | `COUNTERPART_APP_URL` | 不要 | ○ | ○ | CD注入 (`--var`) | 自治体アプリへのredirectが失敗時に安全な既定値を使う |
+| var | `APP_REVISION` | 不要 | ○ | ○ | CD注入 (`--var`) | 未登録時はrevision `local` として応答し、CDのsmoke test(revision一致検証)が失敗する |
+| var | `COUNTERPART_APP_URL` | 不要 | ○ | ○ | CD注入 (`--var`) | 未登録時、localhost以外の `/crisis` redirectは503。localのみ`http://localhost:3001`へfallback |
 | remote AI | `STAYBRIDGE_REMOTE_AI=1` | 任意 | — | — | 手動 (.env / shell) | 未設定ならローカルは実推論しない |
 
 - `STAYBRIDGE_REMOTE_AI=1` はローカルでの実推論を意図的に試す場合だけ設定する。課金とCloudflare認証が発生する。
@@ -30,8 +30,8 @@ Worker実行時に必要なbinding・var・secretを環境別にまとめた参�
 | 種別 | 名称 | local | staging | production | 出所 | 無い場合の挙動 |
 | --- | --- | --- | --- | --- | --- | --- |
 | D1 binding | `STAYBRIDGE_DB` | ○ (remote: false) | ○ | ○ | wrangler.jsonc | Crisis View集計APIが503 fail-closed |
-| var | `APP_REVISION` | 不要 | ○ | ○ | CD注入 (`--var`) | ヘルスチェックのrevision一致検証が失敗する |
-| var | `COUNTERPART_APP_URL` | 不要 | ○ | ○ | CD注入 (`--var`) | 利用者アプリへのredirectが失敗時に安全な既定値を使う |
+| var | `APP_REVISION` | 不要 | ○ | ○ | CD注入 (`--var`) | 未登録時はrevision `local` として応答し、CDのsmoke test(revision一致検証)が失敗する |
+| var | `COUNTERPART_APP_URL` | 不要 | ○ | ○ | CD注入 (`--var`) | 未登録時、localhost以外の `/crisis` redirectは503。localのみ`http://localhost:3001`へfallback |
 
 - 自治体Workerには `AI` binding・Rate Limit bindingを持たない。`configure-rate-limits.mjs` は自治体のnamespaceを空集合として検証する。
 
