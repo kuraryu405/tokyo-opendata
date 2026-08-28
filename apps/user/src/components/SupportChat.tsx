@@ -54,6 +54,22 @@ const chatCopy = {
 
 type ChatEntry = SupportChatMessage & { id: string };
 
+type InMemoryConversation = {
+  messages: ChatEntry[];
+  input: string;
+  nextMessageId: number;
+};
+
+let inMemoryConversation: InMemoryConversation = {
+  messages: [],
+  input: "",
+  nextMessageId: 0,
+};
+
+export function clearSupportChatMemory() {
+  inMemoryConversation = { messages: [], input: "", nextMessageId: 0 };
+}
+
 class ChatRequestError extends Error {
   constructor(readonly code: string) {
     super(code || "REQUEST_FAILED");
@@ -72,16 +88,25 @@ const readErrorCode = async (response: Response): Promise<string> => {
 export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
   const panelId = useId();
-  const nextMessageId = useRef(0);
+  const nextMessageId = useRef(inMemoryConversation.nextMessageId);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<ChatEntry[]>([]);
-  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatEntry[]>(() => [...inMemoryConversation.messages]);
+  const [input, setInput] = useState(() => inMemoryConversation.input);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => () => activeRequest.current?.abort(), []);
+
+  useEffect(() => {
+    if (pending) return;
+    inMemoryConversation = {
+      messages,
+      input,
+      nextMessageId: nextMessageId.current,
+    };
+  }, [input, messages, pending]);
 
   useEffect(() => {
     const log = chatLogRef.current;
@@ -146,7 +171,10 @@ export function SupportChat({ locale }: { locale: Locale }) {
     activeRequest.current?.abort();
     activeRequest.current = null;
     activeRequestId.current += 1;
+    clearSupportChatMemory();
+    nextMessageId.current = 0;
     setMessages([]);
+    setInput("");
     setPending(false);
     setError("");
   };
