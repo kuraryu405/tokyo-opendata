@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
           persist-credentials: false
@@ -204,7 +204,7 @@ jobs:
       APP_DIRECTORY: ${{ inputs.app_directory }}
       APP_REVISION: ${{ inputs.revision }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
           persist-credentials: false
@@ -252,7 +252,7 @@ jobs:
       COUNTERPART_URL: ${{ needs.configuration.outputs.counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
           persist-credentials: false
@@ -332,7 +332,7 @@ jobs:
       COUNTERPART_URL: ${{ needs.configuration.outputs.counterpart_url }}
       ARTIFACT_NAME: staybridge-${{ inputs.service }}-${{ inputs.revision }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
           persist-credentials: false
