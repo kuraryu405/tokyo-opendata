@@ -10,9 +10,9 @@
     "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
   },
   "devDependencies": {
-    "@types/node": "22.19.19",
-    "oxlint": "^1.79.0",
-    "typescript": "5.9.3",
+    "@types/node": "26.3.0",
+    "oxlint": "^1.80.0",
+    "typescript": "7.0.2",
     "vite": "8.2.2"
   },
   "type": "module"
