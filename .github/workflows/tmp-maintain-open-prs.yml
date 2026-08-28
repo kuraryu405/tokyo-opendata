@@ -1,0 +1,35 @@
+name: Temporary maintain open PRs
+on:
+  pull_request:
+    types: [synchronize, edited]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  sync:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.head_ref == 'feat/issue-56-other-ai-actions' ||
+       github.head_ref == 'fix/issue-135-chat-history-route' ||
+       github.head_ref == 'fix/issue-118-conversation-consent' ||
+       github.head_ref == 'fix/issue-129-chat-session-quota' ||
+       github.head_ref == 'feat/issue-62-verified-assistant-v2')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Merge current main into PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            exit 0
+          fi
+          git merge --no-edit -X ours origin/main
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
