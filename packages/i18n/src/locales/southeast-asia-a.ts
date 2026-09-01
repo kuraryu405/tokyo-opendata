@@ -3,7 +3,7 @@ import type { UserMessages } from "../index";
 export const viMessages = {
   metadata: { label: "Vietnamese", nativeLabel: "Tiếng Việt", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
   ui: {
-    skip: "Chuyển đến nội dung", navSteps: "Các bước của tôi", navLocal: "Hỗ trợ tại địa phương", navHelp: "Nhận hỗ trợ", navChat: "AI", navSettings: "Settings", crisis: "Chế độ chuẩn bị cho cơ quan công và tổ chức hỗ trợ",
+    skip: "Chuyển đến nội dung", navSteps: "Các bước của tôi", navLocal: "Hỗ trợ tại địa phương", navHelp: "Nhận hỗ trợ", crisis: "Chế độ chuẩn bị cho cơ quan công và tổ chức hỗ trợ",
     eyebrow: "Dành cho những người bất ngờ cần ở lại Tokyo", hero: "Bạn không thể trở về nhà.\nNhưng bạn vẫn có thể tìm bước tiếp theo ở Tokyo.",
     intro: "Nếu bạn dự định trở về quê nhà nhưng một thay đổi đột ngột khiến điều đó trở nên khó khăn, StayBridge sẽ sắp xếp những việc cần kiểm tra để bạn có thể ổn định cuộc sống tạm thời ở Tokyo.",
     start: "Kiểm tra tình hình của tôi", demo: "Tải tình huống mẫu", noLogin: "Không cần tài khoản", noAddress: "Không cần địa chỉ chính xác", official: "Liên kết đến nguồn chính thức",
@@ -17,7 +17,7 @@ export const viMessages = {
     localFallback: "Hiển thị cơ sở theo quận/thành phố mà không dùng vị trí chính xác.", all: "Tất cả", school: "Trường học và giáo dục", medical: "Y tế", child_support: "Không gian cho trẻ em", public_facility: "Cơ sở công cộng",
     details: "Mở trang web chính thức", sourceLabel: "Nguồn Open Data", updated: "Dữ liệu cập nhật", unavailable: "Chưa công bố", backToRoadmap: "Quay lại các bước của tôi", continueToHelp: "Tiếp tục đến nơi hỗ trợ",
     schoolNote: "Hãy hỏi chính quyền địa phương hoặc cơ quan giáo dục về việc ghi danh và đi học.", noResources: "Dữ liệu địa phương chi tiết cho khu vực này hiện chưa có trong phiên bản MVP của StayBridge.",
-    helpTitle: "Trao đổi với một người hỗ trợ", helpIntro: "Thủ tục có thể khác nhau tùy theo tình trạng lưu trú của bạn. StayBridge không quyết định tình trạng pháp lý hoặc tình trạng cư trú. Hãy xác nhận với cơ quan chính thức hoặc nhân viên hỗ trợ trực tiếp.", chatTitle: "AI", chatIntro: "AI can make mistakes.", settingsTitle: "Settings", settingsIntro: "Choose save settings.", viewChat: "AI", viewSettings: "Settings", backToHelp: "Back", nearbySchoolsNote: "Listings do not guarantee.", preparingHelp: "Prepare", actionDetail: "Detail",
+    helpTitle: "Trao đổi với một người hỗ trợ", helpIntro: "Thủ tục có thể khác nhau tùy theo tình trạng lưu trú của bạn. StayBridge không quyết định tình trạng pháp lý hoặc tình trạng cư trú. Hãy xác nhận với cơ quan chính thức hoặc nhân viên hỗ trợ trực tiếp.",
     prepare: "Chuẩn bị trước khi trao đổi", prepareItems: ["Các giấy tờ bạn hiện có, chẳng hạn như hộ chiếu", "Ngày dự định rời Nhật Bản ban đầu", "Ghi chú về điều bạn cần hỏi", "Bạn có cần thông dịch viên hay không"],
     summary: "Tạo bản tóm tắt để tư vấn", summaryTitle: "Bản tóm tắt để trình cho nhân viên hỗ trợ", summaryIntro: "Bản này chỉ gồm thông tin bạn đã nhập. Bạn có thể cho xem màn hình này hoặc sao chép văn bản.",
     current: "Tình hình hiện tại", questions: "Điều tôi cần xác nhận", copy: "Sao chép", copied: "Đã sao chép", print: "In", showMode: "Hiển thị cho nhân viên hỗ trợ", clear: "Xóa dữ liệu trên thiết bị này",
@@ -47,7 +47,7 @@ export const viMessages = {
   actions: {
     CHECK_STAY_STATUS: { title: "Kiểm tra thời gian bạn có thể ở Nhật Bản", desc: "Hãy xác nhận với cơ quan chính thức về hạn lưu trú hiện tại và thủ tục cần kiểm tra.", cta: "Xem nơi tư vấn chính thức" },
     CONTACT_OFFICIAL_SUPPORT: { title: "Trao đổi với nơi tư vấn chuyên môn", desc: "Các bước tiếp theo về việc lưu trú của bạn cần được xác nhận theo từng trường hợp.", cta: "Xem nơi tư vấn" },
-    CHECK_CHILD_EDUCATION: { title: "Tư vấn về giáo dục cho trẻ", desc: "Nếu thời gian ở lại kéo dài, bạn có thể hỏi tại địa phương về việc học và trường của trẻ.", cta: "Xem trường học gần đây" }, CHECK_CHILD_EDUCATION_GUIDANCE: { title: "School guidance", desc: "Official guidance", cta: "View guidance" }, FIND_NEARBY_SCHOOLS: { title: "Nearby schools", desc: "Open data schools", cta: "View schools" },
+    CHECK_CHILD_EDUCATION: { title: "Tư vấn về giáo dục cho trẻ", desc: "Nếu thời gian ở lại kéo dài, bạn có thể hỏi tại địa phương về việc học và trường của trẻ.", cta: "Xem trường học gần đây" },
     PLAN_TEMPORARY_LIVING: { title: "Sắp xếp chỗ ở sắp tới", desc: "Trước khi chỗ ở hiện tại kết thúc, hãy kiểm tra nơi có thể tư vấn về đời sống tạm thời.", cta: "Xem nơi tư vấn đời sống" },
     CHECK_MEDICAL_OPTIONS: { title: "Kiểm tra nơi có thể nhận chăm sóc y tế", desc: "Hãy kiểm tra trước các cơ sở y tế địa phương để biết nơi có thể hỏi khi cần.", cta: "Xem cơ sở y tế gần đây" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "Kiểm tra điều kiện được làm việc trước", desc: "Trước khi tìm việc, hãy xác nhận với cơ quan chính thức liệu tình trạng hiện tại có cho phép bạn làm việc không.", cta: "Xem nơi tư vấn chính thức" },
@@ -79,7 +79,7 @@ export const viMessages = {
 export const thMessages = {
   metadata: { label: "Thai", nativeLabel: "ไทย", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
   ui: {
-    skip: "ข้ามไปยังเนื้อหา", navSteps: "ขั้นตอนของฉัน", navLocal: "ความช่วยเหลือในพื้นที่", navHelp: "ขอความช่วยเหลือ", navChat: "AI", navSettings: "Settings", crisis: "มุมมองการเตรียมความพร้อมสำหรับหน่วยงานสาธารณะและองค์กรช่วยเหลือ",
+    skip: "ข้ามไปยังเนื้อหา", navSteps: "ขั้นตอนของฉัน", navLocal: "ความช่วยเหลือในพื้นที่", navHelp: "ขอความช่วยเหลือ", crisis: "มุมมองการเตรียมความพร้อมสำหรับหน่วยงานสาธารณะและองค์กรช่วยเหลือ",
     eyebrow: "สำหรับผู้ที่จำเป็นต้องอยู่ในโตเกียวต่อโดยไม่คาดคิด", hero: "คุณไม่สามารถกลับบ้านได้\nแต่คุณยังหาขั้นตอนต่อไปในโตเกียวได้",
     intro: "หากคุณวางแผนจะกลับบ้าน แต่การเปลี่ยนแปลงอย่างกะทันหันทำให้กลับได้ยาก StayBridge จะช่วยจัดระเบียบสิ่งที่ควรตรวจสอบ เพื่อให้คุณใช้ชีวิตในโตเกียวได้ในระยะนี้.",
     start: "ตรวจสอบสถานการณ์ของฉัน", demo: "โหลดสถานการณ์ตัวอย่าง", noLogin: "ไม่ต้องมีบัญชี", noAddress: "ไม่ต้องระบุที่อยู่ที่แน่นอน", official: "เชื่อมไปยังแหล่งข้อมูลทางการ",
@@ -93,7 +93,7 @@ export const thMessages = {
     localFallback: "แสดงสถานที่ตามเขตหรือเทศบาลโดยไม่ใช้ตำแหน่งที่แน่นอน.", all: "ทั้งหมด", school: "โรงเรียนและการศึกษา", medical: "การแพทย์", child_support: "พื้นที่สำหรับเด็ก", public_facility: "สถานที่สาธารณะ",
     details: "เปิดเว็บไซต์ทางการ", sourceLabel: "แหล่ง Open Data", updated: "อัปเดตข้อมูล", unavailable: "ยังไม่เผยแพร่", backToRoadmap: "กลับไปยังขั้นตอนของฉัน", continueToHelp: "ไปยังความช่วยเหลือต่อ",
     schoolNote: "โปรดสอบถามเทศบาลหรือหน่วยงานการศึกษาเรื่องการเข้าเรียนและการลงทะเบียน.", noResources: "ข้อมูลพื้นที่โดยละเอียดสำหรับบริเวณนี้ยังไม่ครอบคลุมใน StayBridge รุ่น MVP.",
-    helpTitle: "พูดคุยกับผู้ให้ความช่วยเหลือ", helpIntro: "ขั้นตอนอาจแตกต่างกันตามสถานะการพำนักของคุณ StayBridge ไม่ได้ตัดสินสถานะทางกฎหมายหรือสถานะการพำนัก โปรดยืนยันกับหน่วยงานทางการหรือผู้ให้ความช่วยเหลือที่เป็นบุคคล.", chatTitle: "AI", chatIntro: "AI can make mistakes.", settingsTitle: "Settings", settingsIntro: "Choose save settings.", viewChat: "AI", viewSettings: "Settings", backToHelp: "Back", nearbySchoolsNote: "Listings do not guarantee.", preparingHelp: "Prepare", actionDetail: "Detail",
+    helpTitle: "พูดคุยกับผู้ให้ความช่วยเหลือ", helpIntro: "ขั้นตอนอาจแตกต่างกันตามสถานะการพำนักของคุณ StayBridge ไม่ได้ตัดสินสถานะทางกฎหมายหรือสถานะการพำนัก โปรดยืนยันกับหน่วยงานทางการหรือผู้ให้ความช่วยเหลือที่เป็นบุคคล.",
     prepare: "เตรียมก่อนพูดคุย", prepareItems: ["เอกสารที่คุณมีอยู่ในขณะนี้ เช่น หนังสือเดินทาง", "วันที่เดิมที่คุณวางแผนจะออกจากญี่ปุ่น", "บันทึกเรื่องที่คุณต้องการถาม", "คุณต้องการล่ามหรือไม่"],
     summary: "สร้างสรุปสำหรับการปรึกษา", summaryTitle: "สรุปเพื่อแสดงให้ผู้ให้ความช่วยเหลือดู", summaryIntro: "สรุปนี้มีเฉพาะข้อมูลที่คุณป้อน คุณสามารถแสดงหน้าจอนี้หรือคัดลอกข้อความได้.",
     current: "สถานการณ์ปัจจุบัน", questions: "สิ่งที่ฉันต้องยืนยัน", copy: "คัดลอก", copied: "คัดลอกแล้ว", print: "พิมพ์", showMode: "แสดงให้ผู้ให้ความช่วยเหลือดู", clear: "ล้างข้อมูลบนอุปกรณ์นี้",
@@ -123,7 +123,7 @@ export const thMessages = {
   actions: {
     CHECK_STAY_STATUS: { title: "ตรวจสอบระยะเวลาที่คุณสามารถอยู่ในญี่ปุ่น", desc: "โปรดยืนยันกำหนดการพำนักปัจจุบันและขั้นตอนที่ควรตรวจสอบกับหน่วยงานทางการ.", cta: "ดูจุดปรึกษาทางการ" },
     CONTACT_OFFICIAL_SUPPORT: { title: "ปรึกษาหน่วยงานช่วยเหลือเฉพาะทาง", desc: "ขั้นตอนต่อไปเกี่ยวกับการพำนักของคุณต้องได้รับการยืนยันตามแต่ละกรณี.", cta: "ดูจุดปรึกษา" },
-    CHECK_CHILD_EDUCATION: { title: "ปรึกษาเรื่องการศึกษาของเด็ก", desc: "หากการพำนักยาวนานขึ้น คุณสามารถสอบถามเรื่องการเรียนและโรงเรียนของเด็กในพื้นที่ได้.", cta: "ดูโรงเรียนใกล้เคียง" }, CHECK_CHILD_EDUCATION_GUIDANCE: { title: "School guidance", desc: "Official guidance", cta: "View guidance" }, FIND_NEARBY_SCHOOLS: { title: "Nearby schools", desc: "Open data schools", cta: "View schools" },
+    CHECK_CHILD_EDUCATION: { title: "ปรึกษาเรื่องการศึกษาของเด็ก", desc: "หากการพำนักยาวนานขึ้น คุณสามารถสอบถามเรื่องการเรียนและโรงเรียนของเด็กในพื้นที่ได้.", cta: "ดูโรงเรียนใกล้เคียง" },
     PLAN_TEMPORARY_LIVING: { title: "วางแผนที่พักในระยะต่อไป", desc: "ก่อนที่ที่พักปัจจุบันจะสิ้นสุด โปรดตรวจสอบที่ที่สามารถปรึกษาเรื่องการใช้ชีวิตชั่วคราวได้.", cta: "ดูจุดปรึกษาด้านการใช้ชีวิต" },
     CHECK_MEDICAL_OPTIONS: { title: "ตรวจสอบสถานที่ที่สามารถรับการรักษาพยาบาล", desc: "ตรวจสอบสถานพยาบาลในพื้นที่ล่วงหน้าเพื่อให้ทราบว่าควรสอบถามที่ใดเมื่อจำเป็น.", cta: "ดูสถานพยาบาลใกล้เคียง" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "ตรวจสอบเงื่อนไขการทำงานก่อน", desc: "ก่อนหางาน โปรดยืนยันกับหน่วยงานทางการว่าสถานะปัจจุบันของคุณอนุญาตให้ทำงานหรือไม่.", cta: "ดูจุดปรึกษาทางการ" },

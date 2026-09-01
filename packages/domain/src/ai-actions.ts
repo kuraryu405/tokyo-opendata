@@ -13,8 +13,6 @@ export const AI_SELECTABLE_ACTION_IDS = [
   "CHECK_STAY_STATUS",
   "CONTACT_OFFICIAL_SUPPORT",
   "CHECK_CHILD_EDUCATION",
-  "CHECK_CHILD_EDUCATION_GUIDANCE",
-  "FIND_NEARBY_SCHOOLS",
   "PLAN_TEMPORARY_LIVING",
   "CHECK_MEDICAL_OPTIONS",
   "CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH",
@@ -29,8 +27,6 @@ const selectableIds = new Set<string>(AI_SELECTABLE_ACTION_IDS);
 
 const localResourceCategories: Partial<Record<AiSelectableActionId, LocalResourceCategory[]>> = {
   CHECK_CHILD_EDUCATION: ["school"],
-  CHECK_CHILD_EDUCATION_GUIDANCE: [],
-  FIND_NEARBY_SCHOOLS: ["school"],
   PLAN_TEMPORARY_LIVING: ["accommodation"],
   CHECK_MEDICAL_OPTIONS: ["medical"],
   CHECK_CHILD_LOCAL_SUPPORT: ["child_support", "public_facility"],

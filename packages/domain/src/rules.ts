@@ -21,7 +21,6 @@ export const ruleIds = [
   "R-EDUCATION-SCHOOL-AGE-RETURN", "R-EDUCATION-NEED", "R-CHILD-SCHOOL-AGE-RETURN",
   "R-CHILDCARE-NEED", "R-MEDICAL-NEED", "R-WORK-EMPLOYMENT-NEED",
   "R-LIVING-COST-NEED", "R-DAILY-LIFE-NEED", "R-LANGUAGE-LEVEL", "R-LANGUAGE-NEED",
-  "R-EDUCATION-GUIDANCE-SCHOOL-AGE", "R-NEARBY-SCHOOLS-SCHOOL-AGE", "R-CHILD-SUPPORT-EARLY-AGE",
 ] as const;
 
 export type RuleId = (typeof ruleIds)[number];
@@ -65,7 +64,6 @@ const reasonText: Record<string, string> = {
 const shortTermPurposes = new Set(["tourism", "visiting_family_or_friends"]);
 const nearDepartureWindows = new Set(["within_7_days", "within_30_days"]);
 const schoolAgeGroups = new Set(["6-11", "12-14", "15-17"]);
-const earlyChildGroups = new Set(["0-2", "3-5"]);
 const childAgeGroups = new Set(["0-2", "3-5", "6-11", "12-14", "15-17"]);
 const hasNeed = (situation: Situation, need: Situation["needs"][number]) => situation.needs.includes(need);
 const matchingChildAgeCodes = (situation: Situation, groups: ReadonlySet<string>) =>
@@ -99,11 +97,11 @@ export const actionRules: readonly ActionRule[] = [
   rule({ id: "R-HOUSING-UNSTABLE", conditions: "difficult return + unstable accommodation", exclusions: "other accommodation", actionId: "PLAN_TEMPORARY_LIVING", priority: 90, reasonCode: "UNSTABLE_ACCOMMODATION", safety: "consult_only", match: (s) => s.returnStatus === "difficult" && s.accommodation === "unstable" && ["returnStatus=difficult", "accommodation=unstable"] }),
   rule({ id: "R-HOUSING-HOTEL", conditions: "difficult return + hotel", exclusions: "other accommodation", actionId: "PLAN_TEMPORARY_LIVING", priority: 85, reasonCode: "TEMPORARY_HOTEL", safety: "consult_only", match: (s) => s.returnStatus === "difficult" && s.accommodation === "hotel" && ["returnStatus=difficult", "accommodation=hotel"] }),
   rule({ id: "R-HOUSING-NEED", conditions: "accommodation concern selected", exclusions: "none", actionId: "PLAN_TEMPORARY_LIVING", priority: 80, reasonCode: "SITUATION_NEEDS_CONFIRMATION", safety: "consult_only", match: (s) => hasNeed(s, "accommodation") && ["needs=accommodation"] }),
-  rule({ id: "R-EDUCATION-SCHOOL-AGE-RETURN", conditions: "difficult return + school-age child", exclusions: "no school-age child", actionId: "FIND_NEARBY_SCHOOLS", priority: 75, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
+  rule({ id: "R-EDUCATION-SCHOOL-AGE-RETURN", conditions: "difficult return + school-age child", exclusions: "no school-age child", actionId: "CHECK_CHILD_EDUCATION", priority: 75, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
     const ageCodes = matchingChildAgeCodes(s, schoolAgeGroups);
     return s.returnStatus === "difficult" && ageCodes.length > 0 && ["returnStatus=difficult", ...ageCodes];
   } }),
-  rule({ id: "R-EDUCATION-NEED", conditions: "education selected + school-age child", exclusions: "no school-age child", actionId: "CHECK_CHILD_EDUCATION_GUIDANCE", priority: 76, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
+  rule({ id: "R-EDUCATION-NEED", conditions: "education selected + school-age child", exclusions: "no school-age child", actionId: "CHECK_CHILD_EDUCATION", priority: 76, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
     const ageCodes = matchingChildAgeCodes(s, schoolAgeGroups);
     return hasNeed(s, "education") && ageCodes.length > 0 && ["needs=education", ...ageCodes];
   } }),
@@ -121,18 +119,6 @@ export const actionRules: readonly ActionRule[] = [
   rule({ id: "R-DAILY-LIFE-NEED", conditions: "daily life selected", exclusions: "none", actionId: "FIND_DAILY_LIFE_GUIDANCE", priority: 62, reasonCode: "DAILY_LIFE_NEED", safety: "consult_only", match: (s) => hasNeed(s, "daily_life") && ["needs=daily_life"] }),
   rule({ id: "R-LANGUAGE-LEVEL", conditions: "Japanese none/beginner", exclusions: "daily/advanced", actionId: "FIND_LANGUAGE_SUPPORT", priority: 60, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => (s.japaneseLevel === "none" || s.japaneseLevel === "beginner") && [`japaneseLevel=${s.japaneseLevel}`] }),
   rule({ id: "R-LANGUAGE-NEED", conditions: "language selected", exclusions: "none", actionId: "FIND_LANGUAGE_SUPPORT", priority: 65, reasonCode: "LANGUAGE_BARRIER", safety: "consult_only", match: (s) => hasNeed(s, "language") && ["needs=language"] }),
-  rule({ id: "R-EDUCATION-GUIDANCE-SCHOOL-AGE", conditions: "school-age child present", exclusions: "no school-age child, adult child only", actionId: "CHECK_CHILD_EDUCATION_GUIDANCE", timing: "this_week", priority: 74, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
-    const ageCodes = matchingChildAgeCodes(s, schoolAgeGroups);
-    return ageCodes.length > 0 && [...ageCodes];
-  } }),
-  rule({ id: "R-NEARBY-SCHOOLS-SCHOOL-AGE", conditions: "school-age child present", exclusions: "no school-age child, adult child only", actionId: "FIND_NEARBY_SCHOOLS", timing: "next_30_days", priority: 73, reasonCode: "SCHOOL_AGE_CHILD", safety: "resource_listing_only", match: (s) => {
-    const ageCodes = matchingChildAgeCodes(s, schoolAgeGroups);
-    return ageCodes.length > 0 && [...ageCodes];
-  } }),
-  rule({ id: "R-CHILD-SUPPORT-EARLY-AGE", conditions: "early child (0-5) present", exclusions: "no early child", actionId: "CHECK_CHILD_LOCAL_SUPPORT", timing: "next_30_days", priority: 71, reasonCode: "CHILDCARE_NEED", safety: "resource_listing_only", match: (s) => {
-    const ageCodes = matchingChildAgeCodes(s, earlyChildGroups);
-    return ageCodes.length > 0 && [...ageCodes];
-  } }),
 ];
 
 const toCalendarDate = (value: string | undefined): string | undefined => {
@@ -178,8 +164,6 @@ export function generateActions(situation: Situation, context: RuleContext): Act
 
   const categories: Partial<Record<ActionId, LocalResourceCategory[]>> = {
     CHECK_CHILD_EDUCATION: ["school"],
-    CHECK_CHILD_EDUCATION_GUIDANCE: [],
-    FIND_NEARBY_SCHOOLS: ["school"],
     CHECK_CHILD_LOCAL_SUPPORT: ["child_support", "public_facility"],
     PLAN_TEMPORARY_LIVING: ["accommodation"],
     CHECK_MEDICAL_OPTIONS: ["medical"],

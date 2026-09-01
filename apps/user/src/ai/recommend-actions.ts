@@ -37,8 +37,6 @@ const actionCatalogue: Record<AiSelectableActionId, string> = {
   CHECK_STAY_STATUS: "Check the permitted period of stay with an official service.",
   CONTACT_OFFICIAL_SUPPORT: "Speak with an official multilingual support service about next steps.",
   CHECK_CHILD_EDUCATION: "Ask a municipality about school or education for a child.",
-  CHECK_CHILD_EDUCATION_GUIDANCE: "Check official guidance on school enrollment for a child.",
-  FIND_NEARBY_SCHOOLS: "Find nearby schools via open data.",
   PLAN_TEMPORARY_LIVING: "Plan temporary accommodation or ask about housing support.",
   CHECK_MEDICAL_OPTIONS: "Find medical care and confirm available language support.",
   CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: "Confirm whether work is permitted before looking for a job.",

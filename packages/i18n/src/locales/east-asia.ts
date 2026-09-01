@@ -3,7 +3,7 @@ import type { UserMessages } from "../index";
 export const zhCNMessages = {
   metadata: { label: "Chinese (Simplified)", nativeLabel: "简体中文", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
   ui: {
-    skip: "跳到主要内容", navSteps: "我的步骤", navLocal: "当地支持", navHelp: "寻求帮助", navChat: "AI", navSettings: "Settings", crisis: "面向政府部门与支援人员的准备视图",
+    skip: "跳到主要内容", navSteps: "我的步骤", navLocal: "当地支持", navHelp: "寻求帮助", crisis: "面向政府部门与支援人员的准备视图",
     eyebrow: "面向意外需要继续留在东京的人", hero: "你暂时无法回国。\n但你仍能在东京找到下一步。",
     intro: "如果你原本计划回国，但家乡的突发变化使回国变得困难，StayBridge会帮你整理目前在东京生活需要确认的事项。",
     start: "确认我的情况", demo: "载入示例情况", noLogin: "无需注册", noAddress: "无需准确地址", official: "链接到官方信息",
@@ -17,7 +17,7 @@ export const zhCNMessages = {
     localFallback: "不使用精确位置，仅按你选择的区市町村显示设施。", all: "全部", school: "学校与教育", medical: "医疗", child_support: "儿童活动场所", public_facility: "公共设施",
     details: "打开官方网站", sourceLabel: "开放数据来源", updated: "数据更新日期", unavailable: "未公布", backToRoadmap: "返回我的步骤", continueToHelp: "继续前往咨询支持",
     schoolNote: "入学和就学事宜请向区市町村或教育主管部门确认。", noResources: "StayBridge MVP目前尚未覆盖本地区的详细地方数据。",
-    helpTitle: "向工作人员咨询", helpIntro: "具体手续可能因个人在留情况而异。StayBridge不会作出最终判断，请向官方咨询窗口确认。", chatTitle: "AI", chatIntro: "AI can make mistakes.", settingsTitle: "Settings", settingsIntro: "Choose save settings.", viewChat: "AI", viewSettings: "Settings", backToHelp: "Back", nearbySchoolsNote: "Listings do not guarantee.", preparingHelp: "Prepare", actionDetail: "Detail",
+    helpTitle: "向工作人员咨询", helpIntro: "具体手续可能因个人在留情况而异。StayBridge不会作出最终判断，请向官方咨询窗口确认。",
     prepare: "咨询前请准备", prepareItems: ["目前持有的证件，例如护照", "原计划离开日本的日期", "需要咨询事项的笔记", "是否需要口译"],
     summary: "生成咨询摘要", summaryTitle: "向支援人员出示的摘要", summaryIntro: "摘要只包含你输入的内容。你可以出示此画面或复制文字。",
     current: "当前情况", questions: "需要确认的事项", copy: "复制", copied: "已复制", print: "打印", showMode: "向支援人员出示", clear: "清除此设备上的数据",
@@ -47,7 +47,7 @@ export const zhCNMessages = {
   actions: {
     CHECK_STAY_STATUS: { title: "确认可以在日本停留多久", desc: "向官方窗口确认当前停留期限和现在可能需要办理的手续。", cta: "查看官方支持" },
     CONTACT_OFFICIAL_SUPPORT: { title: "联系官方咨询窗口", desc: "下一步手续可能因你的个人情况而异，需要个别确认。", cta: "查看咨询联系方式" },
-    CHECK_CHILD_EDUCATION: { title: "咨询儿童教育", desc: "如果停留时间延长，可以向当地机构咨询儿童学习和入学事宜。", cta: "查看附近学校" }, CHECK_CHILD_EDUCATION_GUIDANCE: { title: "School guidance", desc: "Official guidance", cta: "View guidance" }, FIND_NEARBY_SCHOOLS: { title: "Nearby schools", desc: "Open data schools", cta: "View schools" },
+    CHECK_CHILD_EDUCATION: { title: "咨询儿童教育", desc: "如果停留时间延长，可以向当地机构咨询儿童学习和入学事宜。", cta: "查看附近学校" },
     PLAN_TEMPORARY_LIVING: { title: "安排之后的住处", desc: "在目前住宿结束前，查找可以咨询临时生活和住处的窗口。", cta: "查看生活支持" },
     CHECK_MEDICAL_OPTIONS: { title: "确认可以就医的地点", desc: "提前查看附近医疗机构，以便需要时知道去哪里求助。", cta: "查看附近医疗机构" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "先确认是否可以工作", desc: "找工作前，请向官方窗口确认目前的在留情况是否允许工作。", cta: "查看官方支持" },
@@ -79,7 +79,7 @@ export const zhCNMessages = {
 export const zhTWMessages = {
   metadata: { label: "Chinese (Traditional)", nativeLabel: "繁體中文", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
   ui: {
-    skip: "跳到主要內容", navSteps: "我的步驟", navLocal: "當地支援", navHelp: "尋求協助", navChat: "AI", navSettings: "Settings", crisis: "供政府部門與支援人員使用的準備檢視",
+    skip: "跳到主要內容", navSteps: "我的步驟", navLocal: "當地支援", navHelp: "尋求協助", crisis: "供政府部門與支援人員使用的準備檢視",
     eyebrow: "提供給意外需要繼續留在東京的人", hero: "你暫時無法回國。\n但仍能在東京找到下一步。",
     intro: "如果你原本計畫回國，但家鄉的突發變化使回國變得困難，StayBridge會幫你整理目前在東京生活需要確認的事項。",
     start: "確認我的情況", demo: "載入範例情況", noLogin: "無需註冊", noAddress: "無需精確地址", official: "連結至官方資訊",
@@ -93,7 +93,7 @@ export const zhTWMessages = {
     localFallback: "不使用精確位置，只按你選擇的區市町村顯示設施。", all: "全部", school: "學校與教育", medical: "醫療", child_support: "兒童活動場所", public_facility: "公共設施",
     details: "開啟官方網站", sourceLabel: "開放資料來源", updated: "資料更新日期", unavailable: "未公布", backToRoadmap: "返回我的步驟", continueToHelp: "繼續前往諮詢支援",
     schoolNote: "入學與就學事宜請向區市町村或教育主管機關確認。", noResources: "StayBridge MVP目前尚未涵蓋本地區的詳細地方資料。",
-    helpTitle: "向工作人員諮詢", helpIntro: "具體手續可能因個人在留情況而異。StayBridge不會作出最終判斷，請向官方諮詢窗口確認。", chatTitle: "AI", chatIntro: "AI can make mistakes.", settingsTitle: "Settings", settingsIntro: "Choose save settings.", viewChat: "AI", viewSettings: "Settings", backToHelp: "Back", nearbySchoolsNote: "Listings do not guarantee.", preparingHelp: "Prepare", actionDetail: "Detail",
+    helpTitle: "向工作人員諮詢", helpIntro: "具體手續可能因個人在留情況而異。StayBridge不會作出最終判斷，請向官方諮詢窗口確認。",
     prepare: "諮詢前請準備", prepareItems: ["目前持有的證件，例如護照", "原計畫離開日本的日期", "需要詢問事項的筆記", "是否需要口譯"],
     summary: "建立諮詢摘要", summaryTitle: "向支援人員出示的摘要", summaryIntro: "摘要只包含你輸入的內容。你可以出示此畫面或複製文字。",
     current: "目前情況", questions: "需要確認的事項", copy: "複製", copied: "已複製", print: "列印", showMode: "向支援人員出示", clear: "清除此裝置上的資料",
@@ -123,7 +123,7 @@ export const zhTWMessages = {
   actions: {
     CHECK_STAY_STATUS: { title: "確認可以在日本停留多久", desc: "向官方窗口確認目前停留期限和現在可能需要辦理的手續。", cta: "查看官方支援" },
     CONTACT_OFFICIAL_SUPPORT: { title: "聯絡官方諮詢窗口", desc: "下一步手續可能因你的個人情況而異，需要個別確認。", cta: "查看諮詢聯絡方式" },
-    CHECK_CHILD_EDUCATION: { title: "諮詢兒童教育", desc: "如果停留時間延長，可以向當地機關諮詢兒童學習和入學事宜。", cta: "查看附近學校" }, CHECK_CHILD_EDUCATION_GUIDANCE: { title: "School guidance", desc: "Official guidance", cta: "View guidance" }, FIND_NEARBY_SCHOOLS: { title: "Nearby schools", desc: "Open data schools", cta: "View schools" },
+    CHECK_CHILD_EDUCATION: { title: "諮詢兒童教育", desc: "如果停留時間延長，可以向當地機關諮詢兒童學習和入學事宜。", cta: "查看附近學校" },
     PLAN_TEMPORARY_LIVING: { title: "安排之後的住處", desc: "在目前住宿結束前，尋找可以諮詢臨時生活和住處的窗口。", cta: "查看生活支援" },
     CHECK_MEDICAL_OPTIONS: { title: "確認可以就醫的地點", desc: "預先查看附近醫療機構，以便需要時知道去哪裡求助。", cta: "查看附近醫療機構" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "先確認是否可以工作", desc: "找工作前，請向官方窗口確認目前的在留情況是否允許工作。", cta: "查看官方支援" },
@@ -155,7 +155,7 @@ export const zhTWMessages = {
 export const koMessages = {
   metadata: { label: "Korean", nativeLabel: "한국어", contentStatus: "draft", updatedAt: "2026-08-22", internalReview: { status: "pending" }, expertReview: { status: "pending" } },
   ui: {
-    skip: "본문으로 건너뛰기", navSteps: "나의 단계", navLocal: "지역 지원", navHelp: "도움받기", navChat: "AI", navSettings: "Settings", crisis: "행정기관 및 지원 담당자를 위한 대비 현황",
+    skip: "본문으로 건너뛰기", navSteps: "나의 단계", navLocal: "지역 지원", navHelp: "도움받기", crisis: "행정기관 및 지원 담당자를 위한 대비 현황",
     eyebrow: "예상치 못하게 도쿄에 계속 머물러야 하는 분들을 위해", hero: "지금은 고국으로 돌아가기 어렵습니다.\n하지만 도쿄에서 다음 단계를 찾을 수 있습니다.",
     intro: "귀국할 예정이었지만 고국의 갑작스러운 변화로 돌아가기 어려워진 분들을 위해, StayBridge가 당분간 도쿄에서 생활하며 확인할 사항을 정리해 드립니다.",
     start: "내 상황 확인하기", demo: "예시 상황 불러오기", noLogin: "가입 불필요", noAddress: "정확한 주소 불필요", official: "공식 정보로 연결",
@@ -169,7 +169,7 @@ export const koMessages = {
     localFallback: "정확한 위치를 사용하지 않고 선택한 지자체의 시설을 표시합니다.", all: "전체", school: "학교·교육", medical: "의료", child_support: "아동 활동 공간", public_facility: "공공시설",
     details: "공식 웹사이트 열기", sourceLabel: "공개 데이터 출처", updated: "데이터 갱신일", unavailable: "공개되지 않음", backToRoadmap: "나의 단계로 돌아가기", continueToHelp: "상담 지원으로 계속하기",
     schoolNote: "입학과 취학은 지자체 또는 교육기관에 확인해야 합니다.", noResources: "StayBridge MVP는 아직 이 지역의 상세 지역 데이터를 제공하지 않습니다.",
-    helpTitle: "담당자와 상담하기", helpIntro: "절차는 개인의 체류 상황에 따라 달라질 수 있습니다. StayBridge는 최종 판단을 하지 않으므로 공식 상담 창구에 확인하세요.", chatTitle: "AI", chatIntro: "AI can make mistakes.", settingsTitle: "Settings", settingsIntro: "Choose save settings.", viewChat: "AI", viewSettings: "Settings", backToHelp: "Back", nearbySchoolsNote: "Listings do not guarantee.", preparingHelp: "Prepare", actionDetail: "Detail",
+    helpTitle: "담당자와 상담하기", helpIntro: "절차는 개인의 체류 상황에 따라 달라질 수 있습니다. StayBridge는 최종 판단을 하지 않으므로 공식 상담 창구에 확인하세요.",
     prepare: "상담 전에 준비할 것", prepareItems: ["여권 등 현재 가지고 있는 서류", "원래 예정했던 일본 출국일", "상담하고 싶은 내용의 메모", "통역이 필요한지 여부"],
     summary: "상담 요약 만들기", summaryTitle: "지원 담당자에게 보여 줄 요약", summaryIntro: "입력한 내용만 포함됩니다. 이 화면을 보여 주거나 내용을 복사할 수 있습니다.",
     current: "현재 상황", questions: "확인하고 싶은 사항", copy: "복사", copied: "복사됨", print: "인쇄", showMode: "지원 담당자에게 보여 주기", clear: "이 기기의 데이터 지우기",
@@ -199,7 +199,7 @@ export const koMessages = {
   actions: {
     CHECK_STAY_STATUS: { title: "일본에 머물 수 있는 기간 확인", desc: "현재 체류 기한과 지금 필요한 절차를 공식 창구에서 확인하세요.", cta: "공식 지원 보기" },
     CONTACT_OFFICIAL_SUPPORT: { title: "공식 상담 창구에 문의", desc: "다음 절차는 개인 상황에 따라 달라질 수 있어 개별 확인이 필요합니다.", cta: "상담 연락처 보기" },
-    CHECK_CHILD_EDUCATION: { title: "아동 교육 상담하기", desc: "체류가 길어지면 지역 기관에 아동의 학습과 학교에 관해 문의할 수 있습니다.", cta: "가까운 학교 보기" }, CHECK_CHILD_EDUCATION_GUIDANCE: { title: "School guidance", desc: "Official guidance", cta: "View guidance" }, FIND_NEARBY_SCHOOLS: { title: "Nearby schools", desc: "Open data schools", cta: "View schools" },
+    CHECK_CHILD_EDUCATION: { title: "아동 교육 상담하기", desc: "체류가 길어지면 지역 기관에 아동의 학습과 학교에 관해 문의할 수 있습니다.", cta: "가까운 학교 보기" },
     PLAN_TEMPORARY_LIVING: { title: "앞으로 머물 곳 계획하기", desc: "현재 숙박이 끝나기 전에 당분간의 생활과 거처를 상담할 곳을 찾으세요.", cta: "생활 지원 보기" },
     CHECK_MEDICAL_OPTIONS: { title: "진료받을 곳 확인하기", desc: "필요할 때 어디에 도움을 요청할지 알 수 있도록 가까운 의료기관을 미리 확인하세요.", cta: "가까운 의료기관 보기" },
     CHECK_WORK_ELIGIBILITY_BEFORE_JOB_SEARCH: { title: "먼저 취업 가능 여부 확인", desc: "구직 전에 현재 체류 상황에서 일할 수 있는지 공식 창구에 확인하세요.", cta: "공식 지원 보기" },
