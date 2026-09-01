@@ -376,3 +376,11 @@ test("keeps mobile navigation viewport-fixed outside the filtered header context
   assert.doesNotMatch(css, /\.trust-row span::first-letter/);
   assert.match(css, /@media \(max-width: 600px\)[\s\S]*?\.brand-home-label \{ display: inline; \}/);
 });
+
+test("keeps the cinematic custom language listbox unclipped and glass styled", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.velorah-language-select\.liquid-glass \{[^}]*overflow: visible;/);
+  assert.match(css, /\.velorah-language-select \.language-select-menu \{[^}]*overflow: hidden;[^}]*background:[^}]*rgba\(9,25,32,\.78\);[^}]*backdrop-filter: blur\(22px\)/);
+  assert.match(css, /\.check-cinematic > \.velorah-nav \{[^}]*z-index: 30;/);
+});

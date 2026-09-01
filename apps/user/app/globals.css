@@ -75,7 +75,7 @@
 
 .velorah-nav {
   position: relative;
-  z-index: 10;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -371,6 +371,53 @@
   pointer-events: none;
 }
 
+/* The language listbox is its own glass surface. Let it escape the trigger
+   pill so focusing an option cannot scroll and clip the menu inside 44px. */
+.velorah-language-select.liquid-glass {
+  z-index: 80;
+  overflow: visible;
+}
+.velorah-language-select .language-select-menu {
+  top: calc(100% + 10px);
+  min-width: 176px;
+  gap: 4px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.04)), rgba(9,25,32,.78);
+  color: white;
+  box-shadow: 0 22px 54px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  transform-origin: top right;
+  animation: language-menu-reveal 180ms cubic-bezier(.16, 1, .3, 1) both;
+}
+.velorah-language-select .language-select-menu [role="option"] {
+  min-height: 44px;
+  border-radius: 11px;
+  color: rgba(255,255,255,.88);
+  font-weight: 600;
+}
+.velorah-language-select .language-select-menu [role="option"]:hover,
+.velorah-language-select .language-select-menu [role="option"].active {
+  background: rgba(255,255,255,.12);
+  color: white;
+}
+.velorah-language-select .language-select-menu [role="option"][aria-selected="true"] {
+  background: rgba(101,198,223,.18);
+  color: white;
+}
+.velorah-language-select .language-select-check {
+  border: 1px solid rgba(185,228,208,.62);
+  background: rgba(101,198,223,.24);
+  color: white;
+}
+@keyframes language-menu-reveal {
+  from { opacity: 0; transform: translateY(-8px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 @keyframes fade-rise {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
@@ -383,6 +430,7 @@
   .velorah-video { display: none; }
   .animate-fade-rise, .animate-fade-rise-delay, .animate-fade-rise-delay-2 { animation: none !important; }
   .velorah-hero-main { transition: none; }
+  .velorah-language-select .language-select-menu { animation: none; }
 }
 
 /* Below the fold: keep content but on dark navy canvas */
@@ -504,12 +552,15 @@
   position: fixed;
   height: 100svh;
 }
-.check-cinematic > .velorah-nav,
 .check-cinematic > .app-alert,
 .check-cinematic > .unreadable-session,
 .check-cinematic > main {
   position: relative;
   z-index: 2;
+}
+.check-cinematic > .velorah-nav {
+  position: relative;
+  z-index: 30;
 }
 .check-cinematic > main { min-height: calc(100svh - 92px); }
 .check-cinematic .check-page {
