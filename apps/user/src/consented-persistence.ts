@@ -189,10 +189,10 @@ export async function saveSituationSubmission(
   submission: PendingSituationSubmission,
   requestSignal?: AbortSignal,
 ): Promise<SavedRecordCredentials> {
-  // The one-time capability is acquired per attempt and never stored with the
-  // versioned pending request.
-  const capability = await issueSituationSubmissionCapability();
   return withSubmissionTimeout(async (signal) => {
+    // The one-time capability is acquired per attempt and never stored with the
+    // versioned pending request. It shares the same deadline as the submission.
+    const capability = await issueSituationSubmissionCapability(signal);
     const response = await fetch("/api/situation-submissions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -209,8 +209,11 @@ export async function saveSituationSubmission(
   }, requestSignal);
 }
 
-async function issueSituationSubmissionCapability(): Promise<string> {
-  const response = await fetch("/api/situation-submission-capabilities", { method: "POST" });
+async function issueSituationSubmissionCapability(signal: AbortSignal): Promise<string> {
+  const response = await fetch("/api/situation-submission-capabilities", {
+    method: "POST",
+    signal,
+  });
   const body = await readSuccessBody(response);
   if (
     typeof body?.capability !== "string"
@@ -245,7 +248,7 @@ export async function deleteSituationSubmission(
  * Covers the complete request lifecycle, including response-body decoding.
  * The optional caller signal lets a component abort work that is no longer
  * needed when it unmounts, while the internal deadline guarantees a finite
- * wait even when either fetch or response.json() never settles.
+ * wait even when fetch or response.json() itself fails to react to abort.
  */
 async function withSubmissionTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
@@ -255,11 +258,26 @@ async function withSubmissionTimeout<T>(
   const abortFromCaller = () => controller.abort();
   if (requestSignal?.aborted) controller.abort();
   else requestSignal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  let removeAbortListener = () => {};
+  const abortPromise = new Promise<never>((_resolve, reject) => {
+    const rejectAbort = () => reject(new DOMException("This operation was aborted", "AbortError"));
+    if (controller.signal.aborted) {
+      rejectAbort();
+      return;
+    }
+    controller.signal.addEventListener("abort", rejectAbort, { once: true });
+    removeAbortListener = () => controller.signal.removeEventListener("abort", rejectAbort);
+  });
+  const operationPromise = Promise.resolve().then(() => operation(controller.signal));
+  operationPromise.catch(() => {});
   const timer = setTimeout(() => controller.abort(), SITUATION_SUBMISSION_TIMEOUT_MS);
+
   try {
-    return await operation(controller.signal);
+    return await Promise.race([operationPromise, abortPromise]);
   } finally {
     clearTimeout(timer);
+    removeAbortListener();
     requestSignal?.removeEventListener("abort", abortFromCaller);
   }
 }
