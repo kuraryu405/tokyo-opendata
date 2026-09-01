@@ -64,6 +64,7 @@ beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
   navigation.replace.mockClear();
+  vi.stubGlobal("matchMedia", vi.fn<() => { matches: boolean }>().mockReturnValue({ matches: true }));
   vi.stubGlobal("localStorage", memoryStorage());
   vi.stubGlobal("sessionStorage", memoryStorage());
   vi.stubGlobal("scrollTo", vi.fn());

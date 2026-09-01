@@ -112,6 +112,7 @@ beforeEach(() => {
   navigation.reset();
   navigation.push.mockClear();
   navigation.replace.mockClear();
+  vi.stubGlobal("matchMedia", vi.fn<() => { matches: boolean }>().mockReturnValue({ matches: true }));
   vi.stubGlobal("localStorage", memoryStorage());
   vi.stubGlobal("sessionStorage", memoryStorage());
   vi.stubGlobal("scrollTo", vi.fn());
@@ -716,6 +717,7 @@ describe("StayBridge client flow", () => {
   });
 
   it("returns from the first question to the landing page", async () => {
+    vi.stubGlobal("matchMedia", vi.fn<() => { matches: boolean }>().mockReturnValue({ matches: false }));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -1406,6 +1408,7 @@ describe("StayBridge client flow", () => {
   it("scrolls smoothly by default", async () => {
     const scrollTo = vi.fn<(...args: unknown[]) => void>();
     vi.stubGlobal("scrollTo", scrollTo);
+    vi.stubGlobal("matchMedia", vi.fn<() => { matches: boolean }>().mockReturnValue({ matches: false }));
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
