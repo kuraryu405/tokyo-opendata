@@ -1,0 +1,99 @@
+name: Repair staging D1 schema
+
+on:
+  push:
+    branches:
+      - chore/staging-d1-schema-20260901
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-staging-d1-schema
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.repository == 'kuraryu405/tokyo-opendata'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply and verify staging-only D1 migrations
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STAGING_DATABASE_ID: ${{ vars.STAYBRIDGE_STAGING_D1_DATABASE_ID }}
+          PRODUCTION_DATABASE_ID: ${{ vars.STAYBRIDGE_PRODUCTION_D1_DATABASE_ID }}
+          WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+        run: |
+          set -euo pipefail
+          [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || {
+            echo "Cloudflare deployment secrets are not configured." >&2
+            exit 1
+          }
+          [[ "$STAGING_DATABASE_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+            echo "The staging D1 database ID is invalid." >&2
+            exit 1
+          }
+          [[ "$PRODUCTION_DATABASE_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+            echo "The production D1 database ID is invalid." >&2
+            exit 1
+          }
+          [ "${STAGING_DATABASE_ID,,}" != "${PRODUCTION_DATABASE_ID,,}" ] || {
+            echo "Staging and production D1 IDs must differ." >&2
+            exit 1
+          }
+          [[ "$WORKERS_SUBDOMAIN" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || {
+            echo "CLOUDFLARE_WORKERS_SUBDOMAIN is invalid." >&2
+            exit 1
+          }
+          echo "::add-mask::$STAGING_DATABASE_ID"
+          echo "::add-mask::$PRODUCTION_DATABASE_ID"
+
+          pnpm exec wrangler d1 list --json > d1-inventory.json
+          node scripts/cd/validate-d1-inventory.mjs \
+            d1-inventory.json "$STAGING_DATABASE_ID" "$PRODUCTION_DATABASE_ID"
+          node scripts/d1/prepare-remote-config.mjs \
+            staging "$STAGING_DATABASE_ID" >/dev/null
+          d1_config=.wrangler/d1/staging.json
+
+          pnpm exec wrangler d1 migrations apply STAYBRIDGE_DB \
+            --remote --config "$d1_config" >/dev/null
+          pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+            --remote --config "$d1_config" \
+            --file database/seed.sql --yes >/dev/null
+          migration_state="$(pnpm exec wrangler d1 migrations list STAYBRIDGE_DB \
+            --remote --config "$d1_config" 2>&1)"
+          grep -q 'No migrations to apply' <<<"$migration_state"
+
+          schema_state="$(pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+            --remote --config "$d1_config" \
+            --command "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name IN ('backend_metadata', 'situation_submissions', 'situation_submission_capabilities', 'conversations', 'conversation_messages', 'open_data_sources', 'open_data_dataset_versions', 'open_data_resources', 'open_data_active_datasets', 'open_data_import_runs')" \
+            --json)"
+          jq -e '.[0].success == true and .[0].results[0].count == 10' \
+            <<<"$schema_state" >/dev/null
+
+          user_url="https://staybridge-user-staging.${WORKERS_SUBDOMAIN}.workers.dev"
+          municipality_url="https://staybridge-municipality-staging.${WORKERS_SUBDOMAIN}.workers.dev"
+          user_health="$(curl --fail --silent --show-error --max-time 20 \
+            "$user_url/healthz")"
+          revision="$(jq -r 'select(.status == "ok" and .service == "user") | .revision' \
+            <<<"$user_health")"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "The staged user revision is invalid." >&2
+            exit 1
+          }
+          node scripts/cd/smoke-health.mjs "$user_url" user "$revision"
+          node scripts/cd/smoke-health.mjs \
+            "$municipality_url" municipality "$revision"
+          echo "Staging D1 migrations, seed, schema, and Worker readiness passed."
