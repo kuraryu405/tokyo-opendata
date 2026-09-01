@@ -124,7 +124,12 @@ export function SupportChat({ locale }: { locale: Locale }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(() => () => {
+    activeRequest.current?.abort();
+    if (inMemoryConversation.situationSessionSnapshot !== readSituationSessionSnapshot()) {
+      clearSupportChatMemory();
+    }
+  }, []);
 
   useEffect(() => {
     if (pending) return;
