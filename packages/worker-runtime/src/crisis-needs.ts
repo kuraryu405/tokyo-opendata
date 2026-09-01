@@ -17,10 +17,10 @@ const periods = new Set(["7d", "30d", "90d"] as const);
 const views = new Set(["needs", "return_status", "departure_window", "accommodation"] as const);
 
 const categoryValues = {
-  needs: ["stay", "consultation", "accommodation", "living_cost", "employment", "education", "childcare", "medical", "language", "daily_life"],
+  needs: ["stay", "consultation", "accommodation", "living_cost", "employment", "education", "childcare", "medical", "language", "daily_life", "other"],
   return_status: ["possible", "difficult", "unknown"],
-  departure_window: ["within_7_days", "within_30_days", "within_3_months", "no_departure_plan", "unknown"],
-  accommodation: ["hotel", "family_or_friend", "rental", "temporary_facility", "unstable", "prefer_not_to_say"],
+  departure_window: ["within_7_days", "within_30_days", "within_3_months", "after_3_months", "no_departure_plan", "unknown"],
+  accommodation: ["hotel", "family_or_friend", "rental", "temporary_facility", "other", "unstable", "prefer_not_to_say"],
 } as const;
 
 type CrisisPeriod = "7d" | "30d" | "90d";

@@ -99,6 +99,12 @@ const routeUi = {
   my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်", aiReason: "ဂျပန်သို့ လာရောက်ရသည့် အခြားရည်ရွယ်ချက်အရ စစ်ဆေးထားသော ဤကတ်သည် အသုံးဝင်နိုင်သဖြင့် ထည့်ပြထားပါသည်။ ဤသည်မှာ ဆုံးဖြတ်ချက်မဟုတ်ပါ။" },
 } satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string; aiReason: string }>;
 
+const searchUi = {
+  ja: { areaLabel: "東京23区から選択", areaPlaceholder: "区名を入力して検索", nationalityLabel: "国名・地域名から選択", nationalityPlaceholder: "国名・地域名を入力して検索" },
+  en: { areaLabel: "Choose from Tokyo's 23 wards", areaPlaceholder: "Search by ward name", nationalityLabel: "Choose a country or region", nationalityPlaceholder: "Search by country or region" },
+  my: { areaLabel: "တိုကျို ၂၃ မြို့နယ်မှ ရွေးပါ", areaPlaceholder: "မြို့နယ်အမည်ဖြင့် ရှာပါ", nationalityLabel: "နိုင်ငံ သို့မဟုတ် ဒေသကို ရွေးပါ", nationalityPlaceholder: "နိုင်ငံ သို့မဟုတ် ဒေသအမည်ဖြင့် ရှာပါ" },
+} satisfies Record<Locale, { areaLabel: string; areaPlaceholder: string; nationalityLabel: string; nationalityPlaceholder: string }>;
+
 const RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS = 8_000;
 
 export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDate }: { route?: StayBridgeRoute; assessmentDate: string }) {
@@ -687,7 +693,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
-            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
           {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
             try {
@@ -760,8 +766,8 @@ function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAp
   </>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
-  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; otherAnswers: OtherAnswers; setOtherAnswers: (answers: OtherAnswers) => void; invalidateAiRecommendation: () => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void; isPreparing: boolean;
+function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
+  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; backToTop: () => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; otherAnswers: OtherAnswers; setOtherAnswers: (answers: OtherAnswers) => void; invalidateAiRecommendation: () => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void; isPreparing: boolean;
 }) {
   const question = getUserMessages(locale).questions[step];
   const [title, hint, options] = question;
@@ -833,6 +839,17 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
   };
+  const clearSearchAnswer = () => {
+    if (step === 0) {
+      setSituation({ ...situation, currentMunicipality: "" });
+      setOtherAnswers({ ...otherAnswers, area: "" });
+    }
+    if (step === 1) {
+      setSituation({ ...situation, nationality: "" });
+      setOtherAnswers({ ...otherAnswers, nationality: "" });
+    }
+    markAnswered(false);
+  };
   const toggleChildAge = (age: ChildAgeGroup) => {
     const nextChildren = situation.familyMembers.children.some((child) => child.ageGroup === age)
       ? situation.familyMembers.children.filter((child) => child.ageGroup !== age)
@@ -871,18 +888,66 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     <div className="check-progress"><div className="progress-meta"><span>{t.sectionSituationCheck}</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
-      <h1>{title}</h1><p>{hint}</p>
-      <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selectedOther = (step === 0 && value === "Other" && current === value) || (step === 1 && value === "OTHER" && current === value) || (step === 2 && value === "other" && current === value); const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
-      </div>
+      <h1>{title}</h1>{hint && <p>{hint}</p>}
+      {step === 0 || step === 1
+        ? <SearchableAnswer key={step} id={`question-search-${step}`} label={step === 0 ? searchUi[locale].areaLabel : searchUi[locale].nationalityLabel} placeholder={step === 0 ? searchUi[locale].areaPlaceholder : searchUi[locale].nationalityPlaceholder} options={options} current={answeredSteps.includes(step) ? current : ""} choose={choose} clear={clearSearchAnswer} />
+        : <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
+          {options.map(([value, label]) => { const selectedOther = step === 2 && value === "other" && current === value; const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
+        </div>}
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
       {otherAnswer !== undefined && otherCopy && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherCopy.label}</label><textarea id={`other-answer-${step}`} data-testid={`question-${step + 1}-other`} value={otherAnswer} maxLength={otherMaxLength} required aria-invalid={!otherAnswer.trim()} aria-describedby={`other-answer-notice-${step} other-answer-error-${step}`} placeholder={otherCopy.placeholder} onChange={(event) => updateOtherAnswer(event.target.value)} /><div className="other-answer-meta"><small id={`other-answer-notice-${step}`}>{otherCopy.notice}</small><span>{otherAnswer.length} / {otherMaxLength}</span></div>{!otherAnswer.trim() && <p id={`other-answer-error-${step}`} className="inline-error" role="alert">{otherCopy.required}</p>}</div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
-      <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      <div className="question-actions"><button className="back-button" onClick={() => step === 0 ? backToTop() : setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
-    <details className="privacy-line"><summary>{t.privacyTitle}</summary><p>{t.privacyText}</p></details>
   </section>;
+}
+
+function SearchableAnswer({ id, label, placeholder, options, current, choose, clear }: {
+  id: string;
+  label: string;
+  placeholder: string;
+  options: readonly (readonly [string, string])[];
+  current: string;
+  choose: (value: string) => void;
+  clear: () => void;
+}) {
+  const selectedLabel = options.find(([value]) => value === current)?.[1] ?? "";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const localSelectionChange = useRef(false);
+  useEffect(() => {
+    if (localSelectionChange.current) {
+      localSelectionChange.current = false;
+      return;
+    }
+    if (inputRef.current && inputRef.current.value !== selectedLabel) inputRef.current.value = selectedLabel;
+  }, [selectedLabel]);
+  return <div className="searchable-answer">
+    <label htmlFor={id}>{label}</label>
+    <input
+      ref={inputRef}
+      id={id}
+      type="search"
+      list={`${id}-options`}
+      defaultValue={selectedLabel}
+      placeholder={placeholder}
+      autoComplete="off"
+      onChange={(event) => {
+        const nextQuery = event.target.value;
+        const match = options.find(([, optionLabel]) => optionLabel === nextQuery);
+        if (match) {
+          if (match[0] !== current) localSelectionChange.current = true;
+          choose(match[0]);
+        } else {
+          if (current) localSelectionChange.current = true;
+          clear();
+        }
+      }}
+    />
+    <datalist id={`${id}-options`}>
+      {options.map(([value, optionLabel]) => <option key={value} value={optionLabel} aria-label={optionLabel}>{optionLabel}</option>)}
+    </datalist>
+  </div>;
 }
 
 function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAnswers: FamilyAnswers): keyof OtherAnswers | null {

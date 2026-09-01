@@ -80,13 +80,13 @@ describe("No-current-need assessment option", () => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
       situation: {
-        nationality: "UNKNOWN",
-        currentMunicipality: "",
-        visitPurpose: "unknown",
-        originalDepartureWindow: "unknown",
+        nationality: "MM",
+        currentMunicipality: "Kita",
+        visitPurpose: "work",
+        originalDepartureWindow: "within_3_months",
         returnStatus: "possible",
         stayDeadlineKnown: false,
-        accommodation: "prefer_not_to_say",
+        accommodation: "rental",
         japaneseLevel: "advanced",
         familyMembers: { children: [] },
         needs: [],

@@ -39,6 +39,7 @@ const departureWindows = new Set([
   "within_7_days",
   "within_30_days",
   "within_3_months",
+  "after_3_months",
   "no_departure_plan",
   "unknown",
 ]);
@@ -48,6 +49,7 @@ const accommodations = new Set([
   "family_or_friend",
   "rental",
   "temporary_facility",
+  "other",
   "unstable",
   "prefer_not_to_say",
 ]);
@@ -62,6 +64,7 @@ const needs = new Set([
   "medical",
   "language",
   "daily_life",
+  "other",
   // Honest "no current need" answers are stored but never aggregated: the
   // Crisis View whitelist simply has no such category.
   "none",

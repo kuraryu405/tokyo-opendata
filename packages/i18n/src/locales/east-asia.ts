@@ -73,7 +73,7 @@ export const zhCNMessages = {
     KNOWN_STAY_DEADLINE: "你输入了停留期限，因此这里提醒你在该日期前向官方窗口确认。",
     STAY_DEADLINE_PASSED: "你输入的停留期限已经过去，因此请立即向官方窗口确认当前情况。",
   },
-  needs: { none: "都没有", stay: "可以在日本停留多久", consultation: "所需手续与官方咨询", accommodation: "住宿与日常生活", living_cost: "生活费方面的帮助", employment: "是否可以工作", education: "儿童教育", childcare: "儿童的日常生活", medical: "可以就医的地点", language: "语言支持", daily_life: "日常生活" },
+  needs: { none: "都没有", stay: "可以在日本停留多久", consultation: "所需手续与官方咨询", accommodation: "住宿与日常生活", living_cost: "生活费方面的帮助", employment: "是否可以工作", education: "儿童教育", childcare: "儿童的日常生活", medical: "可以就医的地点", language: "语言支持", daily_life: "日常生活", other: "其他" },
 } as const satisfies UserMessages;
 
 export const zhTWMessages = {
@@ -149,7 +149,7 @@ export const zhTWMessages = {
     KNOWN_STAY_DEADLINE: "你輸入了停留期限，因此這裡提醒你在該日期前向官方窗口確認。",
     STAY_DEADLINE_PASSED: "你輸入的停留期限已經過去，因此請立即向官方窗口確認目前情況。",
   },
-  needs: { none: "都沒有", stay: "可以在日本停留多久", consultation: "所需手續與官方諮詢", accommodation: "住宿與日常生活", living_cost: "生活費方面的協助", employment: "是否可以工作", education: "兒童教育", childcare: "兒童的日常生活", medical: "可以就醫的地點", language: "語言支援", daily_life: "日常生活" },
+  needs: { none: "都沒有", stay: "可以在日本停留多久", consultation: "所需手續與官方諮詢", accommodation: "住宿與日常生活", living_cost: "生活費方面的協助", employment: "是否可以工作", education: "兒童教育", childcare: "兒童的日常生活", medical: "可以就醫的地點", language: "語言支援", daily_life: "日常生活", other: "其他" },
 } as const satisfies UserMessages;
 
 export const koMessages = {
@@ -225,5 +225,5 @@ export const koMessages = {
     KNOWN_STAY_DEADLINE: "체류 기한을 입력했으므로 그 날짜 전에 공식 창구에 확인할 수 있도록 표시합니다.",
     STAY_DEADLINE_PASSED: "입력한 체류 기한이 지났으므로 지금 공식 창구에 현재 상황을 확인하도록 안내합니다.",
   },
-  needs: { none: "해당 없음", stay: "일본에 얼마나 머물 수 있는지", consultation: "필요한 절차와 공식 상담", accommodation: "숙박과 일상생활", living_cost: "생활비 지원", employment: "일할 수 있는지", education: "아동 교육", childcare: "아동의 일상생활", medical: "진료받을 곳", language: "언어 지원", daily_life: "일상생활" },
+  needs: { none: "해당 없음", stay: "일본에 얼마나 머물 수 있는지", consultation: "필요한 절차와 공식 상담", accommodation: "숙박과 일상생활", living_cost: "생활비 지원", employment: "일할 수 있는지", education: "아동 교육", childcare: "아동의 일상생활", medical: "진료받을 곳", language: "언어 지원", daily_life: "일상생활", other: "기타" },
 } as const satisfies UserMessages;

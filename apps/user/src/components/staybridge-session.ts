@@ -13,6 +13,7 @@ import {
   parseAiActionIds,
   type AiSelectableActionId,
 } from "@staybridge/domain/ai-actions";
+import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
 
 /** Locales that have passed review and may be used by the public client. */
 export type Locale = SelectableUserLocale;
@@ -55,6 +56,7 @@ const departureWindows = new Set<DepartureWindow>([
   "within_7_days",
   "within_30_days",
   "within_3_months",
+  "after_3_months",
   "no_departure_plan",
   "unknown",
 ]);
@@ -64,6 +66,7 @@ const accommodations = new Set<AccommodationType>([
   "family_or_friend",
   "rental",
   "temporary_facility",
+  "other",
   "unstable",
   "prefer_not_to_say",
 ]);
@@ -80,6 +83,7 @@ const needCategories = new Set<NeedCategory>([
   "employment",
   "language",
   "daily_life",
+  "other",
   "none",
 ]);
 const stayAnswers = new Set<StayAnswer>(["known", "unknown", "documents"]);
@@ -132,17 +136,18 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
+      const situation = normalizeLegacySituation(value.situation);
       return {
         status: "valid",
         session: {
           version: 4,
           provenance: value.provenance,
-          situation: value.situation,
+          situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: value.familyAnswers,
-          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, value.otherAnswers, value.answeredSteps),
+          answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, value.familyAnswers, value.otherAnswers, value.answeredSteps),
           otherAnswers: value.otherAnswers,
-          aiRecommendation: parseAiRecommendation(value.aiRecommendation, value.situation, value.otherAnswers),
+          aiRecommendation: parseAiRecommendation(value.aiRecommendation, situation, value.otherAnswers),
         },
       };
     }
@@ -153,15 +158,16 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const otherAnswers = createInitialOtherAnswers();
+      const situation = normalizeLegacySituation(value.situation);
       return {
         status: "valid",
         session: {
           version: 4,
           provenance: value.provenance,
-          situation: value.situation,
+          situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: value.familyAnswers,
-          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, value.familyAnswers, otherAnswers, value.answeredSteps),
           otherAnswers,
           aiRecommendation: null,
         },
@@ -176,15 +182,16 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const otherAnswers = createInitialOtherAnswers();
+      const situation = normalizeLegacySituation(value.situation);
       return {
         status: "valid",
         session: {
           version: 4,
           provenance: "demo",
-          situation: value.situation,
+          situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: value.familyAnswers,
-          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, value.familyAnswers, otherAnswers, value.answeredSteps),
           otherAnswers,
           aiRecommendation: null,
         },
@@ -197,15 +204,16 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const migratedFamilyAnswers = [value.familyAnswer as FamilyAnswer];
       const otherAnswers = createInitialOtherAnswers();
+      const situation = normalizeLegacySituation(value.situation);
       return {
         status: "valid",
         session: {
           version: 4,
           provenance: "demo",
-          situation: value.situation,
+          situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: migratedFamilyAnswers,
-          answeredSteps: normalizeAnsweredSteps(value.situation, migratedFamilyAnswers, otherAnswers, value.answeredSteps),
+          answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, migratedFamilyAnswers, otherAnswers, value.answeredSteps),
           otherAnswers,
           aiRecommendation: null,
         },
@@ -217,15 +225,17 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
     if (isSituation(value)) {
       const migratedFamilyAnswers: FamilyAnswers = value.familyMembers.children.length ? ["children"] : [];
       const otherAnswers = createInitialOtherAnswers();
+      const situation = normalizeLegacySituation(value);
+      const stayAnswer: StayAnswer = situation.stayDeadlineKnown ? "known" : "unknown";
       return {
         status: "valid",
         session: {
           version: 4,
           provenance: "demo",
-          situation: value,
-          stayAnswer: value.stayDeadlineKnown ? "known" : "unknown",
+          situation,
+          stayAnswer,
           familyAnswers: migratedFamilyAnswers,
-          answeredSteps: normalizeAnsweredSteps(value, migratedFamilyAnswers, otherAnswers, inferLegacyAnsweredSteps(value)),
+          answeredSteps: normalizeAnsweredSteps(situation, stayAnswer, migratedFamilyAnswers, otherAnswers, inferLegacyAnsweredSteps(situation)),
           otherAnswers,
           aiRecommendation: null,
         },
@@ -326,16 +336,27 @@ function parseAiRecommendation(
 
 function normalizeAnsweredSteps(
   situation: Situation,
+  selectedStayAnswer: StayAnswer,
   selectedFamilyAnswers: FamilyAnswers,
   otherAnswers: OtherAnswers,
   answeredSteps: number[],
 ): number[] {
   const incomplete = new Set<number>();
-  if (situation.currentMunicipality === "Other" && !otherAnswers.area.trim()) incomplete.add(0);
+  if (!(assessmentOptionCodes.municipality as readonly string[]).includes(situation.currentMunicipality)) incomplete.add(0);
+  if (!(assessmentOptionCodes.nationality as readonly string[]).includes(situation.nationality)) incomplete.add(1);
   if (situation.nationality === "OTHER" && !otherAnswers.nationality.trim()) incomplete.add(1);
+  if (!(assessmentOptionCodes.visitPurpose as readonly string[]).includes(situation.visitPurpose)) incomplete.add(2);
   if (situation.visitPurpose === "other" && !otherAnswers.visitPurpose.trim()) incomplete.add(2);
+  if (!(assessmentOptionCodes.departureWindow as readonly string[]).includes(situation.originalDepartureWindow)) incomplete.add(3);
+  if (!(assessmentOptionCodes.stayAnswer as readonly string[]).includes(selectedStayAnswer)) incomplete.add(5);
   if (selectedFamilyAnswers.includes("other") && !otherAnswers.family.trim()) incomplete.add(6);
+  if (!(assessmentOptionCodes.accommodation as readonly string[]).includes(situation.accommodation)) incomplete.add(7);
+  if (situation.needs.some((need) => !(assessmentOptionCodes.needs as readonly string[]).includes(need))) incomplete.add(8);
   return incomplete.size ? answeredSteps.filter((step) => !incomplete.has(step)) : answeredSteps;
+}
+
+function normalizeLegacySituation(situation: Situation): Situation {
+  return situation.nationality === "MMR" ? { ...situation, nationality: "MM" } : situation;
 }
 
 function inferLegacyAnsweredSteps(situation: Situation): number[] {

@@ -52,15 +52,15 @@ describe("StayBridge session data", () => {
   it("summarizes only fields whose questions were answered", () => {
     expect(summarizeSituation("en", demoSituation, "unknown", ["children"], [0, 1])).toEqual([
       "Area: Kita City",
-      "Nationality/region: Myanmar",
+      "Nationality/region: Myanmar (Burma)",
     ]);
     expect(summarizeNeeds("en", demoSituation, [0, 1])).toEqual([]);
   });
 
   it("preserves stay and non-child family answers in the summary", () => {
     const situation = createInitialSituation();
-    expect(summarizeSituation("ja", situation, "documents", ["spouse"], [5, 6])).toEqual([
-      "書類を確認したい",
+    expect(summarizeSituation("ja", situation, "unknown", ["spouse"], [5, 6])).toEqual([
+      "分からない",
       "配偶者がいる",
     ]);
     expect(summarizeSituation("en", situation, "unknown", ["other"], [5, 6])).toEqual([

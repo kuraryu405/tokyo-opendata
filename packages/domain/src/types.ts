@@ -13,6 +13,7 @@ export type DepartureWindow =
   | "within_7_days"
   | "within_30_days"
   | "within_3_months"
+  | "after_3_months"
   | "no_departure_plan"
   | "unknown";
 export type AccommodationType =
@@ -20,6 +21,7 @@ export type AccommodationType =
   | "family_or_friend"
   | "rental"
   | "temporary_facility"
+  | "other"
   | "unstable"
   | "prefer_not_to_say";
 export type JapaneseLevel = "none" | "beginner" | "daily" | "advanced";
@@ -35,6 +37,7 @@ export type NeedCategory =
   | "employment"
   | "language"
   | "daily_life"
+  | "other"
   /** Honest "no current need" answer; never matches a rule or feeds aggregates. */
   | "none";
 

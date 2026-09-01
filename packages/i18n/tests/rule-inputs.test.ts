@@ -17,8 +17,11 @@ const questionKeys = [
 
 describe("all locale assessment inputs", () => {
   it.each(Object.entries(userMessages))("keeps %s labels mapped to the production answer codes", (_locale, messages) => {
-    const actual = Object.fromEntries(questionKeys.map((key, index) => [key, messages.questions[index][2].map(([code]) => code)]));
-    const expected = Object.fromEntries(questionKeys.map((key) => [key, assessmentOptionCodes[key]]));
-    expect(actual).toEqual(expected);
+    questionKeys.forEach((key, index) => {
+      const actual = messages.questions[index][2].map(([code]) => code);
+      const expected = [...assessmentOptionCodes[key]];
+      expect(new Set(actual).size).toBe(actual.length);
+      expect(actual.toSorted()).toEqual(expected.toSorted());
+    });
   });
 });
