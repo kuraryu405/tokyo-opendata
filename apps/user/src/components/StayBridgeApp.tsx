@@ -66,7 +66,6 @@ import {
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
 import { formatAssessmentDateForLocale, getTokyoAssessmentDate } from "../assessment-date";
-import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
@@ -483,41 +482,6 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));
   };
 
-  const clearData = () => {
-    if (!storageReady) return;
-    if (hasProtectedSituationSubmission) {
-      focusSituationPersistence();
-      return;
-    }
-    skipNextSessionWrite.current = true;
-    try {
-      sessionStorage.removeItem("staybridge.session");
-    } catch {
-      setStorageError(true);
-    }
-    setSituation(createInitialSituation());
-    setStayAnswer("unknown");
-    setFamilyAnswers([]);
-    setOtherAnswers(createInitialOtherAnswers());
-    setAiRecommendation(null);
-    recommendationController.current?.abort();
-    recommendationController.current = null;
-    setIsPreparingRecommendations(false);
-    setAnsweredSteps([]);
-    setSituationPersistence({ status: "idle" });
-    setConversationConsent("idle");
-    setIsDemoSituation(false);
-    setHasUnreadableSession(false);
-    pendingSituationSubmission.current = null;
-    try {
-      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
-      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-    } catch {
-      setStorageError(true);
-    }
-    router.replace(buildStayBridgePath({ locale, screen: "landing" }));
-  };
-
   const restartAssessment = () => {
     if (hasProtectedSituationSubmission) {
       focusSituationPersistence();
@@ -714,54 +678,36 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const isLanding = screen === "landing";
   const isCheck = screen === "check";
   return (
-    <div className={`app-shell locale-${locale}${navVisible && !isCheck ? " nav-visible" : ""}${isLanding || isCheck ? " velorah-scope" : ""}${isCheck ? " check-cinematic" : ""}`}>
+    <div className={`app-shell locale-${locale}${navVisible && !isCheck ? " nav-visible" : ""} velorah-scope${!isLanding ? " cinematic-shell" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      {isCheck && <>
+      {!isLanding && <>
         <TokyoAerialVideo />
         <CinematicHeader locale={locale} switchLocale={switchLocale} disabled={!storageReady} onBrandClick={() => go("landing")} navigation={{ screen, go, showStepsNav }} />
       </>}
-      {!isLanding && !isCheck && <Header locale={locale} screen={screen} go={go} switchLocale={switchLocale} navVisible={navVisible} showStepsNav={showStepsNav} />}
       {storageError && <output className="app-alert">{t.storageError}</output>}
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
+          {screen === "status" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
             try {
               sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
             } catch {
               // Forgetting a decline is acceptable; it only re-asks consent.
             }
             setSituationPersistence({ status: "declined" });
-          }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} roadmap={() => go("roadmap")} edit={editSituation} />}
-          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
-        {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
-          {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
-          {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
+          }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} roadmap={() => go("roadmap")} edit={editSituation} /></div>}
+          {screen === "roadmap" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} /></div>}
+          {screen === "local" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} /></div>}
+          {screen === "help" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} /></div>}
+          {screen === "summary" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} /></div>}
         </>}
       </main>
-      {!isCheck && <footer className="site-footer">
-        <div><span className="brand-mark">SB</span><strong>StayBridge Tokyo</strong><p>{t.footer}</p></div>
-        <button className="text-button" disabled={!storageReady} onClick={clearData}>{t.clear}</button>
-      </footer>}
     </div>
   );
-}
-
-function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: { locale: Locale; screen: Screen; go: (s: Screen, query?: StayBridgeQuery) => void; switchLocale: (locale: Locale) => void; navVisible: boolean; showStepsNav: boolean }) {
-  const t = getUserMessages(locale).ui;
-  return <header className="site-header">
-    <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
-    {navVisible && <nav aria-label={t.primaryNavLabel}>
-      {showStepsNav && <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>}
-      <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
-      <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
-    </nav>}
-    <LanguageSelect key={locale} locale={locale} switchLocale={switchLocale} />
-  </header>;
 }
 
 // oxlint-disable jsx-a11y/prefer-tag-over-role -- This custom listbox intentionally replaces the browser-native language select UI.
@@ -922,7 +868,7 @@ function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionL
   </header>;
 }
 
-function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void }) {
   const heroLines = t.hero.split("\n");
   const [isExiting, setIsExiting] = useState(false);
   const exitTimer = useRef<number | null>(null);
@@ -990,58 +936,6 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
         </div>
       </section>
 
-      {/* ── Below the fold ─────────────────────────────── */}
-      <div className="velorah-below" id="how-it-works">
-        <div className="velorah-below-inner">
-          <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
-            <div className="preview-top">
-              <span>{t.previewTitle}</span>
-              <span className="safe-chip">{t.previewSafety}</span>
-            </div>
-            <div className="timeline-line" />
-            {t.previewSteps.map((preview, i) => (
-              <div className="preview-step" key={preview.time}>
-                <span className={`time-dot dot-${i}`} />
-                <div>
-                  <small>{preview.time}</small>
-                  <strong>{preview.title}</strong>
-                  <p>{preview.detail}</p>
-                </div>
-                <span className="step-number">0{i + 1}</span>
-              </div>
-            ))}
-            <div className="preview-note">
-              <span>i</span>
-              <details>
-                <summary>{t.sectionOfficialSupport}</summary>
-                <p>{t.notDecision}</p>
-              </details>
-            </div>
-          </div>
-
-          <section className="principles" style={{ marginTop: 48 }}>
-            <div className="section-heading">
-              <span>{t.sectionHowItHelps}</span>
-              <h2>{t.privacyTitle}</h2>
-              <p>{t.privacyText}</p>
-            </div>
-            <div className="principle-grid">
-              {t.principleTitles.map((title, index) => (
-                <article key={title}>
-                  <span>0{index + 1}</span>
-                  <h3>{title}</h3>
-                  <p>{t.principleBodies[index]}</p>
-                </article>
-              ))}
-            </div>
-            <a id="public-teams" className="crisis-link" href={municipalityAppUrl}>
-              <span>{t.sectionPublicTeams}</span>
-              {t.crisis}
-              <b>↗</b>
-            </a>
-          </section>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1395,7 +1289,8 @@ function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setCon
 function SituationPersistenceConsent({ locale, state, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, decline, deleteRecord, discardCorruptLocalData, discardCorruptPending }: { locale: Locale; state: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void }) {
   const copy = getPersistenceCopy(locale);
   const busy = state.status === "saving" || state.status === "deleting";
-  return <section id="situation-persistence" className="consent-card" aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : state.status === "corrupt" ? <CorruptSavedCredentials copy={copy} keepsPendingSave={hasPendingSituationSubmission || hasCorruptPendingSituationSubmission} discardLocalData={discardCorruptLocalData} /> : state.status === "pending-corrupt" || hasCorruptPendingSituationSubmission ? <CorruptPendingSection copy={copy} discardPending={discardCorruptPending} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
+  const requiresManagement = "credentials" in state || state.status === "corrupt" || state.status === "pending-corrupt" || hasPendingSituationSubmission || hasCorruptPendingSituationSubmission;
+  return <section id="situation-persistence" className={`consent-card situation-persistence-consent${requiresManagement ? " is-management" : ""}`} aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : state.status === "corrupt" ? <CorruptSavedCredentials copy={copy} keepsPendingSave={hasPendingSituationSubmission || hasCorruptPendingSituationSubmission} discardLocalData={discardCorruptLocalData} /> : state.status === "pending-corrupt" || hasCorruptPendingSituationSubmission ? <CorruptPendingSection copy={copy} discardPending={discardCorruptPending} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
 }
 
 function CorruptPendingSection({ copy, discardPending }: { copy: PersistenceCopy; discardPending: () => void }) {
@@ -1408,7 +1303,7 @@ function CorruptSavedCredentials({ copy, keepsPendingSave, discardLocalData }: {
 
 function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentState) => void }) {
   const copy = getPersistenceCopy(locale);
-  return <section className="consent-card conversation-consent" aria-labelledby="conversation-consent-title"><h2 id="conversation-consent-title">{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={state === "accepted"} onClick={() => setState("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={state === "declined"} onClick={() => setState("declined")}>{copy.decline}</button></div>{state !== "idle" && <output className="consent-status" aria-live="polite">{state === "accepted" ? copy.conversationAccepted : copy.declined}</output>}</section>;
+  return <section className="consent-card conversation-consent conversation-persistence-consent" aria-labelledby="conversation-consent-title"><h2 id="conversation-consent-title">{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={state === "accepted"} onClick={() => setState("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={state === "declined"} onClick={() => setState("declined")}>{copy.decline}</button></div>{state !== "idle" && <output className="consent-status" aria-live="polite">{state === "accepted" ? copy.conversationAccepted : copy.declined}</output>}</section>;
 }
 
 function ConsentStatus({ copy, status }: { copy: PersistenceCopy; status: SituationPersistenceState["status"] }) {
@@ -1469,7 +1364,7 @@ function HumanSupport({ locale, t, needs, visitPurpose, summary }: { locale: Loc
     .map((id) => sourceRegistry[id])
     .filter((source): source is DataSource => Boolean(source))
     .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><details className="safe-notice"><summary>{t.sectionOfficialSupport}</summary><p>{t.notDecision}</p></details><div className="emergency-note">{t.emergency}</div></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><div className="emergency-note">{t.emergency}</div></section>;
 }
 
 function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {

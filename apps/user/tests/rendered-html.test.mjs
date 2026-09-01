@@ -256,10 +256,10 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   );
 });
 
-test("links to the municipality app through the local default URL", async () => {
+test("omits the former below-fold municipality link from the landing page", async () => {
   const response = await render("/ja");
   const html = await response.text();
-  assert.match(html, /href="\/crisis"/i);
+  assert.doesNotMatch(html, /href="\/crisis"/i);
 });
 
 test("server-renders each URL-driven reviewed route", async () => {
@@ -382,5 +382,7 @@ test("keeps the cinematic custom language listbox unclipped and glass styled", a
 
   assert.match(css, /\.velorah-language-select\.liquid-glass \{[^}]*overflow: visible;/);
   assert.match(css, /\.velorah-language-select \.language-select-menu \{[^}]*overflow: hidden;[^}]*background:[^}]*rgba\(9,25,32,\.78\);[^}]*backdrop-filter: blur\(22px\)/);
-  assert.match(css, /\.check-cinematic > \.velorah-nav \{[^}]*z-index: 30;/);
+  assert.match(css, /\.cinematic-shell > \.velorah-nav \{[^}]*z-index: 30;/);
+  assert.match(css, /\.cinematic-route-card \{[^}]*animation: cinematic-route-enter 720ms/);
+  assert.match(css, /\.cinematic-route-card \.situation-persistence-consent:not\(\.is-management\),[\s\S]*?\.cinematic-route-card \.conversation-persistence-consent \{ display: none; \}/);
 });

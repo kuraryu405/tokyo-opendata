@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { demoSituation } from "@staybridge/domain/demo";
 import { StayBridgeApp } from "../src/components/StayBridgeApp";
@@ -97,8 +97,7 @@ describe("Corrupt pending Situation submission secrets", () => {
     expect(screen.getByText(/サーバーで完了している可能性/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "同意して保存" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
-    await waitFor(() => expect(document.activeElement?.id).toBe("corrupt-pending-situation-submission"));
+    expect(screen.queryByRole("button", { name: "この端末のデータを消す" })).toBeNull();
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
     expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
   });
@@ -136,6 +135,6 @@ describe("Corrupt pending Situation submission secrets", () => {
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
     expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
     expect(await screen.findByRole("heading", { name: "未完了の保存情報を確認できません" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "この端末のデータを消す" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "この端末のデータを消す" })).toBeNull();
   });
 });

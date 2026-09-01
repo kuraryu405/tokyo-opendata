@@ -39,19 +39,21 @@ async function measureLayout(page, safeAreaInsetBottom) {
     content: `:root { --safe-area-inset-bottom: ${safeAreaInsetBottom}px !important; }`,
   });
   return page.evaluate(() => {
+    const header = document.querySelector(".velorah-nav");
     const nav = document.querySelector("nav[aria-label]");
     const buttons = [...document.querySelectorAll("nav[aria-label] button")];
     const footer = document.querySelector(".site-footer");
-    if (!nav || !footer || buttons.length !== 3) throw new Error("Expected mobile navigation landmarks are missing");
+    if (!header || !nav || footer || buttons.length !== 3) throw new Error("Expected cinematic mobile navigation landmarks are missing");
 
     document.documentElement.style.scrollBehavior = "auto";
-    window.scrollTo(0, document.documentElement.scrollHeight);
+    window.scrollTo(0, 0);
+    const headerRect = header.getBoundingClientRect();
     const navRect = nav.getBoundingClientRect();
-    const footerRect = footer.getBoundingClientRect();
     const navStyle = getComputedStyle(nav);
 
     return {
       viewport: { width: innerWidth, height: innerHeight },
+      header: { top: headerRect.top, bottom: headerRect.bottom },
       nav: {
         top: navRect.top,
         bottom: navRect.bottom,
@@ -72,7 +74,7 @@ async function measureLayout(page, safeAreaInsetBottom) {
           scrollWidth: button.scrollWidth,
         };
       }),
-      footerBottom: footerRect.bottom,
+      footerAbsent: footer === null,
     };
   });
 }
@@ -101,24 +103,22 @@ test.after(async () => {
   }
 });
 
-test("keeps the fixed navigation usable and the page content above it across safe areas", async () => {
+test("keeps the cinematic header navigation usable and removes the footer across safe areas", async () => {
   for (const safeAreaInsetBottom of [0, 20, 34]) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await openRoute(context, "ja");
     const layout = await measureLayout(page, safeAreaInsetBottom);
 
     assert.equal(layout.viewport.width, 390);
-    assert.equal(layout.nav.height, 62 + safeAreaInsetBottom);
-    assert.ok(layout.nav.paddingBottom >= safeAreaInsetBottom);
+    assert.ok(layout.header.top >= 0);
+    assert.ok(layout.nav.top >= layout.header.top);
+    assert.ok(layout.nav.bottom <= layout.header.bottom + 1);
     for (const button of layout.buttons) {
       assert.ok(button.height >= 44, `${button.label} hit area is ${button.height}px`);
       assert.ok(button.top >= layout.nav.top);
-      assert.ok(button.bottom <= layout.nav.bottom - safeAreaInsetBottom);
+      assert.ok(button.bottom <= layout.nav.bottom + 1);
     }
-    assert.ok(
-      layout.footerBottom <= layout.nav.top + 1,
-      `footer bottom ${layout.footerBottom}px is covered by nav starting at ${layout.nav.top}px`,
-    );
+    assert.equal(layout.footerAbsent, true);
     await context.close();
   }
 });
@@ -137,7 +137,7 @@ test("keeps all reviewed navigation labels visible at a 390px physical width wit
       assert.ok(button.scrollWidth <= button.clientWidth + 1, `${locale} ${button.label} is horizontally clipped`);
       assert.ok(button.scrollHeight <= button.clientHeight + 1, `${locale} ${button.label} is vertically clipped`);
     }
-    assert.ok(layout.footerBottom <= layout.nav.top + 1, `${locale} footer is covered by nav`);
+    assert.equal(layout.footerAbsent, true, `${locale} footer should be removed`);
     await context.close();
   }
 });
