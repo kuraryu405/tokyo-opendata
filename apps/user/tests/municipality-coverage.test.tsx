@@ -109,8 +109,6 @@ describe("Municipality resource coverage gating for local-action cards", () => {
     expect(medicalVisible?.textContent ?? null).toBe(expected ? "医療を受けられる場所を確認する" : null);
     const cardCount = document.querySelectorAll(".action-card").length;
     expect(cardCount).toBe(expected ? 1 : 0);
-    // Fallback visibility is covered by cardCount; async rendering may delay the empty state.
-    if (!expected) expect(cardCount).toBe(0);
   });
 
   it.each([
