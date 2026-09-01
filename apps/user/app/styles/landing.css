@@ -1,0 +1,442 @@
+/* ── Velorah hero ─────────────────────────────────────────────── */
+.velorah-scope {
+  --background: 201 100% 13%;
+  --foreground: 0 0% 100%;
+  --muted-foreground: 240 4% 66%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 10%;
+  --muted: 0 0% 10%;
+  --accent: 0 0% 10%;
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
+  --font-display: Georgia, "Noto Serif JP", serif;
+  --font-body: system-ui, -apple-system, "Noto Sans JP", "Noto Sans Myanmar", sans-serif;
+}
+
+.velorah-hero {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  isolation: isolate;
+}
+
+.velorah-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  filter: brightness(0.68) saturate(0.94);
+}
+.velorah-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(10, 18, 22, 0.46);
+  pointer-events: none;
+}
+
+.velorah-nav {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px;
+  max-width: 1280px;
+  width: 100%;
+  margin-inline: auto;
+  gap: 16px;
+}
+
+.velorah-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: white;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.velorah-brand b { font-weight: 400; }
+.velorah-brand:disabled { cursor: not-allowed; opacity: 0.45; }
+.velorah-brand-mark {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50% 50% 50% 10px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: white;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
+}
+.velorah-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+
+.cinematic-primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: 999px;
+}
+.cinematic-primary-nav button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 13px;
+  background: transparent;
+  color: rgba(255,255,255,.8);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cinematic-primary-nav button:hover,
+.cinematic-primary-nav button.active {
+  background: rgba(255,255,255,.14);
+  color: white;
+}
+
+.velorah-language-select { border-radius: 999px; }
+.velorah-language-select .language-select { margin-left: 0; }
+.velorah-language-select .language-select-trigger {
+  min-height: 44px;
+  border-color: transparent;
+  background: transparent;
+  color: white;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+}
+.velorah-language-select .language-select-trigger:hover,
+.velorah-language-select .language-select-trigger[aria-expanded="true"] {
+  border-color: rgba(255,255,255,0.62);
+  background: rgba(18,26,29,0.34);
+}
+
+.velorah-nav-cta {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 22px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 220ms ease;
+}
+.velorah-public-link {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 220ms ease, background 220ms ease;
+}
+.velorah-public-link:hover { background: rgba(18,26,29,.34); transform: scale(1.03); }
+.velorah-nav-cta:hover { transform: scale(1.03); }
+.velorah-nav-cta:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.velorah-brand:focus-visible,
+.velorah-public-link:focus-visible,
+.velorah-nav-cta:focus-visible,
+.velorah-demo:focus-visible,
+.velorah-cta:focus-visible { outline: 3px solid #ffbf47; outline-offset: 3px; }
+
+
+
+
+
+.velorah-hero-main {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px 48px;
+  max-width: 1280px;
+  width: 100%;
+  margin-inline: auto;
+  min-height: calc(100svh - 80px);
+  transition: opacity 420ms ease, transform 420ms cubic-bezier(.4, 0, .2, 1), filter 420ms ease;
+}
+.velorah-hero-main.is-exiting {
+  opacity: 0;
+  transform: translate3d(-72px, 0, 0);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.velorah-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.94);
+  margin-bottom: 24px;
+  letter-spacing: 0.01em;
+}
+.velorah-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 0 10px rgba(255,255,255,0.45);
+  flex: 0 0 auto;
+}
+
+.velorah-headline {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.8rem;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+
+
+
+
+.velorah-headline span { display: block; }
+.velorah-headline .hl-white { color: white; }
+.velorah-headline .hl-muted { color: rgba(255,255,255,0.92); }
+
+/* Japanese fallback: Noto Serif JP already in stack, but ensure weight */
+.velorah-headline:lang(ja) { font-family: "Noto Serif JP", serif; letter-spacing: -0.02em; line-height: 1.05; }
+
+.velorah-lede {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.94);
+  max-width: 44rem;
+  margin: 32px auto 0;
+  font-weight: 400;
+}
+
+
+.velorah-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  padding: 16px 48px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 400;
+  color: white;
+  cursor: pointer;
+  margin-top: 40px;
+  transition: transform 260ms ease;
+  text-decoration: none;
+}
+
+.velorah-cta:hover { transform: scale(1.03); }
+.velorah-cta:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.velorah-cta svg { width: 16px; height: 16px; opacity: 0.85; }
+
+.velorah-demo {
+  margin-top: 14px;
+  border: 1px solid rgba(255,255,255,0.62);
+  background: rgba(18,26,29,0.28);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.94);
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  padding: 11px 20px;
+  min-height: 44px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.velorah-demo:hover { color: white; background: rgba(18,26,29,0.46); border-color: rgba(255,255,255,0.88); transform: translateY(-1px); }
+.velorah-demo:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.velorah-trust {
+  margin-top: 28px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.88);
+  letter-spacing: 0.02em;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 10px;
+}
+.velorah-trust span.dot { width: 2px; height: 2px; border-radius: 50%; background: rgba(255,255,255,0.35); display: inline-block; }
+
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 20%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.15) 80%, rgba(255,255,255,0.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* The language listbox is its own glass surface. Let it escape the trigger
+   pill so focusing an option cannot scroll and clip the menu inside 44px. */
+.velorah-language-select.liquid-glass {
+  z-index: 80;
+  overflow: visible;
+}
+.velorah-language-select .language-select-menu {
+  top: calc(100% + 10px);
+  min-width: 176px;
+  gap: 4px;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.04)), rgba(9,25,32,.78);
+  color: white;
+  box-shadow: 0 22px 54px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  transform-origin: top right;
+  animation: language-menu-reveal 180ms cubic-bezier(.16, 1, .3, 1) both;
+}
+.velorah-language-select .language-select-menu [role="option"] {
+  min-height: 44px;
+  border-radius: 11px;
+  color: rgba(255,255,255,.88);
+  font-weight: 600;
+}
+.velorah-language-select .language-select-menu [role="option"]:hover,
+.velorah-language-select .language-select-menu [role="option"].active {
+  background: rgba(255,255,255,.12);
+  color: white;
+}
+.velorah-language-select .language-select-menu [role="option"][aria-selected="true"] {
+  background: rgba(101,198,223,.18);
+  color: white;
+}
+.velorah-language-select .language-select-check {
+  border: 1px solid rgba(185,228,208,.62);
+  background: rgba(101,198,223,.24);
+  color: white;
+}
+
+
+
+.animate-fade-rise { animation: fade-rise 0.8s ease-out both; }
+.animate-fade-rise-delay { animation: fade-rise 0.8s ease-out 0.2s both; }
+.animate-fade-rise-delay-2 { animation: fade-rise 0.8s ease-out 0.4s both; }
+
+
+
+/* Below the fold: keep content but on dark navy canvas */
+.velorah-below {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  padding: 56px 24px 56px;
+}
+
+.velorah-below-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.velorah-below .preview-top,
+.velorah-below .timeline-line,
+.velorah-below .roadmap-preview { /* keep light card on dark bg */
+}
+.velorah-below .roadmap-preview { color: var(--ink); }
+.velorah-below .section-heading h2 { color: white; }
+.velorah-below .section-heading p { color: rgba(255,255,255,0.9); }
+.velorah-below .principles { background: transparent; padding: 0; }
+.velorah-below .crisis-link { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: white; }
+.velorah-below .crisis-link span { color: #b9e4d0; }
+
+/* Keep the landing actions stacked while preserving clear action boundaries. */
+.velorah-hero .hero-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.velorah-hero .hero-actions .velorah-cta {
+  min-width: min(100%, 300px);
+  border: 1px solid rgba(255,255,255,0.76);
+  background: rgba(18,26,29,0.36);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.velorah-hero .hero-actions .velorah-demo.secondary-button {
+  border-color: rgba(255,255,255,0.62);
+  background: rgba(18,26,29,0.28);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+  min-height: 44px;
+  padding: 11px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.78);
+  gap: 0;
+}
+.velorah-hero .hero-actions .velorah-demo.secondary-button:hover {
+  color: white;
+  border-color: rgba(255,255,255,0.88);
+  background: rgba(18,26,29,0.46);
+  transform: translateY(-1px);
+}

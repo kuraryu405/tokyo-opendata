@@ -1,0 +1,23 @@
+/* Issue #14: semantic text color for normal-size copy on pale surfaces. */
+.step-number,
+.action-number,
+.location-pill,
+.resource-main dt { color: var(--accessible-text); }
+
+.action-disclaimer {
+  margin: 14px 0 0;
+  border-radius: 5px;
+  background: #f5f1e5;
+  padding: 10px 12px;
+  color: #755c28 !important;
+  font-size: 12px !important;
+  line-height: 1.65 !important;
+}
+.review-chip { color: var(--accessible-text); }
+
+
+
+.option-input { position: absolute; opacity: 0; pointer-events: none; }
+.option-button:has(.option-input:focus-visible), .age-chip:has(.option-input:focus-visible) { outline: 3px solid #ffbf47; outline-offset: 3px; }
+.age-chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: white; border: 1px solid var(--line); border-radius: 6px; min-width: 65px; padding: 9px; cursor: pointer; font-weight: 700; }
+.age-chip.selected { background: var(--blue); border-color: var(--blue); color: white; }
