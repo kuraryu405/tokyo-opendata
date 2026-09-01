@@ -52,10 +52,10 @@ const copy = {
   ja: {
     situationTitle: "回答の保存方法を選ぶ",
     situationPurpose: "任意で最小限の回答を保存すると、自治体単位の支援準備に活用されます。",
-    situationItems: "保存するもの: 自治体コード、選択式の回答、子どもの年齢区分。国籍、正確な日付・住所、自由記述は保存しません。",
+    situationItems: "保存の対象: 自治体コード、選択式の回答、子どもの年齢区分。国籍や正確な日付・住所、自由記述は対象外です。",
     conversationTitle: "AI相談の保存方法を選ぶ",
     conversationPurpose: "会話保存はSituation Checkとは別に選択し、サービスの運用・安全確認に使います。",
-    conversationItems: "保存するもの: マスキング済みの会話、モデルID、参照した出典ID、作成日時。Crisis Viewには会話本文を出しません。",
+    conversationItems: "保存の対象: マスキング済みの会話、モデルID、参照した出典ID、作成日時。会話本文は Crisis View には表示されません。",
     detailsTitle: "保存内容・保持期間・削除方法を確認",
     retention: "保持期間: マスキングまたは拒否を通過した内容だけを、期限を設けず保持します。従来の自動期限削除は行いません。",
     deletion: "削除方法: 保存後に表示する記録IDと削除コードを持つ人だけが削除できます。コードは再発行できません。",

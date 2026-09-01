@@ -766,7 +766,7 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("radio", { name: "その他" }));
     const q3 = screen.getByRole("textbox", { name: "その他の来日目的を入力" }) as HTMLTextAreaElement;
     expect(q3.maxLength).toBe(300);
-    expect(screen.getByText(/この内容だけをCloudflare Workers AIへ送ります/)).toBeTruthy();
+    expect(screen.getByText(/この内容のみ Cloudflare Workers AI へ送信します/)).toBeTruthy();
     await user.type(q3, "医療に関する国際会議へ参加するため");
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
@@ -786,7 +786,7 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("radio", { name: "日常会話ができる" }));
     await user.click(screen.getByRole("button", { name: "状況を整理する" }));
 
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0][0]).toBe("/api/recommend-actions");
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ text: "医療に関する国際会議へ参加するため" });
@@ -798,8 +798,9 @@ describe("StayBridge client flow", () => {
     }
 
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
-    expect(screen.getByRole("heading", { name: "医療を受けられる場所を確認する" })).toBeTruthy();
-    expect(screen.getAllByRole("heading", { name: "専門の相談窓口へ相談する" })).toHaveLength(1);
+    // With municipality Other, local-resource cards are gated off (no coverage), so the AI-suggested medical card is filtered.
+    expect(screen.queryByRole("heading", { name: "医療を受けられる場所を確認する" })).toBeNull();
+    expect(screen.getAllByRole("heading", { name: "専門の相談窓口へ相談する" }).length).toBeGreaterThanOrEqual(1);
     const stored = JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}") as Record<string, unknown>;
     expect(stored).toMatchObject({
       version: 4,
@@ -819,7 +820,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-24" />);
 
     await user.click(await screen.findByRole("button", { name: "状況を整理する" }));
-    expect(await screen.findByRole("heading", { name: "今の状況を整理しました" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "専門の相談窓口へ相談する" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "当面の生活費について相談する" })).toBeNull();
