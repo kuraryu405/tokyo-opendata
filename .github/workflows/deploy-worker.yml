@@ -59,7 +59,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WRANGLER_VERSION: "4.124.0"
+  WRANGLER_VERSION: "4.125.0"
 
 jobs:
   configuration:
