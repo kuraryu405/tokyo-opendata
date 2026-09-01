@@ -94,7 +94,7 @@ function restoreQ3OtherSession(actionIds: Array<"CHECK_LIVING_COST_SUPPORT"> = [
     stayAnswer: "unknown",
     familyAnswers: ["children"],
     answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-    otherAnswers: { area: "", nationality: "", visitPurpose: input, family: "" },
+    otherAnswers: { area: "", nationality: "", visitPurpose: input, family: "", accommodation: "", needs: "" },
     aiRecommendation: actionIds.length ? { input, actionIds } : null,
   }));
 }
@@ -249,11 +249,11 @@ describe("StayBridge client flow", () => {
     expect((saveButton as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/デモ回答は支援ニーズデータへ保存できません/)).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 4, provenance: "demo" });
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 5, provenance: "demo" });
 
     navigation.reset("/ja/check?step=0");
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
-    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 4, provenance: "demo" });
+    expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ version: 5, provenance: "demo" });
     expect((screen.getByRole("button", { name: "同意して保存" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -492,6 +492,22 @@ describe("StayBridge client flow", () => {
     expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
     expect(screen.getByRole("button", { name: "同意して保存" })).toBeTruthy();
+  });
+
+  it("opens answer review while retaining a retryable pending save", async () => {
+    restoreCompleteUserSession();
+    const storedPending = JSON.stringify(createPendingSituationSubmission(demoSituation));
+    sessionStorage.setItem("staybridge.pending-situation-submission", storedPending);
+    navigation.reset("/ja/status");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
+    await user.click(screen.getByRole("button", { name: "回答を見直す" }));
+
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(screen.getByRole("combobox", { name: "東京23区から選択" })).toBeTruthy();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBe(storedPending);
   });
 
   it.each(["altered answers", "migrated session", "malformed session"] as const)(
@@ -755,12 +771,20 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.queryByRole("radio", { name: "答えたくない" })).toBeNull();
     expect(screen.queryByRole("radio", { name: "今後の滞在場所に不安がある" })).toBeNull();
-    expect((screen.getByRole("radio", { name: "その他" }) as HTMLInputElement).checked).toBe(false);
-    await user.click(screen.getByRole("radio", { name: "家族・知人の家" }));
+    const accommodationOther = screen.getByRole("radio", { name: "その他" });
+    expect((accommodationOther as HTMLInputElement).checked).toBe(false);
+    await user.click(accommodationOther);
+    const accommodationDetails = screen.getByRole("textbox", { name: "その他の滞在場所を入力" }) as HTMLTextAreaElement;
+    expect(accommodationDetails.maxLength).toBe(100);
+    expect((screen.getByRole("button", { name: "次へ" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.type(accommodationDetails, "友人が手配した場所");
     await user.click(screen.getByRole("button", { name: "次へ" }));
-    const consultationNeed = screen.getByRole("checkbox", { name: "相談先" });
-    await user.click(consultationNeed);
-    expect((consultationNeed as HTMLInputElement).checked).toBe(true);
+    const needsOther = screen.getByRole("checkbox", { name: "その他" });
+    await user.click(needsOther);
+    const needsDetails = screen.getByRole("textbox", { name: "その他の困りごとを入力" }) as HTMLTextAreaElement;
+    expect(needsDetails.maxLength).toBe(100);
+    expect((screen.getByRole("button", { name: "次へ" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.type(needsDetails, "生活に必要な手続");
     await user.click(screen.getByRole("button", { name: "次へ" }));
     expect((screen.getByRole("radio", { name: "ほとんど話せない" }) as HTMLInputElement).checked).toBe(false);
   });
@@ -845,8 +869,8 @@ describe("StayBridge client flow", () => {
     expect(screen.getAllByRole("heading", { name: "専門の相談窓口へ相談する" }).length).toBeGreaterThanOrEqual(1);
     const stored = JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}") as Record<string, unknown>;
     expect(stored).toMatchObject({
-      version: 4,
-      otherAnswers: { area: "", nationality: "タイ", visitPurpose: "医療に関する国際会議へ参加するため", family: "親" },
+      version: 5,
+      otherAnswers: { area: "", nationality: "タイ", visitPurpose: "医療に関する国際会議へ参加するため", family: "親", accommodation: "", needs: "" },
       aiRecommendation: { input: "医療に関する国際会議へ参加するため", actionIds: ["CHECK_MEDICAL_OPTIONS", "CONTACT_OFFICIAL_SUPPORT"] },
     });
   });

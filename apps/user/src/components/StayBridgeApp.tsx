@@ -139,6 +139,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const skipNextSessionWrite = useRef(false);
   const recommendationController = useRef<AbortController | null>(null);
   const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
+  const [allowsPendingSituationReview, setAllowsPendingSituationReview] = useState(false);
   const situationRequestController = useRef<AbortController | null>(null);
   const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
   const t = getUserMessages(locale).ui;
@@ -261,9 +262,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
   const showStepsNav = assessmentComplete || isDemoSituation;
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
+  const pendingSituationReviewAllowed = allowsPendingSituationReview
+    && hasPendingSituationSubmission
+    && !hasSavedSituationCredentials
+    && !hasCorruptSavedSituationCredentials
+    && !hasCorruptPendingSituationSubmission;
   const protectedSituationRouteGuard = storageReady
     && hasProtectedSituationSubmission
-    && (screen === "landing" || screen === "check");
+    && (screen === "landing" || (screen === "check" && !pendingSituationReviewAllowed));
   const demoSituationRouteGuard = storageReady
     && isDemoSituation
     && (screen === "check" || ((screen === "roadmap" || screen === "summary") && !assessmentComplete));
@@ -368,6 +374,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     const input = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
     if (!input) {
       setAiRecommendation(null);
+      setAllowsPendingSituationReview(false);
       go("status");
       return;
     }
@@ -393,6 +400,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     recommendationController.current = null;
     setAiRecommendation(actionIds === null ? null : { input, actionIds });
     setIsPreparingRecommendations(false);
+    setAllowsPendingSituationReview(false);
     go("status");
   };
 
@@ -518,6 +526,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setConversationConsent("idle");
     setIsDemoSituation(false);
     setHasUnreadableSession(false);
+    setAllowsPendingSituationReview(false);
     pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
@@ -671,7 +680,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const editSituation = () => {
-    if (hasProtectedSituationSubmission) {
+    if (hasSavedSituationCredentials || hasCorruptSavedSituationCredentials || hasCorruptPendingSituationSubmission) {
       focusSituationPersistence();
       return;
     }
@@ -679,8 +688,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       restartAssessment();
       return;
     }
+    setAllowsPendingSituationReview(hasPendingSituationSubmission);
     setSituationPersistence({ status: "idle" });
-    go("check");
+    go("check", { step: 0 });
   };
 
   return (
@@ -823,7 +833,12 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
         && (!hasOtherFamily || Boolean(otherAnswers.family.trim())));
       return;
     }
-    if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
+    if (step === 7) {
+      setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
+      if (value !== "other") setOtherAnswers({ ...otherAnswers, accommodation: "" });
+      markAnswered(value !== "other" || Boolean(otherAnswers.accommodation.trim()));
+      return;
+    }
     if (step === 8) {
       // 「特になし」is exclusive: choosing it clears real needs, and any real
       // need clears it, so nobody must fake a category to finish the flow.
@@ -833,7 +848,9 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
           ? situation.needs.filter((n) => n !== value)
           : [...situation.needs.filter((n) => n !== "none"), value as NeedCategory];
       setSituation({ ...situation, needs: nextNeeds });
-      markAnswered(nextNeeds.length > 0);
+      if (!nextNeeds.includes("other")) setOtherAnswers({ ...otherAnswers, needs: "" });
+      markAnswered(nextNeeds.length > 0
+        && (!nextNeeds.includes("other") || Boolean(otherAnswers.needs.trim())));
       return;
     }
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
@@ -955,6 +972,8 @@ function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAns
   if (step === 1 && situation.nationality === "OTHER") return "nationality";
   if (step === 2 && situation.visitPurpose === "other") return "visitPurpose";
   if (step === 6 && familyAnswers.includes("other")) return "family";
+  if (step === 7 && situation.accommodation === "other") return "accommodation";
+  if (step === 8 && situation.needs.includes("other")) return "needs";
   return null;
 }
 
@@ -1082,7 +1101,7 @@ function SupportCard({ locale, source, index, label, details }: { locale: Locale
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, otherAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; otherAnswers: OtherAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {
   const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers);
-  const asks = summarizeNeeds(locale, situation, answeredSteps);
+  const asks = summarizeNeeds(locale, situation, answeredSteps, otherAnswers);
   const text = `${t.summaryTitle}\n\n${t.current}\n${items.map((i) => `• ${i}`).join("\n")}\n\n${t.questions}\n${asks.map((i, n) => `${n + 1}. ${i}`).join("\n")}`;
   const copyText = async () => {
     try {
@@ -1114,14 +1133,16 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
         ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${childAgeLabels}`
         : answer === "other" && otherAnswers.family.trim() ? `${find(6, answer)}: ${otherAnswers.family.trim()}` : find(6, answer)).join(" / ")
       : undefined,
-    7: find(7, s.accommodation),
+    7: s.accommodation === "other" && otherAnswers.accommodation.trim() ? `${find(7, s.accommodation)}: ${otherAnswers.accommodation.trim()}` : find(7, s.accommodation),
     9: `${messages.ui.japaneseLabel}: ${find(9, s.japaneseLevel)}`,
   };
   return answeredSteps.flatMap((step) => byStep[step] ? [byStep[step]] : []);
 }
 
-export function summarizeNeeds(locale: Locale, s: Situation, answeredSteps: number[]) {
+export function summarizeNeeds(locale: Locale, s: Situation, answeredSteps: number[], otherAnswers: OtherAnswers = createInitialOtherAnswers()) {
   const needMap = getUserMessages(locale).needs;
   if (!answeredSteps.includes(8)) return [];
-  return s.needs.map((need) => needMap[need as NeedKey]).filter(Boolean);
+  return s.needs.map((need) => need === "other" && otherAnswers.needs.trim()
+    ? `${needMap[need as NeedKey]}: ${otherAnswers.needs.trim()}`
+    : needMap[need as NeedKey]).filter(Boolean);
 }

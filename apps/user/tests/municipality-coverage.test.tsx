@@ -101,7 +101,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -123,7 +123,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "unknown",
       familyAnswers: ["children"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -141,7 +141,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 

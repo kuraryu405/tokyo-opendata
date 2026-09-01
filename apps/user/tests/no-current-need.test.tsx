@@ -94,7 +94,7 @@ describe("No-current-need assessment option", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: [0, 1, 2, 3, 4, 5, 6, 7],
-      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" },
     }));
     navigation.reset("/ja/check?step=8");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

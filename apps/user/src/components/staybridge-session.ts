@@ -26,6 +26,8 @@ export type OtherAnswers = {
   nationality: string;
   visitPurpose: string;
   family: string;
+  accommodation: string;
+  needs: string;
 };
 export type AiRecommendation = {
   input: string;
@@ -33,7 +35,7 @@ export type AiRecommendation = {
 };
 
 export type StoredSession = {
-  version: 4;
+  version: 5;
   provenance: SituationProvenance;
   situation: Situation;
   stayAnswer: StayAnswer;
@@ -106,7 +108,7 @@ export function createInitialSituation(): Situation {
 }
 
 export function createInitialOtherAnswers(): OtherAnswers {
-  return { area: "", nationality: "", visitPurpose: "", family: "" };
+  return { area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" };
 }
 
 
@@ -127,11 +129,11 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value)) return { status: "corrupt" };
 
-    if (typeof value.version === "number" && Number.isInteger(value.version) && value.version > 4) {
+    if (typeof value.version === "number" && Number.isInteger(value.version) && value.version > 5) {
       return { status: "unsupported", version: value.version };
     }
 
-    if (value.version === 4 && isSituation(value.situation) && isOtherAnswers(value.otherAnswers)) {
+    if (value.version === 5 && isSituation(value.situation) && isOtherAnswers(value.otherAnswers)) {
       if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
@@ -140,7 +142,7 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 4,
+          version: 5,
           provenance: value.provenance,
           situation,
           stayAnswer: value.stayAnswer as StayAnswer,
@@ -148,6 +150,28 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
           answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, value.familyAnswers, value.otherAnswers, value.answeredSteps),
           otherAnswers: value.otherAnswers,
           aiRecommendation: parseAiRecommendation(value.aiRecommendation, situation, value.otherAnswers),
+        },
+      };
+    }
+
+    if (value.version === 4 && isSituation(value.situation) && isLegacyOtherAnswers(value.otherAnswers)) {
+      if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
+      const situation = normalizeLegacySituation(value.situation);
+      const otherAnswers = { ...value.otherAnswers, accommodation: "", needs: "" };
+      return {
+        status: "valid",
+        session: {
+          version: 5,
+          provenance: value.provenance,
+          situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: value.familyAnswers,
+          answeredSteps: normalizeAnsweredSteps(situation, value.stayAnswer as StayAnswer, value.familyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: parseAiRecommendation(value.aiRecommendation, situation, otherAnswers),
         },
       };
     }
@@ -162,7 +186,7 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 4,
+          version: 5,
           provenance: value.provenance,
           situation,
           stayAnswer: value.stayAnswer as StayAnswer,
@@ -186,7 +210,7 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 4,
+          version: 5,
           provenance: "demo",
           situation,
           stayAnswer: value.stayAnswer as StayAnswer,
@@ -208,7 +232,7 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 4,
+          version: 5,
           provenance: "demo",
           situation,
           stayAnswer: value.stayAnswer as StayAnswer,
@@ -230,7 +254,7 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 4,
+          version: 5,
           provenance: "demo",
           situation,
           stayAnswer,
@@ -259,7 +283,7 @@ export function serializeStoredSession(
   },
 ): string {
   return JSON.stringify({
-    version: 4,
+    version: 5,
     ...session,
     otherAnswers: session.otherAnswers ?? createInitialOtherAnswers(),
     aiRecommendation: session.aiRecommendation ?? null,
@@ -305,6 +329,16 @@ function isFamilyAnswers(value: unknown): value is FamilyAnswers {
 }
 
 function isOtherAnswers(value: unknown): value is OtherAnswers {
+  if (!isRecord(value) || Object.keys(value).length !== 6) return false;
+  return isFreeText(value.area, 100)
+    && isFreeText(value.nationality, 100)
+    && isFreeText(value.visitPurpose, 300)
+    && isFreeText(value.family, 100)
+    && isFreeText(value.accommodation, 100)
+    && isFreeText(value.needs, 100);
+}
+
+function isLegacyOtherAnswers(value: unknown): value is Omit<OtherAnswers, "accommodation" | "needs"> {
   if (!isRecord(value) || Object.keys(value).length !== 4) return false;
   return isFreeText(value.area, 100)
     && isFreeText(value.nationality, 100)
@@ -351,7 +385,9 @@ function normalizeAnsweredSteps(
   if (!(assessmentOptionCodes.stayAnswer as readonly string[]).includes(selectedStayAnswer)) incomplete.add(5);
   if (selectedFamilyAnswers.includes("other") && !otherAnswers.family.trim()) incomplete.add(6);
   if (!(assessmentOptionCodes.accommodation as readonly string[]).includes(situation.accommodation)) incomplete.add(7);
+  if (situation.accommodation === "other" && !otherAnswers.accommodation.trim()) incomplete.add(7);
   if (situation.needs.some((need) => !(assessmentOptionCodes.needs as readonly string[]).includes(need))) incomplete.add(8);
+  if (situation.needs.includes("other") && !otherAnswers.needs.trim()) incomplete.add(8);
   return incomplete.size ? answeredSteps.filter((step) => !incomplete.has(step)) : answeredSteps;
 }
 
