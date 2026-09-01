@@ -43,7 +43,7 @@ describe("saved Situation deletion recovery", () => {
     await user.type(screen.getByLabelText("削除コード"), credentials.deletionToken);
     await user.click(screen.getByRole("button", { name: "このサーバー記録を削除" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("サーバー記録を削除しました。");
+    expect((await screen.findByRole("status")).textContent).toContain("サーバー記録を削除しました。");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [requestUrl, requestInit] = fetchMock.mock.calls[0];
     expect(String(requestUrl)).toBe(`/api/situation-submissions/${credentials.id}`);
@@ -64,7 +64,7 @@ describe("saved Situation deletion recovery", () => {
     await user.type(screen.getByLabelText("削除コード"), "too-short");
     await user.click(screen.getByRole("button", { name: "このサーバー記録を削除" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("形式を確認してください");
+    expect((await screen.findByRole("alert")).textContent).toContain("形式を確認してください");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -82,7 +82,7 @@ describe("saved Situation deletion recovery", () => {
     await user.type(tokenInput, credentials.deletionToken);
     await user.click(screen.getByRole("button", { name: "Delete this server record" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not delete");
+    expect((await screen.findByRole("alert")).textContent).toContain("could not delete");
     expect(recordInput.value).toBe(credentials.id);
     expect(tokenInput.value).toBe(credentials.deletionToken);
   });
