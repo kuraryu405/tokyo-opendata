@@ -66,6 +66,7 @@ import {
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
 import { formatAssessmentDateForLocale, getTokyoAssessmentDate } from "../assessment-date";
+import { municipalityAppRoute } from "../municipality-url";
 import {
   PENDING_SITUATION_SUBMISSION_KEY,
   SAVED_SITUATION_CREDENTIALS_KEY,
@@ -837,7 +838,7 @@ function TokyoAerialVideo() {
   </video>;
 }
 
-function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionLabel, onAction, navigation }: {
+function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionLabel, onAction, navigation, showMunicipalityLink = false }: {
   locale: Locale;
   switchLocale: (locale: Locale) => void;
   disabled: boolean;
@@ -845,6 +846,7 @@ function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionL
   actionLabel?: string;
   onAction?: () => void;
   navigation?: { screen: Screen; go: (screen: Screen, query?: StayBridgeQuery) => void; showStepsNav: boolean };
+  showMunicipalityLink?: boolean;
 }) {
   const t = getUserMessages(locale).ui;
   return <header className="velorah-nav">
@@ -858,6 +860,7 @@ function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionL
       <button className={navigation.screen === "help" ? "active" : ""} onClick={() => navigation.go("help")}>{t.navHelp}</button>
     </nav>}
     <div className="velorah-nav-right">
+      {showMunicipalityLink && <a className="velorah-public-link liquid-glass" href={municipalityAppRoute}>{t.sectionPublicTeams}</a>}
       <div className="velorah-language-select liquid-glass">
         <LanguageSelect locale={locale} switchLocale={switchLocale} />
       </div>
@@ -894,7 +897,7 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo }: {
         <TokyoAerialVideo />
 
         {/* Navigation floating over video */}
-        <CinematicHeader locale={locale} switchLocale={switchLocale} disabled={disabled || isExiting} onBrandClick={startWithTransition} actionLabel={t.start} onAction={startWithTransition} />
+        <CinematicHeader locale={locale} switchLocale={switchLocale} disabled={disabled || isExiting} onBrandClick={startWithTransition} actionLabel={t.start} onAction={startWithTransition} showMunicipalityLink />
 
         {/* Centered hero content */}
         <div className={`velorah-hero-main${isExiting ? " is-exiting" : ""}`} id="top">
