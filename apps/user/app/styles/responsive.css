@@ -1,0 +1,78 @@
+@media (min-width: 768px) {
+  .velorah-nav { padding-inline: 32px; }
+}
+
+@media (min-width: 768px) {
+  .velorah-brand { font-size: 31px; }
+}
+
+@media (min-width: 900px) { .velorah-nav-right { margin-left: 0; } }
+
+@media (min-width: 768px) { .velorah-nav-cta { display: inline-flex; } }
+
+@media (min-width: 1080px) { .velorah-public-link { display: inline-flex; } }
+
+@media (max-width: 390px) {
+  .velorah-nav { padding: 16px 12px; gap: 8px; }
+  .velorah-brand { gap: 7px; font-size: 22px; }
+  .velorah-brand-mark { width: 28px; height: 28px; }
+  .velorah-language-select .language-select-trigger { min-width: 96px; padding-inline: 10px; }
+}
+
+@media (max-width: 767px) {
+  .cinematic-shell > .velorah-nav { flex-wrap: wrap; }
+  .cinematic-shell .cinematic-primary-nav {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: center;
+    margin: 0;
+  }
+  .cinematic-shell .cinematic-primary-nav button {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 7px;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (min-width: 640px) { .velorah-headline { font-size: 4.2rem; } }
+
+@media (min-width: 768px) { .velorah-headline { font-size: 5.8rem; } }
+
+@media (min-width: 1100px) { .velorah-headline { font-size: 7.2rem; } }
+
+@media (min-width: 1440px) { .velorah-headline { font-size: 8rem; } }
+
+@media (min-width: 640px) { .velorah-lede { font-size: 17px; } }
+
+@media (min-width: 768px) { .velorah-cta { padding: 18px 56px; margin-top: 48px; } }
+
+@media (min-width: 768px) { .velorah-below { padding: 72px 32px 72px; } }
+
+@media (max-width: 900px) {
+  .app-shell { padding-bottom: calc(62px + var(--safe-area-inset-bottom)); }.site-header { gap: 12px; height: 66px; padding: 0 18px; background: var(--paper); backdrop-filter: none; }.site-header nav { position: fixed; inset: auto 0 0; z-index: 50; display: grid; grid-template-columns: repeat(3, 1fr); height: calc(62px + var(--safe-area-inset-bottom)); min-height: calc(62px + var(--safe-area-inset-bottom)); margin: 0; padding: 0 max(8px, env(safe-area-inset-right)) var(--safe-area-inset-bottom) max(8px, env(safe-area-inset-left)); background: rgba(255,255,255,.98); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(24,59,69,.08); }.site-header nav button { min-width: 0; min-height: 48px; align-self: stretch; padding: 0 8px; font-size: 12px; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }.site-header nav button.active::after { top: 0; bottom: auto; }.language-select { margin-left: auto; }
+  .hero { min-height: auto; grid-template-columns: 1fr; padding-top: 58px; gap: 46px; }.roadmap-preview { max-width: 580px; width: 100%; }.hero::before { display: none; }
+  .roadmap-layout, .handoff-grid { grid-template-columns: 1fr; }.roadmap-aside, .prepare-card { position: static; grid-template-columns: repeat(2, 1fr); }.prepare-card { display: block; }
+  .resource-grid { grid-template-columns: 1fr; }.crisis-intro { grid-template-columns: 1fr; }.impact-grid { grid-template-columns: 1fr; }.gap-grid { grid-template-columns: repeat(2, 1fr); }.feedback-loop { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .brand-name { display: none; }.brand-home-label { display: inline; }.site-header { position: sticky; }.site-header .brand-mark { width: 32px; height: 32px; }.language-select-trigger { min-width: 104px; max-width: 132px; }
+  .hero { padding: 46px 20px 66px; }.hero h1 { font-size: 42px; }.lede { font-size: 15px; }.hero-actions { display: grid; }.hero-actions button { width: 100%; }.trust-row { display: grid; gap: 8px; }.roadmap-preview { padding: 20px 18px; }.timeline-line { left: 31px; }
+  .principles { padding: 60px 20px; }.principle-grid { grid-template-columns: 1fr; }.principle-grid article { min-height: 160px; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.14); }.principle-grid h3 { margin-top: 20px; }
+  .check-page { padding: 32px 14px 60px; }.question-card { padding: 28px 20px; }.option-grid { grid-template-columns: 1fr; }.question-actions button { flex: 1; padding: 0 13px; gap: 9px; }
+  .content-page, .summary-page, .crisis-main { padding: 48px 16px 70px; }.page-heading h1 { font-size: 38px; }.action-card { grid-template-columns: 40px 1fr; }.action-content { padding: 20px 17px; }.action-footer { align-items: start; flex-direction: column; }.roadmap-aside { grid-template-columns: 1fr; }.resource-card { grid-template-columns: 42px 1fr; padding: 18px 14px; gap: 12px; }.resource-icon { width: 40px; height: 40px; }.resource-main dl div { grid-template-columns: 1fr; }.site-footer { align-items: flex-start; gap: 20px; }.site-footer p { display: none; }
+  .handoff-grid { gap: 18px; }.support-card { grid-template-columns: 32px 1fr; padding: 20px 16px; }.support-chat-heading { padding: 20px 18px 14px; }.support-chat-panel { padding: 0 18px 20px; }.summary-toolbar { flex-wrap: wrap; }.summary-toolbar > span { width: 100%; margin: 0; }.summary-sheet > section { grid-template-columns: 30px 1fr; gap: 10px; }.summary-sheet header time { display: none; }
+  .crisis-header .admin-label { border: 0; padding: 0; }.crisis-header .admin-label { font-size: 0; }.crisis-header .admin-label span { display: block; }.back-to-service { font-size: 12px; }.coverage-banner { grid-template-columns: 22px 1fr; }.coverage-banner a { grid-column: 2; }.crisis-section-title { grid-template-columns: 30px 1fr; }.crisis-section-title > p { grid-column: 2; text-align: left; }.resource-counts { grid-template-columns: repeat(2, 1fr); }.gap-grid { grid-template-columns: 1fr; }.checklist-grid { grid-template-columns: 1fr; }.dataset-details ul { grid-template-columns: 1fr; }.feedback-loop { padding: 25px 18px; }.loop-flow { grid-template-columns: repeat(2, 1fr); }.loop-flow b { display: none; }.crisis-footer { display: grid; gap: 7px; }
+}
+
+@media (max-width: 240px) {
+  .site-header nav button { padding-inline: 3px; font-size: 11px; line-height: 1.1; }
+  .cinematic-shell .velorah-brand > span:last-child { display: none; }
+  .cinematic-shell .velorah-language-select .language-select-trigger { min-width: 82px; }
+}
+
+@media (max-width: 900px) { .app-shell:not(.nav-visible) { padding-bottom: 0; } }

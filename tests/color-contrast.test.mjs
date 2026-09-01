@@ -4,7 +4,13 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 const sharedCss = await readFile(new URL("packages/ui/styles.css", root), "utf8");
-const userCss = await readFile(new URL("apps/user/app/globals.css", root), "utf8");
+const userCssEntryUrl = new URL("apps/user/app/globals.css", root);
+const userCssEntry = await readFile(userCssEntryUrl, "utf8");
+const userCssImports = [...userCssEntry.matchAll(/@import ["'](\.\/styles\/[^"']+)["'];/gu)];
+const userCss = [
+  userCssEntry,
+  ...await Promise.all(userCssImports.map((match) => readFile(new URL(match[1], userCssEntryUrl), "utf8"))),
+].join("\n");
 const municipalityCss = await readFile(new URL("apps/municipality/app/globals.css", root), "utf8");
 
 function luminance(hex) {

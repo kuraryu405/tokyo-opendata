@@ -2,6 +2,27 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
+const userStyleImports = [
+  "./styles/base.css",
+  "./styles/landing.css",
+  "./styles/screens.css",
+  "./styles/crisis.css",
+  "./styles/responsive.css",
+  "./styles/print.css",
+  "./styles/overrides.css",
+  "./styles/motion.css",
+];
+
+async function readUserStylesheetGraph() {
+  const entryUrl = new URL("../app/globals.css", import.meta.url);
+  const entrySource = await readFile(entryUrl, "utf8");
+  const localImports = [...entrySource.matchAll(/@import ["'](\.\/styles\/[^"']+)["'];/gu)];
+  const importedSources = await Promise.all(
+    localImports.map((match) => readFile(new URL(match[1], entryUrl), "utf8")),
+  );
+  return [entrySource, ...importedSources].join("\n");
+}
+
 async function loadBuiltWorker(key) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${key}`);
@@ -370,8 +391,18 @@ test("removes disposable starter assets and keeps site metadata", async () => {
   await access(new URL("../public/og.png", import.meta.url));
 });
 
+test("loads split user styles in the preserved cascade order", async () => {
+  const entryUrl = new URL("../app/globals.css", import.meta.url);
+  const entrySource = await readFile(entryUrl, "utf8");
+  const localImports = [...entrySource.matchAll(/@import ["'](\.\/styles\/[^"']+)["'];/gu)]
+    .map((match) => match[1]);
+
+  assert.deepEqual(localImports, userStyleImports);
+  await Promise.all(localImports.map((path) => access(new URL(path, entryUrl))));
+});
+
 test("keeps mobile navigation viewport-fixed outside the filtered header context", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const css = await readUserStylesheetGraph();
 
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header \{[^}]*background: var\(--paper\);[^}]*backdrop-filter: none;/);
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*?\.site-header nav \{[^}]*position: fixed;[^}]*inset: auto 0 0;/);
@@ -386,7 +417,7 @@ test("keeps mobile navigation viewport-fixed outside the filtered header context
 });
 
 test("keeps the cinematic custom language listbox unclipped and glass styled", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const css = await readUserStylesheetGraph();
 
   assert.match(css, /\.velorah-language-select\.liquid-glass \{[^}]*overflow: visible;/);
   assert.match(css, /\.velorah-language-select \.language-select-menu \{[^}]*overflow: hidden;[^}]*background:[^}]*rgba\(9,25,32,\.78\);[^}]*backdrop-filter: blur\(22px\)/);

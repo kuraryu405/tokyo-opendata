@@ -1,0 +1,4 @@
+@media print {
+  .site-header, .site-footer, .page-heading, .summary-toolbar { display: none !important; }
+  body, .app-shell { background: white; }.summary-page { padding: 0; }.summary-sheet { box-shadow: none; border: 0; }
+}
