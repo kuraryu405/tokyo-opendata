@@ -308,6 +308,9 @@ importers:
       '@staybridge/data':
         specifier: workspace:*
         version: link:../data
+      '@staybridge/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260825.1

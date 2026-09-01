@@ -12,7 +12,8 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@staybridge/data": "workspace:*"
+    "@staybridge/data": "workspace:*",
+    "@staybridge/domain": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260825.1",
