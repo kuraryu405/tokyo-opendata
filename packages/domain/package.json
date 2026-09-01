@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
+    "./assessment-options": "./src/assessment-options.ts",
     "./action-catalog": "./src/action-catalog.ts",
     "./ai-actions": "./src/ai-actions.ts",
     "./selection-coverage": "./src/selection-coverage.ts",
@@ -16,8 +17,8 @@
     "lint": "oxlint --config ../../.oxlintrc.json --deny-warnings"
   },
   "devDependencies": {
-    "oxlint": "^1.79.0",
-    "typescript": "5.9.3",
+    "oxlint": "^1.80.0",
+    "typescript": "7.0.2",
     "vitest": "^4.1.11"
   },
   "type": "module"

@@ -19,7 +19,7 @@ Q3の自由記述はRule Engine入力にせず、固定ルール評価後にだ�
 - `mergeAiRecommendedActions` はRule Engine結果を先にMapへ入れる。同じAction IDは既存のRule ID、priority、reason、answer codeを保持し、AIは削除・置換・並べ替えない。
 - AIだけが追加するカードは、評価日時点で公開可能なAction Catalog entryに限り、`selectionSource=ai`、priority 55、`ruleId=null`として区別する。
 - AIなし、timeout、rate limit、不正応答、通信失敗、Q3編集、戻る操作後のlate responseは追加0件として扱い、固定ルール結果だけを表示する。
-- Q1、Q2、Q7の自由記述は分類routeへ送らない。全自由記述は回答要約だけに使い、Rule条件へ推測変換しない。
+- Q2、Q7の自由記述は分類routeへ送らない。全自由記述は回答要約だけに使い、Rule条件へ推測変換しない。
 
 ## Production rule table
 
@@ -60,18 +60,18 @@ Q3の自由記述はRule Engine入力にせず、固定ルール評価後にだ�
 
 |質問|回答コード|扱い|理由|
 |---|---|---|---|
-|地域|`Kita`, `Shinjuku`, `Toshima`, `Other`|地域資源filterのみ|カード種類・priorityは変えず、選定後のOpen Data絞り込みだけに使う。|
-|国籍・地域|`MMR`, `OTHER`, `UNKNOWN`|カード選定に不使用|センシティブ属性のため。相談サマリー表示だけに使い、国籍別の在留・危険判断をしない。|
+|地域|東京23区のコード（`Chiyoda`〜`Edogawa`）|地域資源filterのみ|カード種類・priorityは変えず、選定後のOpen Data絞り込みだけに使う。Q1に「その他」は表示しない。|
+|国籍・地域|ISO 3166-1 alpha-2 249コード、`OTHER`|カード選定に不使用|センシティブ属性のため。相談サマリー表示だけに使い、国籍別の在留・危険判断をしない。|
 |来日目的|`tourism`, `visiting_family_or_friends`|使用|帰国困難時だけ短期訪問branchの優先度へ使う。公式在留資格とは扱わない。|
 |来日目的|`work`, `study`, `resident`, `other`, `unknown`|使用|帰国困難時だけ非短期branchへ使う。`unknown`から制度を推測しない。|
 |出国予定|`within_7_days`, `within_30_days`|使用|短期目的かつ帰国困難時だけpriority 100。|
-|出国予定|`within_3_months`, `no_departure_plan`, `unknown`|使用|同条件でlater branch。それ以外は単独でカードを出さない。|
+|出国予定|`within_3_months`, `after_3_months`, `no_departure_plan`|使用|同条件でlater branch。それ以外は単独でカードを出さない。|
 |帰国状況|`possible`|明示的no-card|単独では危機カードを出さず、別の困りごとは評価する。|
 |帰国状況|`difficult`|使用|目的・出国予定・宿泊・子の年齢と組み合わせてCHECK/CONSULTを出す。|
 |帰国状況|`unknown`|安全fallback|公式相談カードだけを出す。|
 |滞在期限の認識|`known`|使用|有効日付があれば過去/当日/将来。日付なし・不正日付は単独no-card。|
 |滞在期限の認識|`unknown`|安全fallback|公式相談カード。|
-|滞在期限の認識|`documents`|安全fallback|書類確認を公式相談へ接続。|
+|滞在期限の認識|`documents`|legacy-only fallback|既存保存データの安全な解釈だけに残し、Q6の選択肢には表示しない。|
 |同行家族|`none`|明示的no-card|家族カードを推測しない。|
 |同行家族|`children`|使用|年齢入力がある場合だけ教育・子育て境界を評価。|
 |同行家族|`spouse`, `other`|サマリーのみ|対応する安全な本番カードがないため。|
@@ -80,9 +80,10 @@ Q3の自由記述はRule Engine入力にせず、固定ルール評価後にだ�
 |子の年齢|`18+`|明示的no-card|成人を子ども向けルールへ含めない。|
 |宿泊|`hotel`|使用|帰国困難との組合せで一時滞在相談。|
 |宿泊|`unstable`|使用|帰国困難との組合せでより高いpriorityの滞在相談。|
-|宿泊|`family_or_friend`, `rental`, `temporary_facility`|単独no-card|宿泊リスクを推測しない。`needs=accommodation` は別評価。|
-|宿泊|`prefer_not_to_say`|privacy no-card|回答内容を補完しない。`needs=accommodation` は別評価。|
+|宿泊|`family_or_friend`, `rental`, `temporary_facility`, `other`|単独no-card|宿泊リスクを推測しない。`needs=accommodation` は別評価。|
+|宿泊|`unstable`, `prefer_not_to_say`|legacy-only|既存保存データの安全な解釈だけに残し、Q8の選択肢には表示しない。|
 |困りごと|`stay`, `consultation`, `accommodation`|使用|それぞれCHECK、公式相談、一時滞在相談へ接続。|
+|困りごと|`other`|明示的no-card|相談サマリーへ表示するが、内容を推測してカードへ変換しない。|
 |困りごと|`living_cost`|使用|生活費相談と、求職前の就労可否確認を表示。給付・就労可否は決めない。|
 |困りごと|`employment`|使用|就労可否の公式確認だけ。求人や許可判断はしない。|
 |困りごと|`education`|条件付き使用|学齢児がいる場合だけ。|

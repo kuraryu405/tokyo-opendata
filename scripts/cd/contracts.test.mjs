@@ -162,7 +162,7 @@ test("selects uploaded and rollback versions deterministically", () => {
   assert.equal(revisionForVersion(versions, "missing"), "");
 });
 
-test("stages both apps and promotes only affected apps after external acceptance", async () => {
+test("stages and promotes both apps as one accepted release pair", async () => {
   const release = await readFile(".github/workflows/release.yml", "utf8");
   const stageCondition = /needs\.detect\.outputs\.user == 'true' \|\| needs\.detect\.outputs\.municipality == 'true'/;
   assert.match(workflowJob(release, "stage-user"), stageCondition);
@@ -175,10 +175,12 @@ test("stages both apps and promotes only affected apps after external acceptance
   assert.doesNotMatch(acceptance, /production_verification_url/);
 
   const promoteUser = workflowJob(release, "promote-user");
-  assert.match(promoteUser, /needs\.detect\.outputs\.user == 'true' && needs\.external-e2e\.result == 'success'/);
+  assert.match(promoteUser, stageCondition);
+  assert.match(promoteUser, /needs\.external-e2e\.result == 'success'/);
   assert.match(promoteUser, /phase: production/);
   const promoteMunicipality = workflowJob(release, "promote-municipality");
-  assert.match(promoteMunicipality, /needs\.detect\.outputs\.municipality == 'true' && needs\.external-e2e\.result == 'success'/);
+  assert.match(promoteMunicipality, stageCondition);
+  assert.match(promoteMunicipality, /needs\.external-e2e\.result == 'success'/);
   assert.match(promoteMunicipality, /phase: production/);
 });
 
@@ -193,6 +195,8 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     ".github/workflows/deploy-worker.yml",
     "utf8",
   );
+  const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+  const wranglerVersion = packageJson.devDependencies.wrangler;
 
   for (const command of [
     "pnpm install --frozen-lockfile",
@@ -258,7 +262,12 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   );
   assert.match(deploy, /d1_identity:\n    needs: configuration/);
   assert.match(deploy, /build:\n    if: \$\{\{ inputs\.phase == 'staging' \}\}\n    needs: \[configuration, d1_identity\]/);
-  assert.match(deploy, /wrangler@4\.92\.0 d1 list --json/);
+  assert.match(
+    deploy,
+    new RegExp(`WRANGLER_VERSION: "${wranglerVersion.replaceAll(".", "\\.")}"`),
+  );
+  assert.doesNotMatch(deploy, /pnpm dlx wrangler@\d/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} d1 list --json/);
   assert.match(deploy, /node scripts\/cd\/validate-d1-inventory\.mjs/);
   assert.match(deploy, /staging:\n    if: \$\{\{ inputs\.phase == 'staging' \}\}\n    needs: \[configuration, build\]/);
   assert.match(deploy, /production:\n    if: \$\{\{ inputs\.phase == 'production' \}\}\n    needs: \[configuration, d1_identity\]/);
@@ -267,8 +276,8 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     deploy.match(/name: \$\{\{ needs\.configuration\.outputs\.environment \}\}/g)?.length,
     2,
   );
-  assert.match(deploy, /wrangler@4\.92\.0 versions upload/);
-  assert.match(deploy, /wrangler@4\.92\.0 versions deploy/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} versions upload/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} versions deploy/);
   assert.match(deploy, /node scripts\/cd\/configure-d1\.mjs/);
   assert.equal(
     deploy.match(/node scripts\/cd\/configure-ai-binding\.mjs/g)?.length,
@@ -278,7 +287,7 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     deploy.match(/node scripts\/cd\/configure-rate-limits\.mjs/g)?.length,
     2,
   );
-  assert.match(deploy, /wrangler@4\.92\.0 rollback/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} rollback/);
   assert.match(deploy, /steps\.production_smoke\.outcome == 'failure'/);
   assert.match(deploy, /steps\.previous\.outputs\.version_id/);
   assert.match(deploy, /Automatic production promotion requires an existing rollback version/);

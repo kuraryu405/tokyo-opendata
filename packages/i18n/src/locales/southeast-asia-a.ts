@@ -73,7 +73,7 @@ export const viMessages = {
     KNOWN_STAY_DEADLINE: "Hướng dẫn này được hiển thị vì bạn đã nhập hạn lưu trú, để bạn có thể xác nhận với cơ quan chính thức trước ngày đó.",
     STAY_DEADLINE_PASSED: "Hướng dẫn liên hệ ngay với cơ quan chính thức được hiển thị vì hạn lưu trú bạn đã nhập đã qua.",
   },
-  needs: { none: "Không có mục nào", stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày" },
+  needs: { none: "Không có mục nào", stay: "Tôi có thể ở Nhật Bản thêm bao lâu", consultation: "Thủ tục cần làm và nơi tư vấn", accommodation: "Chỗ ở và đời sống trước mắt", living_cost: "Tư vấn về chi phí sinh hoạt", employment: "Điều kiện được làm việc", education: "Giáo dục cho trẻ", childcare: "Đời sống của trẻ", medical: "Nơi nhận chăm sóc y tế", language: "Hỗ trợ ngôn ngữ", daily_life: "Đời sống hằng ngày", other: "Khác" },
 } as const satisfies UserMessages;
 
 export const thMessages = {
@@ -149,5 +149,5 @@ export const thMessages = {
     KNOWN_STAY_DEADLINE: "แสดงคำแนะนำนี้เพราะคุณป้อนกำหนดการพำนัก เพื่อให้คุณยืนยันกับหน่วยงานทางการก่อนวันดังกล่าว.",
     STAY_DEADLINE_PASSED: "แสดงคำแนะนำให้ติดต่อหน่วยงานทางการทันที เพราะกำหนดการพำนักที่คุณป้อนได้ผ่านไปแล้ว.",
   },
-  needs: { none: "ไม่มี", stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน" },
+  needs: { none: "ไม่มี", stay: "ฉันสามารถอยู่ในญี่ปุ่นได้อีกนานเท่าใด", consultation: "ขั้นตอนที่ต้องทำและจุดปรึกษา", accommodation: "ที่พักและการใช้ชีวิตระยะนี้", living_cost: "ปรึกษาเรื่องค่าใช้จ่ายในการดำรงชีวิต", employment: "เงื่อนไขการทำงาน", education: "การศึกษาของเด็ก", childcare: "ชีวิตประจำวันของเด็ก", medical: "สถานที่รับการรักษาพยาบาล", language: "การสนับสนุนด้านภาษา", daily_life: "ชีวิตประจำวัน", other: "อื่น ๆ" },
 } as const satisfies UserMessages;

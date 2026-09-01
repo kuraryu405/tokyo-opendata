@@ -73,7 +73,7 @@ export const filMessages = {
     KNOWN_STAY_DEADLINE: "Ipinapakita ito upang makakumpirma ka sa opisyal na tanggapan bago ang petsa ng pananatili na inilagay mo.",
     STAY_DEADLINE_PASSED: "Ipinapakita ito dahil lumipas na ang huling araw ng pananatili na inilagay mo; kumpirmahin agad ang sitwasyon sa opisyal na tanggapan.",
   },
-  needs: { none: "Wala sa mga ito", stay: "Hanggang kailan ako maaaring manatili sa Japan", consultation: "Mga kinakailangang hakbang at tanggapan ng konsultasyon", accommodation: "Pansamantalang tuluyan at pamumuhay", living_cost: "Konsultasyon tungkol sa gastos sa pamumuhay", employment: "Mga kondisyon sa pagtatrabaho", education: "Edukasyon ng bata", childcare: "Araw-araw na buhay ng bata", medical: "Saan makakakuha ng pangangalagang medikal", language: "Suporta sa wika", daily_life: "Araw-araw na pamumuhay" },
+  needs: { none: "Wala sa mga ito", stay: "Hanggang kailan ako maaaring manatili sa Japan", consultation: "Mga kinakailangang hakbang at tanggapan ng konsultasyon", accommodation: "Pansamantalang tuluyan at pamumuhay", living_cost: "Konsultasyon tungkol sa gastos sa pamumuhay", employment: "Mga kondisyon sa pagtatrabaho", education: "Edukasyon ng bata", childcare: "Araw-araw na buhay ng bata", medical: "Saan makakakuha ng pangangalagang medikal", language: "Suporta sa wika", daily_life: "Araw-araw na pamumuhay", other: "Iba pa" },
 } as const satisfies UserMessages;
 
 export const idMessages = {
@@ -149,5 +149,5 @@ export const idMessages = {
     KNOWN_STAY_DEADLINE: "Ditampilkan agar Anda dapat memperoleh konfirmasi resmi sebelum tanggal masa tinggal yang dimasukkan.",
     STAY_DEADLINE_PASSED: "Ditampilkan karena batas masa tinggal yang dimasukkan telah berlalu; segera konfirmasikan situasi kepada kantor resmi.",
   },
-  needs: { none: "Tidak ada", stay: "Sampai kapan saya dapat tinggal di Jepang", consultation: "Prosedur yang diperlukan dan tempat konsultasi", accommodation: "Penginapan dan kehidupan sementara", living_cost: "Konsultasi tentang biaya hidup", employment: "Syarat untuk bekerja", education: "Pendidikan anak", childcare: "Kehidupan sehari-hari anak", medical: "Tempat menerima perawatan medis", language: "Dukungan bahasa", daily_life: "Kehidupan sehari-hari" },
+  needs: { none: "Tidak ada", stay: "Sampai kapan saya dapat tinggal di Jepang", consultation: "Prosedur yang diperlukan dan tempat konsultasi", accommodation: "Penginapan dan kehidupan sementara", living_cost: "Konsultasi tentang biaya hidup", employment: "Syarat untuk bekerja", education: "Pendidikan anak", childcare: "Kehidupan sehari-hari anak", medical: "Tempat menerima perawatan medis", language: "Dukungan bahasa", daily_life: "Kehidupan sehari-hari", other: "Lainnya" },
 } as const satisfies UserMessages;

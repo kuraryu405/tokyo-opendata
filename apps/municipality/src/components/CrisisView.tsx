@@ -51,9 +51,9 @@ const viewLabels = {
 } as const;
 const categoryLabels: Record<string, string> = {
   stay: "在留・滞在", consultation: "相談", accommodation: "宿泊先", living_cost: "生活費",
-  employment: "就労", education: "教育", childcare: "子ども", medical: "医療", language: "言語", daily_life: "日常生活",
+  employment: "就労", education: "教育", childcare: "子ども", medical: "医療", language: "言語", daily_life: "日常生活", other: "その他",
   possible: "可能", difficult: "難しい", unknown: "不明",
-  within_7_days: "7日以内", within_30_days: "30日以内", within_3_months: "3か月以内", no_departure_plan: "予定なし",
+  within_7_days: "7日以内", within_30_days: "30日以内", within_3_months: "3か月以内", after_3_months: "3か月以降", no_departure_plan: "予定なし",
   hotel: "ホテル", family_or_friend: "家族・知人宅", rental: "賃貸", temporary_facility: "一時施設", unstable: "不安定", prefer_not_to_say: "回答しない",
 };
 

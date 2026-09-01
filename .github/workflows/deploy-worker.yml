@@ -58,6 +58,9 @@ concurrency:
   group: worker-release-${{ inputs.service }}-${{ inputs.phase }}
   cancel-in-progress: false
 
+env:
+  WRANGLER_VERSION: "4.125.0"
+
 jobs:
   configuration:
     runs-on: ubuntu-latest
@@ -191,7 +194,7 @@ jobs:
             echo "Cloudflare deployment secrets are not configured." >&2
             exit 1
           }
-          pnpm dlx wrangler@4.92.0 d1 list --json > d1-inventory.json
+          pnpm dlx wrangler@${WRANGLER_VERSION} d1 list --json > d1-inventory.json
           node scripts/cd/validate-d1-inventory.mjs \
             d1-inventory.json "$STAGING_DATABASE_ID" "$PRODUCTION_DATABASE_ID"
 
@@ -301,18 +304,18 @@ jobs:
             exit 1
           }
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
-          pnpm dlx wrangler@4.92.0 versions upload \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions upload \
             --config "$config" --name "$WORKER_NAME" --tag "$REVISION" \
             --message "${SERVICE} staging ${REVISION}" \
             --var "APP_REVISION:${REVISION}" \
             --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
-          pnpm dlx wrangler@4.92.0 versions list \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions list \
             --config "$config" --name "$WORKER_NAME" --json > staging-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded staging-versions.json "$REVISION")
-          pnpm dlx wrangler@4.92.0 versions deploy "${version_id}@100%" \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions deploy "${version_id}@100%" \
             --config "$config" --name "$WORKER_NAME" \
             --message "${SERVICE} staging ${REVISION}" --yes
-          pnpm dlx wrangler@4.92.0 triggers deploy --config "$config" --name "$WORKER_NAME"
+          pnpm dlx wrangler@${WRANGLER_VERSION} triggers deploy --config "$config" --name "$WORKER_NAME"
       - name: Smoke test staging
         run: node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" "$REVISION"
 
@@ -382,14 +385,14 @@ jobs:
             exit 1
           }
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
-          pnpm dlx wrangler@4.92.0 deployments status \
+          pnpm dlx wrangler@${WRANGLER_VERSION} deployments status \
             --config "$config" --name "$WORKER_NAME" --json > previous-deployment.json
           previous=$(node scripts/cd/wrangler-state.mjs current previous-deployment.json)
           [[ -n "$previous" ]] || {
             echo "Automatic production promotion requires an existing rollback version. Bootstrap the first production deployment explicitly after reviewing staging acceptance." >&2
             exit 1
           }
-          pnpm dlx wrangler@4.92.0 versions list \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions list \
             --config "$config" --name "$WORKER_NAME" --json > previous-versions.json
           previous_revision=$(node scripts/cd/wrangler-state.mjs revision previous-versions.json "$previous")
           echo "version_id=$previous" >> "$GITHUB_OUTPUT"
@@ -402,18 +405,18 @@ jobs:
         run: |
           set -euo pipefail
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
-          pnpm dlx wrangler@4.92.0 versions upload \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions upload \
             --config "$config" --name "$WORKER_NAME" --tag "$REVISION" \
             --message "${SERVICE} production ${REVISION}" \
             --var "APP_REVISION:${REVISION}" \
             --var "COUNTERPART_APP_URL:${COUNTERPART_URL}"
-          pnpm dlx wrangler@4.92.0 versions list \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions list \
             --config "$config" --name "$WORKER_NAME" --json > production-versions.json
           version_id=$(node scripts/cd/wrangler-state.mjs uploaded production-versions.json "$REVISION")
-          pnpm dlx wrangler@4.92.0 versions deploy "${version_id}@100%" \
+          pnpm dlx wrangler@${WRANGLER_VERSION} versions deploy "${version_id}@100%" \
             --config "$config" --name "$WORKER_NAME" \
             --message "${SERVICE} production ${REVISION}" --yes
-          pnpm dlx wrangler@4.92.0 triggers deploy --config "$config" --name "$WORKER_NAME"
+          pnpm dlx wrangler@${WRANGLER_VERSION} triggers deploy --config "$config" --name "$WORKER_NAME"
       - name: Smoke test production
         id: production_smoke
         continue-on-error: true
@@ -429,10 +432,10 @@ jobs:
         run: |
           set -euo pipefail
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
-          pnpm dlx wrangler@4.92.0 rollback "$PREVIOUS_VERSION" \
+          pnpm dlx wrangler@${WRANGLER_VERSION} rollback "$PREVIOUS_VERSION" \
             --config "$config" --name "$WORKER_NAME" \
             --message "Automatic rollback after failed health check for ${REVISION}" --yes
-          pnpm dlx wrangler@4.92.0 deployments status \
+          pnpm dlx wrangler@${WRANGLER_VERSION} deployments status \
             --config "$config" --name "$WORKER_NAME" --json > rollback-deployment.json
           node scripts/cd/wrangler-state.mjs assert-active rollback-deployment.json "$PREVIOUS_VERSION"
           if [[ -n "$PREVIOUS_REVISION" ]]; then

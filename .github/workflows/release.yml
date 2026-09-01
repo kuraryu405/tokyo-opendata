@@ -128,7 +128,7 @@ jobs:
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
       needs.stage-user.result == 'success' &&
       needs.stage-municipality.result == 'success'
-    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@a78ac48a824f61f5208b92a2a3858b32fa437c98 # main@a78ac48
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@8f6060e18ea354f43c2a0c51bea7998bef3b7c67 # main@8f6060e
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
       user_url: ${{ needs.detect.outputs.user_staging_verification_url }}
@@ -137,7 +137,7 @@ jobs:
 
   promote-user:
     needs: [detect, external-e2e]
-    if: ${{ needs.detect.outputs.user == 'true' && needs.external-e2e.result == 'success' }}
+    if: ${{ (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') && needs.external-e2e.result == 'success' }}
     uses: ./.github/workflows/deploy-worker.yml
     with:
       service: user
@@ -160,7 +160,7 @@ jobs:
 
   promote-municipality:
     needs: [detect, external-e2e]
-    if: ${{ needs.detect.outputs.municipality == 'true' && needs.external-e2e.result == 'success' }}
+    if: ${{ (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') && needs.external-e2e.result == 'success' }}
     uses: ./.github/workflows/deploy-worker.yml
     with:
       service: municipality

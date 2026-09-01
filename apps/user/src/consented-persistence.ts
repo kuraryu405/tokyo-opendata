@@ -11,9 +11,29 @@ import type {
 import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
 
 const municipalityCodes: Record<string, string> = {
-  Kita: "13117",
+  Chiyoda: "13101",
+  Chuo: "13102",
+  Minato: "13103",
   Shinjuku: "13104",
+  Bunkyo: "13105",
+  Taito: "13106",
+  Sumida: "13107",
+  Koto: "13108",
+  Shinagawa: "13109",
+  Meguro: "13110",
+  Ota: "13111",
+  Setagaya: "13112",
+  Shibuya: "13113",
+  Nakano: "13114",
+  Suginami: "13115",
   Toshima: "13116",
+  Kita: "13117",
+  Arakawa: "13118",
+  Itabashi: "13119",
+  Nerima: "13120",
+  Adachi: "13121",
+  Katsushika: "13122",
+  Edogawa: "13123",
 };
 
 const visitPurposes = new Set<VisitPurpose>([
@@ -29,6 +49,7 @@ const departureWindows = new Set<DepartureWindow>([
   "within_7_days",
   "within_30_days",
   "within_3_months",
+  "after_3_months",
   "no_departure_plan",
   "unknown",
 ]);
@@ -38,6 +59,7 @@ const accommodations = new Set<AccommodationType>([
   "family_or_friend",
   "rental",
   "temporary_facility",
+  "other",
   "unstable",
   "prefer_not_to_say",
 ]);
@@ -52,6 +74,7 @@ const needs = new Set<NeedCategory>([
   "medical",
   "language",
   "daily_life",
+  "other",
 ]);
 const japaneseLevels = new Set<JapaneseLevel>(["none", "beginner", "daily", "advanced"]);
 const ageGroups = new Set<ChildAgeGroup>(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
@@ -189,10 +212,10 @@ export async function saveSituationSubmission(
   submission: PendingSituationSubmission,
   requestSignal?: AbortSignal,
 ): Promise<SavedRecordCredentials> {
-  // The one-time capability is acquired per attempt and never stored with the
-  // versioned pending request.
-  const capability = await issueSituationSubmissionCapability();
   return withSubmissionTimeout(async (signal) => {
+    // The one-time capability is acquired per attempt and never stored with the
+    // versioned pending request. It shares the same deadline as the submission.
+    const capability = await issueSituationSubmissionCapability(signal);
     const response = await fetch("/api/situation-submissions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -209,8 +232,11 @@ export async function saveSituationSubmission(
   }, requestSignal);
 }
 
-async function issueSituationSubmissionCapability(): Promise<string> {
-  const response = await fetch("/api/situation-submission-capabilities", { method: "POST" });
+async function issueSituationSubmissionCapability(signal: AbortSignal): Promise<string> {
+  const response = await fetch("/api/situation-submission-capabilities", {
+    method: "POST",
+    signal,
+  });
   const body = await readSuccessBody(response);
   if (
     typeof body?.capability !== "string"
@@ -245,7 +271,7 @@ export async function deleteSituationSubmission(
  * Covers the complete request lifecycle, including response-body decoding.
  * The optional caller signal lets a component abort work that is no longer
  * needed when it unmounts, while the internal deadline guarantees a finite
- * wait even when either fetch or response.json() never settles.
+ * wait even when fetch or response.json() itself fails to react to abort.
  */
 async function withSubmissionTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
@@ -255,11 +281,26 @@ async function withSubmissionTimeout<T>(
   const abortFromCaller = () => controller.abort();
   if (requestSignal?.aborted) controller.abort();
   else requestSignal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  let removeAbortListener = () => {};
+  const abortPromise = new Promise<never>((_resolve, reject) => {
+    const rejectAbort = () => reject(new DOMException("This operation was aborted", "AbortError"));
+    if (controller.signal.aborted) {
+      rejectAbort();
+      return;
+    }
+    controller.signal.addEventListener("abort", rejectAbort, { once: true });
+    removeAbortListener = () => controller.signal.removeEventListener("abort", rejectAbort);
+  });
+  const operationPromise = Promise.resolve().then(() => operation(controller.signal));
+  operationPromise.catch(() => {});
   const timer = setTimeout(() => controller.abort(), SITUATION_SUBMISSION_TIMEOUT_MS);
+
   try {
-    return await operation(controller.signal);
+    return await Promise.race([operationPromise, abortPromise]);
   } finally {
     clearTimeout(timer);
+    removeAbortListener();
     requestSignal?.removeEventListener("abort", abortFromCaller);
   }
 }

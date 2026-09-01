@@ -7,6 +7,7 @@ import type { Locale } from "./staybridge-session";
 import { saveConversationSubmission, type SavedConversationCredentials } from "../conversation-persistence";
 
 const SUPPORT_CHAT_TIMEOUT_MS = 15_000;
+const SITUATION_SESSION_KEY = "staybridge.session";
 
 const chatCopy = {
   ja: {
@@ -59,16 +60,41 @@ type InMemoryConversation = {
   messages: ChatEntry[];
   input: string;
   nextMessageId: number;
+  situationSessionSnapshot: string | null;
 };
 
 let inMemoryConversation: InMemoryConversation = {
   messages: [],
   input: "",
   nextMessageId: 0,
+  situationSessionSnapshot: null,
 };
 
+function readSituationSessionSnapshot(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(SITUATION_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function restoreConversationForCurrentSituation(): InMemoryConversation {
+  const currentSnapshot = readSituationSessionSnapshot();
+  const hasConversation = inMemoryConversation.messages.length > 0 || Boolean(inMemoryConversation.input);
+  if (hasConversation && inMemoryConversation.situationSessionSnapshot !== currentSnapshot) {
+    clearSupportChatMemory();
+  }
+  return inMemoryConversation;
+}
+
 export function clearSupportChatMemory() {
-  inMemoryConversation = { messages: [], input: "", nextMessageId: 0 };
+  inMemoryConversation = {
+    messages: [],
+    input: "",
+    nextMessageId: 0,
+    situationSessionSnapshot: null,
+  };
 }
 
 class ChatRequestError extends Error {
@@ -89,16 +115,22 @@ const readErrorCode = async (response: Response): Promise<string> => {
 export function SupportChat({ locale, conversationConsent, onConversationSaved, onSaveError }: { locale: Locale; conversationConsent?: "idle" | "accepted" | "declined"; onConversationSaved?: (creds: SavedConversationCredentials) => void; onSaveError?: () => void }) {
   const t = chatCopy[locale];
   const panelId = useId();
-  const nextMessageId = useRef(inMemoryConversation.nextMessageId);
+  const [initialConversation] = useState(restoreConversationForCurrentSituation);
+  const nextMessageId = useRef(initialConversation.nextMessageId);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<ChatEntry[]>(() => [...inMemoryConversation.messages]);
-  const [input, setInput] = useState(() => inMemoryConversation.input);
+  const [messages, setMessages] = useState<ChatEntry[]>(() => [...initialConversation.messages]);
+  const [input, setInput] = useState(() => initialConversation.input);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(() => () => {
+    activeRequest.current?.abort();
+    if (inMemoryConversation.situationSessionSnapshot !== readSituationSessionSnapshot()) {
+      clearSupportChatMemory();
+    }
+  }, []);
 
   useEffect(() => {
     if (pending) return;
@@ -106,6 +138,7 @@ export function SupportChat({ locale, conversationConsent, onConversationSaved, 
       messages,
       input,
       nextMessageId: nextMessageId.current,
+      situationSessionSnapshot: readSituationSessionSnapshot(),
     };
   }, [input, messages, pending]);
 
