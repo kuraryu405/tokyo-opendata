@@ -60,7 +60,7 @@ describe("Situation capability request deadline", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const request = saveSituationSubmission(createPendingSituationSubmission(demoSituation));
-    const rejected = expect(request).rejects.toMatchObject({ name: "AbortError" });
+    void request.catch(() => {});
     await flushRequests();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -70,7 +70,7 @@ describe("Situation capability request deadline", () => {
 
     await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
 
-    await rejected;
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
     expect((signal as AbortSignal).aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -81,7 +81,7 @@ describe("Situation capability request deadline", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const request = saveSituationSubmission(createPendingSituationSubmission(demoSituation));
-    const rejected = expect(request).rejects.toMatchObject({ name: "AbortError" });
+    void request.catch(() => {});
     await flushRequests();
 
     const signal = fetchMock.mock.calls[0][1]?.signal;
@@ -89,7 +89,7 @@ describe("Situation capability request deadline", () => {
 
     await vi.advanceTimersByTimeAsync(SITUATION_SUBMISSION_TIMEOUT_MS);
 
-    await rejected;
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
     expect((signal as AbortSignal).aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
