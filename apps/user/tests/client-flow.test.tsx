@@ -832,7 +832,10 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getByRole("radio", { name: "その他" }));
     const q3 = screen.getByRole("textbox", { name: "その他の来日目的を入力" }) as HTMLTextAreaElement;
     expect(q3.maxLength).toBe(300);
-    expect(screen.getByText(/この内容のみ Cloudflare Workers AI へ送信します/)).toBeTruthy();
+    expect(screen.queryByText(/この内容のみ Cloudflare Workers AI へ送信します/)).toBeNull();
+    expect(screen.queryByText("0 / 300")).toBeNull();
+    expect(screen.queryByText("「その他」を選んだ場合は入力が必要です。")).toBeNull();
+    expect((screen.getByRole("button", { name: "次へ" }) as HTMLButtonElement).disabled).toBe(true);
     await user.type(q3, "医療に関する国際会議へ参加するため");
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
