@@ -80,6 +80,7 @@ const needCategories = new Set<NeedCategory>([
   "employment",
   "language",
   "daily_life",
+  "none",
 ]);
 const stayAnswers = new Set<StayAnswer>(["known", "unknown", "documents"]);
 const familyAnswers = new Set<FamilyAnswer>(["none", "children", "spouse", "other"]);
@@ -104,44 +105,66 @@ export function createInitialOtherAnswers(): OtherAnswers {
   return { area: "", nationality: "", visitPurpose: "", family: "" };
 }
 
-export function parseStoredSession(raw: string | null): StoredSession | null {
-  if (!raw) return null;
+
+export type StoredSessionReadResult =
+  | { status: "absent" }
+  | { status: "valid"; session: StoredSession }
+  | { status: "corrupt" }
+  | { status: "unsupported"; version: number };
+
+/**
+ * Distinguishes a missing session from one that exists but cannot be read.
+ * A present-but-unreadable value may still hold answers, so callers must keep
+ * the raw value intact and let the person decide when to discard it.
+ */
+export function readStoredSession(raw: string | null): StoredSessionReadResult {
+  if (!raw) return { status: "absent" };
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value)) return null;
+    if (!isRecord(value)) return { status: "corrupt" };
+
+    if (typeof value.version === "number" && Number.isInteger(value.version) && value.version > 4) {
+      return { status: "unsupported", version: value.version };
+    }
 
     if (value.version === 4 && isSituation(value.situation) && isOtherAnswers(value.otherAnswers)) {
-      if (value.provenance !== "user" && value.provenance !== "demo") return null;
-      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
-      if (!isFamilyAnswers(value.familyAnswers)) return null;
-      if (!isAnsweredSteps(value.answeredSteps)) return null;
+      if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       return {
-        version: 4,
-        provenance: value.provenance,
-        situation: value.situation,
-        stayAnswer: value.stayAnswer as StayAnswer,
-        familyAnswers: value.familyAnswers,
-        answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, value.otherAnswers, value.answeredSteps),
-        otherAnswers: value.otherAnswers,
-        aiRecommendation: parseAiRecommendation(value.aiRecommendation, value.situation, value.otherAnswers),
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: value.provenance,
+          situation: value.situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: value.familyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, value.otherAnswers, value.answeredSteps),
+          otherAnswers: value.otherAnswers,
+          aiRecommendation: parseAiRecommendation(value.aiRecommendation, value.situation, value.otherAnswers),
+        },
       };
     }
 
     if (value.version === 3 && isSituation(value.situation)) {
-      if (value.provenance !== "user" && value.provenance !== "demo") return null;
-      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
-      if (!isFamilyAnswers(value.familyAnswers)) return null;
-      if (!isAnsweredSteps(value.answeredSteps)) return null;
+      if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const otherAnswers = createInitialOtherAnswers();
       return {
-        version: 4,
-        provenance: value.provenance,
-        situation: value.situation,
-        stayAnswer: value.stayAnswer as StayAnswer,
-        familyAnswers: value.familyAnswers,
-        answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
-        otherAnswers,
-        aiRecommendation: null,
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: value.provenance,
+          situation: value.situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: value.familyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
+        },
       };
     }
 
@@ -149,37 +172,43 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
     // demo-derived so they remain usable locally but require a full re-answer
     // before the public persistence action can be enabled.
     if (value.version === 2 && isSituation(value.situation)) {
-      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
-      if (!isFamilyAnswers(value.familyAnswers)) return null;
-      if (!isAnsweredSteps(value.answeredSteps)) return null;
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const otherAnswers = createInitialOtherAnswers();
       return {
-        version: 4,
-        provenance: "demo",
-        situation: value.situation,
-        stayAnswer: value.stayAnswer as StayAnswer,
-        familyAnswers: value.familyAnswers,
-        answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
-        otherAnswers,
-        aiRecommendation: null,
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: "demo",
+          situation: value.situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: value.familyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
+        },
       };
     }
 
     if (value.version === 1 && isSituation(value.situation)) {
-      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return null;
-      if (!familyAnswers.has(value.familyAnswer as FamilyAnswer)) return null;
-      if (!isAnsweredSteps(value.answeredSteps)) return null;
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!familyAnswers.has(value.familyAnswer as FamilyAnswer)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
       const migratedFamilyAnswers = [value.familyAnswer as FamilyAnswer];
       const otherAnswers = createInitialOtherAnswers();
       return {
-        version: 4,
-        provenance: "demo",
-        situation: value.situation,
-        stayAnswer: value.stayAnswer as StayAnswer,
-        familyAnswers: migratedFamilyAnswers,
-        answeredSteps: normalizeAnsweredSteps(value.situation, migratedFamilyAnswers, otherAnswers, value.answeredSteps),
-        otherAnswers,
-        aiRecommendation: null,
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: "demo",
+          situation: value.situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: migratedFamilyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, migratedFamilyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
+        },
       };
     }
 
@@ -189,20 +218,28 @@ export function parseStoredSession(raw: string | null): StoredSession | null {
       const migratedFamilyAnswers: FamilyAnswers = value.familyMembers.children.length ? ["children"] : [];
       const otherAnswers = createInitialOtherAnswers();
       return {
-        version: 4,
-        provenance: "demo",
-        situation: value,
-        stayAnswer: value.stayDeadlineKnown ? "known" : "unknown",
-        familyAnswers: migratedFamilyAnswers,
-        answeredSteps: normalizeAnsweredSteps(value, migratedFamilyAnswers, otherAnswers, inferLegacyAnsweredSteps(value)),
-        otherAnswers,
-        aiRecommendation: null,
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: "demo",
+          situation: value,
+          stayAnswer: value.stayDeadlineKnown ? "known" : "unknown",
+          familyAnswers: migratedFamilyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value, migratedFamilyAnswers, otherAnswers, inferLegacyAnsweredSteps(value)),
+          otherAnswers,
+          aiRecommendation: null,
+        },
       };
     }
   } catch {
-    return null;
+    return { status: "corrupt" };
   }
-  return null;
+  return { status: "corrupt" };
+}
+
+export function parseStoredSession(raw: string | null): StoredSession | null {
+  const result = readStoredSession(raw);
+  return result.status === "valid" ? result.session : null;
 }
 
 export function serializeStoredSession(

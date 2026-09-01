@@ -1,0 +1,2 @@
+# Copy to .dev.vars and replace with a random value of at least 32 characters.
+SITUATION_CAPABILITY_SECRET=replace-me

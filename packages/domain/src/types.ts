@@ -34,7 +34,9 @@ export type NeedCategory =
   | "medical"
   | "employment"
   | "language"
-  | "daily_life";
+  | "daily_life"
+  /** Honest "no current need" answer; never matches a rule or feeds aggregates. */
+  | "none";
 
 export type ActionTiming = "today" | "this_week" | "next_30_days" | "before_deadline" | "long_term";
 export type ActionCategory = NeedCategory;

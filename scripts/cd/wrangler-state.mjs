@@ -18,6 +18,12 @@ export function currentProductionVersion(deployment) {
   )[0]?.version_id ?? "";
 }
 
+export function revisionForVersion(versions, versionId) {
+  const version = versions.find((candidate) => candidate.id === versionId);
+  const revision = version?.annotations?.["workers/tag"];
+  return typeof revision === "string" ? revision : "";
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
@@ -26,7 +32,7 @@ if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
   const [, , command, path, value] = process.argv;
   if (!command || !path) {
     throw new Error(
-      "usage: wrangler-state.mjs <uploaded|current|assert-active> <json-file> [value]",
+      "usage: wrangler-state.mjs <uploaded|current|revision|assert-active> <json-file> [value]",
     );
   }
 
@@ -39,6 +45,8 @@ if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) {
     process.stdout.write(version);
   } else if (command === "current") {
     process.stdout.write(currentProductionVersion(payload));
+  } else if (command === "revision") {
+    process.stdout.write(revisionForVersion(payload, value));
   } else if (command === "assert-active") {
     const active = currentProductionVersion(payload);
     if (active !== value) {
