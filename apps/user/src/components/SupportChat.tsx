@@ -114,16 +114,13 @@ const readErrorCode = async (response: Response): Promise<string> => {
 export function SupportChat({ locale }: { locale: Locale }) {
   const t = chatCopy[locale];
   const panelId = useId();
-  const initialConversation = useRef<InMemoryConversation | null>(null);
-  if (initialConversation.current === null) {
-    initialConversation.current = restoreConversationForCurrentSituation();
-  }
-  const nextMessageId = useRef(initialConversation.current.nextMessageId);
+  const [initialConversation] = useState(restoreConversationForCurrentSituation);
+  const nextMessageId = useRef(initialConversation.nextMessageId);
   const activeRequestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<ChatEntry[]>(() => [...initialConversation.current!.messages]);
-  const [input, setInput] = useState(() => initialConversation.current!.input);
+  const [messages, setMessages] = useState<ChatEntry[]>(() => [...initialConversation.messages]);
+  const [input, setInput] = useState(() => initialConversation.input);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
