@@ -753,9 +753,114 @@ function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: 
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
     </nav>}
-    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
+    <LanguageSelect key={locale} locale={locale} switchLocale={switchLocale} />
   </header>;
 }
+
+// oxlint-disable jsx-a11y/prefer-tag-over-role -- This custom listbox intentionally replaces the browser-native language select UI.
+function LanguageSelect({ locale, switchLocale }: { locale: Locale; switchLocale: (locale: Locale) => void }) {
+  const t = getUserMessages(locale).ui;
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => selectableUserLocales.indexOf(locale));
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listboxId = "language-select-listbox";
+  const currentLabel = getUserMessages(locale).metadata.nativeLabel;
+
+  useEffect(() => {
+    if (open) optionRefs.current[activeIndex]?.focus();
+  }, [activeIndex, open]);
+
+  const closeAndFocusTrigger = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const chooseLocale = (nextLocale: Locale) => {
+    setOpen(false);
+    if (nextLocale === locale) {
+      triggerRef.current?.focus();
+      return;
+    }
+    switchLocale(nextLocale);
+  };
+
+  const moveActiveOption = (direction: 1 | -1) => {
+    setActiveIndex((index) => (index + direction + selectableUserLocales.length) % selectableUserLocales.length);
+  };
+
+  return <div
+    className="language-select"
+    title={t.languageSelectTitle}
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}
+  >
+    <button
+      ref={triggerRef}
+      type="button"
+      className="language-select-trigger"
+      aria-label={`${t.languageSelectLabel}: ${currentLabel}`}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={listboxId}
+      onClick={() => {
+        setActiveIndex(selectableUserLocales.indexOf(locale));
+        setOpen((currentOpen) => !currentOpen);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          setActiveIndex(selectableUserLocales.indexOf(locale));
+          setOpen(true);
+        } else if (event.key === "Escape" && open) {
+          event.preventDefault();
+          setOpen(false);
+        }
+      }}
+    >
+      <span>{currentLabel}</span>
+      <span className={`language-select-chevron ${open ? "open" : ""}`} aria-hidden="true" />
+    </button>
+    {open && <div id={listboxId} className="language-select-menu" role="listbox" aria-label={t.languageSelectLabel}>
+      {selectableUserLocales.map((availableLocale, index) => {
+        const optionLabel = getUserMessages(availableLocale).metadata.nativeLabel;
+        return <button
+          key={availableLocale}
+          ref={(element) => { optionRefs.current[index] = element; }}
+          type="button"
+          role="option"
+          tabIndex={-1}
+          aria-selected={availableLocale === locale}
+          className={index === activeIndex ? "active" : ""}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => chooseLocale(availableLocale)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveActiveOption(1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveActiveOption(-1);
+            } else if (event.key === "Home") {
+              event.preventDefault();
+              setActiveIndex(0);
+            } else if (event.key === "End") {
+              event.preventDefault();
+              setActiveIndex(selectableUserLocales.length - 1);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              closeAndFocusTrigger();
+            } else if (event.key === "Tab") {
+              setOpen(false);
+            }
+          }}
+        ><span>{optionLabel}</span>{availableLocale === locale && <span className="language-select-check" aria-hidden="true">✓</span>}</button>;
+      })}
+    </div>}
+  </div>;
+}
+// oxlint-enable jsx-a11y/prefer-tag-over-role
 
 function UnreadableSessionNotice({ locale, onStart }: { locale: Locale; onStart: () => void }) {
   const copy = getPersistenceCopy(locale);

@@ -53,6 +53,28 @@ for (const width of mobileViewportWidths) {
   }
 }
 
+test("custom language menu switches locale with the keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: mobileHeight });
+  await page.goto("/ja");
+
+  await expect(page.locator(".hero-actions .primary-button")).toBeEnabled();
+  await expect(page.locator(".language-select select")).toHaveCount(0);
+  const languageTrigger = page.getByRole("button", { name: /言語: 日本語/ });
+  await languageTrigger.press("Enter");
+
+  const languageListbox = page.getByRole("listbox", { name: "言語" });
+  await expect(languageListbox).toBeVisible();
+  await expect(languageListbox.getByRole("option")).toHaveCount(3);
+  await expect(languageListbox.getByRole("option", { name: /日本語/ })).toHaveAttribute("aria-selected", "true");
+
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/en$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("button", { name: /Language: English/ })).toBeVisible();
+  await expect(languageListbox).toHaveCount(0);
+});
+
 test("keyboard-only persona flow reaches summary without losing focus visibility", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: mobileHeight });
   await page.goto("/ja");

@@ -131,7 +131,8 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.selectOptions(screen.getByRole("combobox"), locale);
+    await user.click(screen.getByRole("button", { name: /言語:/ }));
+    await user.click(screen.getByRole("option", { name: getUserMessages(locale).metadata.nativeLabel }));
     await user.click(screen.getByRole("button", { name: messages.ui.demo }));
     expect(screen.getByRole("heading", { name: messages.ui.reviewed })).toBeTruthy();
 
@@ -1464,9 +1465,27 @@ describe("StayBridge client flow", () => {
   it("translates the main explanatory content without leaving Japanese copy", async () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
-    await user.selectOptions(screen.getByRole("combobox"), "en");
+    await user.click(screen.getByRole("button", { name: /言語:/ }));
+    await user.click(screen.getByRole("option", { name: "English" }));
     expect(screen.getByText("Organize your situation one question at a time without knowing official terms.")).toBeTruthy();
     expect(screen.queryByText("制度名を知らなくても、今の状況を一問ずつ整理。")).toBeNull();
+  });
+
+  it("uses a custom keyboard-operable language listbox", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(document.querySelector(".language-select select")).toBeNull();
+    const trigger = screen.getByRole("button", { name: /言語: 日本語/ });
+    await user.click(trigger);
+    const listbox = screen.getByRole("listbox", { name: "言語" });
+    expect(within(listbox).getAllByRole("option")).toHaveLength(3);
+    expect(within(listbox).getByRole("option", { name: "日本語" }).getAttribute("aria-selected")).toBe("true");
+
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(navigation.path()).toBe("/en");
+    expect(screen.getByRole("button", { name: /Language: English/ })).toBeTruthy();
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("continues with an explicit warning when session storage rejects writes", async () => {
@@ -1798,7 +1817,8 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     expect(screen.getByText("質問 05")).toBeTruthy();
-    await user.selectOptions(screen.getByRole("combobox"), "en");
+    await user.click(screen.getByRole("button", { name: /言語:/ }));
+    await user.click(screen.getByRole("option", { name: "English" }));
     expect(navigation.path()).toBe("/en/check?step=4");
     expect(screen.getByText("Question 05")).toBeTruthy();
   });
