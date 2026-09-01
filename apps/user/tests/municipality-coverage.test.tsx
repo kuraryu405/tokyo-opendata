@@ -62,10 +62,10 @@ const situationFor = (municipality: string, needs: Situation["needs"], children:
   ...demoSituation,
   currentMunicipality: municipality,
   visitPurpose: "other",
-  originalDepartureWindow: "unknown",
+  originalDepartureWindow: "within_3_months",
   returnStatus: "possible",
   stayDeadlineKnown: false,
-  accommodation: "prefer_not_to_say",
+  accommodation: "rental",
   japaneseLevel: "advanced",
   familyMembers: { children },
   needs,
@@ -92,8 +92,8 @@ describe("Municipality resource coverage gating for local-action cards", () => {
     ["Kita", true],
     ["Shinjuku", false],
     ["Toshima", false],
-    ["Other", false],
-    ["", false],
+    ["Setagaya", false],
+    ["Edogawa", false],
   ])("shows the medical listing card in %s only when coverage exists", (municipality, expected) => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
@@ -101,7 +101,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -115,7 +115,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
     ["Kita", true],
     ["Shinjuku", false],
     ["Toshima", false],
-    ["Other", false],
+    ["Setagaya", false],
   ])("gates school and child-support cards by coverage for %s", (municipality, expected) => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
@@ -123,7 +123,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "unknown",
       familyAnswers: ["children"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
@@ -141,7 +141,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 

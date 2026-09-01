@@ -4,6 +4,7 @@ import { bnMessages, neMessages } from "./locales/south-asia";
 import { thMessages, viMessages } from "./locales/southeast-asia-a";
 import { filMessages, idMessages } from "./locales/southeast-asia-b";
 import { assertValidLocalResourceCatalogs, localResourceCatalogs } from "./local-resource-catalog";
+import { withAssessmentOptions } from "./assessment-options";
 import {
   actionIds,
   type ActionId,
@@ -89,6 +90,7 @@ export const needKeys = [
   "medical",
   "language",
   "daily_life",
+  "other",
   "none",
 ] as const;
 
@@ -247,16 +249,16 @@ export type UserMessagesByLocale = Record<UserLocale, UserMessages>;
 export const userMessages = {
   ja: jaMessages,
   en: enMessages,
-  "zh-CN": zhCNMessages,
-  "zh-TW": zhTWMessages,
-  ko: koMessages,
-  ne: neMessages,
-  vi: viMessages,
+  "zh-CN": withAssessmentOptions("zh-CN", zhCNMessages),
+  "zh-TW": withAssessmentOptions("zh-TW", zhTWMessages),
+  ko: withAssessmentOptions("ko", koMessages),
+  ne: withAssessmentOptions("ne", neMessages),
+  vi: withAssessmentOptions("vi", viMessages),
   my: myMessages,
-  fil: filMessages,
-  id: idMessages,
-  bn: bnMessages,
-  th: thMessages,
+  fil: withAssessmentOptions("fil", filMessages),
+  id: withAssessmentOptions("id", idMessages),
+  bn: withAssessmentOptions("bn", bnMessages),
+  th: withAssessmentOptions("th", thMessages),
 } satisfies UserMessagesByLocale;
 
 function hasOwn(value: object, key: PropertyKey): boolean {
@@ -331,7 +333,7 @@ export function assertValidUserMessages(value: unknown): asserts value is UserMe
     catalog.questions.forEach((question, questionIndex) => {
       if (!Array.isArray(question) || question.length !== 3) throw new Error(`Malformed question ${locale}.${questionIndex}`);
       assertNonEmpty(question[0], `${locale}.questions.${questionIndex}.title`);
-      assertNonEmpty(question[1], `${locale}.questions.${questionIndex}.hint`);
+      if (typeof question[1] !== "string") throw new Error(`Invalid question hint ${locale}.${questionIndex}`);
       if (!Array.isArray(question[2]) || question[2].length === 0) throw new Error(`Missing question options ${locale}.${questionIndex}`);
       question[2].forEach((option, optionIndex) => {
         if (!Array.isArray(option) || option.length !== 2) throw new Error(`Malformed option ${locale}.${questionIndex}.${optionIndex}`);

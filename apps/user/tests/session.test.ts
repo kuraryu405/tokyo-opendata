@@ -32,13 +32,13 @@ describe("StayBridge session data", () => {
       answeredSteps: [0, 1, 6, 8],
     });
     expect(parseStoredSession(serialized)).toEqual({
-      version: 4,
+      version: 5,
       provenance: "user",
       situation: demoSituation,
       stayAnswer: "unknown",
       familyAnswers: ["children", "spouse"],
       answeredSteps: [0, 1, 6, 8],
-      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" },
       aiRecommendation: null,
     });
   });
@@ -52,15 +52,15 @@ describe("StayBridge session data", () => {
   it("summarizes only fields whose questions were answered", () => {
     expect(summarizeSituation("en", demoSituation, "unknown", ["children"], [0, 1])).toEqual([
       "Area: Kita City",
-      "Nationality/region: Myanmar",
+      "Nationality/region: Myanmar (Burma)",
     ]);
     expect(summarizeNeeds("en", demoSituation, [0, 1])).toEqual([]);
   });
 
   it("preserves stay and non-child family answers in the summary", () => {
     const situation = createInitialSituation();
-    expect(summarizeSituation("ja", situation, "documents", ["spouse"], [5, 6])).toEqual([
-      "書類を確認したい",
+    expect(summarizeSituation("ja", situation, "unknown", ["spouse"], [5, 6])).toEqual([
+      "分からない",
       "配偶者がいる",
     ]);
     expect(summarizeSituation("en", situation, "unknown", ["other"], [5, 6])).toEqual([
@@ -105,10 +105,10 @@ describe("StayBridge session data", () => {
     });
 
     expect(parseStoredSession(versionThree)).toMatchObject({
-      version: 4,
+      version: 5,
       provenance: "user",
       answeredSteps: [3, 4, 5, 7, 8, 9],
-      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" },
       aiRecommendation: null,
     });
   });
@@ -125,6 +125,8 @@ describe("StayBridge session data", () => {
       nationality: "タイ",
       visitPurpose: "国際会議に参加するため",
       family: "親",
+      accommodation: "友人が手配した場所",
+      needs: "生活に必要な手続",
     };
     const serialized = serializeStoredSession({
       provenance: "user",
@@ -137,7 +139,7 @@ describe("StayBridge session data", () => {
     });
 
     expect(parseStoredSession(serialized)).toMatchObject({
-      version: 4,
+      version: 5,
       otherAnswers,
       aiRecommendation: { input: otherAnswers.visitPurpose, actionIds: ["CONTACT_OFFICIAL_SUPPORT"] },
     });
@@ -160,8 +162,27 @@ describe("StayBridge session data", () => {
       answeredSteps: [0],
     });
     const value = JSON.parse(serialized) as Record<string, unknown>;
-    value.otherAnswers = { area: "a".repeat(101), nationality: "", visitPurpose: "", family: "" };
+    value.otherAnswers = { area: "a".repeat(101), nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" };
     expect(parseStoredSession(JSON.stringify(value))).toBeNull();
+  });
+
+  it("migrates version 4 sessions and invalidates newly required Other details", () => {
+    const versionFour = JSON.stringify({
+      version: 4,
+      provenance: "user",
+      situation: { ...demoSituation, accommodation: "other", needs: ["other"] },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "" },
+      aiRecommendation: null,
+    });
+
+    expect(parseStoredSession(versionFour)).toMatchObject({
+      version: 5,
+      answeredSteps: [0, 1, 2, 3, 4, 5, 6, 9],
+      otherAnswers: { accommodation: "", needs: "" },
+    });
   });
 
   it("round-trips multiple child age groups in order", () => {
@@ -192,25 +213,36 @@ describe("StayBridge session data", () => {
     ]);
   });
 
-  it("includes all four Other answers in the consultation summary", () => {
+  it("includes all six Other answers in the consultation summary", () => {
     const situation: Situation = {
       ...createInitialSituation(),
       currentMunicipality: "Other",
       nationality: "OTHER",
       visitPurpose: "other",
+      accommodation: "other",
+      needs: ["other"],
     };
     expect(summarizeSituation(
       "en",
       situation,
       "unknown",
       ["other"],
-      [0, 1, 2, 6],
-      { area: "Setagaya City", nationality: "Thailand", visitPurpose: "Attend a conference", family: "Parent" },
+      [0, 1, 2, 6, 7, 8],
+      { area: "Setagaya City", nationality: "Thailand", visitPurpose: "Attend a conference", family: "Parent", accommodation: "Friend's place", needs: "Daily procedure" },
     )).toEqual([
       "Area: Setagaya City",
       "Nationality/region: Thailand",
       "Other: Attend a conference",
       "Other family is with me: Parent",
+      "Other: Friend's place",
     ]);
+    expect(summarizeNeeds("en", situation, [8], {
+      area: "",
+      nationality: "",
+      visitPurpose: "",
+      family: "",
+      accommodation: "",
+      needs: "Daily procedure",
+    })).toEqual(["Other: Daily procedure"]);
   });
 });

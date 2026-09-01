@@ -2,7 +2,7 @@ import type { Situation } from "./types";
 
 /** Persona A: a short-term visitor stranded in Tokyo with her six-year-old child. */
 export const demoSituation: Situation = {
-  nationality: "MMR",
+  nationality: "MM",
   currentMunicipality: "Kita",
   visitPurpose: "tourism",
   originalDepartureWindow: "within_30_days",

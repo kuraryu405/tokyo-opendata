@@ -18,8 +18,11 @@ const questionKeys = [
 describe("rule inputs and rendered assessment options", () => {
   it.each(selectableUserLocales)("keeps every %s option code aligned with the rule coverage table", (locale) => {
     const questions = getUserMessages(locale).questions;
-    const actual = Object.fromEntries(questionKeys.map((key, index) => [key, questions[index][2].map(([code]) => code)]));
-    const expected = Object.fromEntries(questionKeys.map((key) => [key, assessmentOptionCodes[key]]));
-    expect(actual).toEqual(expected);
+    questionKeys.forEach((key, index) => {
+      const actual = questions[index][2].map(([code]) => code);
+      const expected = [...assessmentOptionCodes[key]];
+      expect(new Set(actual).size).toBe(actual.length);
+      expect(actual.toSorted()).toEqual(expected.toSorted());
+    });
   });
 });

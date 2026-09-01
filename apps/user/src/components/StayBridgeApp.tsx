@@ -99,6 +99,29 @@ const routeUi = {
   my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်", aiReason: "ဂျပန်သို့ လာရောက်ရသည့် အခြားရည်ရွယ်ချက်အရ စစ်ဆေးထားသော ဤကတ်သည် အသုံးဝင်နိုင်သဖြင့် ထည့်ပြထားပါသည်။ ဤသည်မှာ ဆုံးဖြတ်ချက်မဟုတ်ပါ။" },
 } satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string; aiReason: string }>;
 
+const searchUi = {
+  ja: { areaLabel: "東京23区から選択", areaPlaceholder: "区名を入力して検索", nationalityLabel: "国名・地域名から選択", nationalityPlaceholder: "国名・地域名を入力して検索", noResults: "一致する候補がありません" },
+  en: { areaLabel: "Choose from Tokyo's 23 wards", areaPlaceholder: "Search by ward name", nationalityLabel: "Choose a country or region", nationalityPlaceholder: "Search by country or region", noResults: "No matching options" },
+  my: { areaLabel: "တိုကျို ၂၃ မြို့နယ်မှ ရွေးပါ", areaPlaceholder: "မြို့နယ်အမည်ဖြင့် ရှာပါ", nationalityLabel: "နိုင်ငံ သို့မဟုတ် ဒေသကို ရွေးပါ", nationalityPlaceholder: "နိုင်ငံ သို့မဟုတ် ဒေသအမည်ဖြင့် ရှာပါ", noResults: "ကိုက်ညီသော ရွေးချယ်စရာ မရှိပါ" },
+} satisfies Record<Locale, { areaLabel: string; areaPlaceholder: string; nationalityLabel: string; nationalityPlaceholder: string; noResults: string }>;
+
+const tokyoWardSearchAliases: Record<string, string> = {
+  Chiyoda: "ちよだ", Chuo: "ちゅうおう", Minato: "みなと", Shinjuku: "しんじゅく", Bunkyo: "ぶんきょう", Taito: "たいとう",
+  Sumida: "すみだ", Koto: "こうとう", Shinagawa: "しながわ", Meguro: "めぐろ", Ota: "おおた", Setagaya: "せたがや",
+  Shibuya: "しぶや", Nakano: "なかの", Suginami: "すぎなみ", Toshima: "としま", Kita: "きた", Arakawa: "あらかわ",
+  Itabashi: "いたばし", Nerima: "ねりま", Adachi: "あだち", Katsushika: "かつしか", Edogawa: "えどがわ",
+};
+
+function normalizeSearchText(value: string) {
+  return value.normalize("NFKC").trim().toLocaleLowerCase().replace(/[ぁ-ゖ]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 0x60));
+}
+
+function matchesSearchOption(value: string, label: string, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return [label, value, tokyoWardSearchAliases[value] ?? ""]
+    .some((candidate) => normalizeSearchText(candidate).includes(normalizedQuery));
+}
+
 const RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS = 8_000;
 
 export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDate }: { route?: StayBridgeRoute; assessmentDate: string }) {
@@ -133,6 +156,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const skipNextSessionWrite = useRef(false);
   const recommendationController = useRef<AbortController | null>(null);
   const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
+  const [allowsPendingSituationReview, setAllowsPendingSituationReview] = useState(false);
   const situationRequestController = useRef<AbortController | null>(null);
   const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
   const t = getUserMessages(locale).ui;
@@ -255,9 +279,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
   const showStepsNav = assessmentComplete || isDemoSituation;
   const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
+  const pendingSituationReviewAllowed = allowsPendingSituationReview
+    && hasPendingSituationSubmission
+    && !hasSavedSituationCredentials
+    && !hasCorruptSavedSituationCredentials
+    && !hasCorruptPendingSituationSubmission;
   const protectedSituationRouteGuard = storageReady
     && hasProtectedSituationSubmission
-    && (screen === "landing" || screen === "check");
+    && (screen === "landing" || (screen === "check" && !pendingSituationReviewAllowed));
   const demoSituationRouteGuard = storageReady
     && isDemoSituation
     && (screen === "check" || ((screen === "roadmap" || screen === "summary") && !assessmentComplete));
@@ -362,6 +391,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     const input = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
     if (!input) {
       setAiRecommendation(null);
+      setAllowsPendingSituationReview(false);
       go("status");
       return;
     }
@@ -387,6 +417,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     recommendationController.current = null;
     setAiRecommendation(actionIds === null ? null : { input, actionIds });
     setIsPreparingRecommendations(false);
+    setAllowsPendingSituationReview(false);
     go("status");
   };
 
@@ -512,6 +543,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setConversationConsent("idle");
     setIsDemoSituation(false);
     setHasUnreadableSession(false);
+    setAllowsPendingSituationReview(false);
     pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
@@ -665,7 +697,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const editSituation = () => {
-    if (hasProtectedSituationSubmission) {
+    if (hasSavedSituationCredentials || hasCorruptSavedSituationCredentials || hasCorruptPendingSituationSubmission) {
       focusSituationPersistence();
       return;
     }
@@ -673,8 +705,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       restartAssessment();
       return;
     }
+    setAllowsPendingSituationReview(hasPendingSituationSubmission);
     setSituationPersistence({ status: "idle" });
-    go("check");
+    go("check", { step: 0 });
   };
 
   return (
@@ -687,7 +720,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
-            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
           {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
             try {
@@ -720,9 +753,114 @@ function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: 
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
       <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
     </nav>}
-    <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
+    <LanguageSelect key={locale} locale={locale} switchLocale={switchLocale} />
   </header>;
 }
+
+// oxlint-disable jsx-a11y/prefer-tag-over-role -- This custom listbox intentionally replaces the browser-native language select UI.
+function LanguageSelect({ locale, switchLocale }: { locale: Locale; switchLocale: (locale: Locale) => void }) {
+  const t = getUserMessages(locale).ui;
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => selectableUserLocales.indexOf(locale));
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const listboxId = "language-select-listbox";
+  const currentLabel = getUserMessages(locale).metadata.nativeLabel;
+
+  useEffect(() => {
+    if (open) optionRefs.current[activeIndex]?.focus();
+  }, [activeIndex, open]);
+
+  const closeAndFocusTrigger = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const chooseLocale = (nextLocale: Locale) => {
+    setOpen(false);
+    if (nextLocale === locale) {
+      triggerRef.current?.focus();
+      return;
+    }
+    switchLocale(nextLocale);
+  };
+
+  const moveActiveOption = (direction: 1 | -1) => {
+    setActiveIndex((index) => (index + direction + selectableUserLocales.length) % selectableUserLocales.length);
+  };
+
+  return <div
+    className="language-select"
+    title={t.languageSelectTitle}
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+    }}
+  >
+    <button
+      ref={triggerRef}
+      type="button"
+      className="language-select-trigger"
+      aria-label={`${t.languageSelectLabel}: ${currentLabel}`}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={listboxId}
+      onClick={() => {
+        setActiveIndex(selectableUserLocales.indexOf(locale));
+        setOpen((currentOpen) => !currentOpen);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          setActiveIndex(selectableUserLocales.indexOf(locale));
+          setOpen(true);
+        } else if (event.key === "Escape" && open) {
+          event.preventDefault();
+          setOpen(false);
+        }
+      }}
+    >
+      <span>{currentLabel}</span>
+      <span className={`language-select-chevron ${open ? "open" : ""}`} aria-hidden="true" />
+    </button>
+    {open && <div id={listboxId} className="language-select-menu" role="listbox" aria-label={t.languageSelectLabel}>
+      {selectableUserLocales.map((availableLocale, index) => {
+        const optionLabel = getUserMessages(availableLocale).metadata.nativeLabel;
+        return <button
+          key={availableLocale}
+          ref={(element) => { optionRefs.current[index] = element; }}
+          type="button"
+          role="option"
+          tabIndex={-1}
+          aria-selected={availableLocale === locale}
+          className={index === activeIndex ? "active" : ""}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => chooseLocale(availableLocale)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveActiveOption(1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveActiveOption(-1);
+            } else if (event.key === "Home") {
+              event.preventDefault();
+              setActiveIndex(0);
+            } else if (event.key === "End") {
+              event.preventDefault();
+              setActiveIndex(selectableUserLocales.length - 1);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              closeAndFocusTrigger();
+            } else if (event.key === "Tab") {
+              setOpen(false);
+            }
+          }}
+        ><span>{optionLabel}</span>{availableLocale === locale && <span className="language-select-check" aria-hidden="true">✓</span>}</button>;
+      })}
+    </div>}
+  </div>;
+}
+// oxlint-enable jsx-a11y/prefer-tag-over-role
 
 function UnreadableSessionNotice({ locale, onStart }: { locale: Locale; onStart: () => void }) {
   const copy = getPersistenceCopy(locale);
@@ -760,8 +898,8 @@ function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAp
   </>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
-  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; otherAnswers: OtherAnswers; setOtherAnswers: (answers: OtherAnswers) => void; invalidateAiRecommendation: () => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void; isPreparing: boolean;
+function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
+  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; backToTop: () => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; otherAnswers: OtherAnswers; setOtherAnswers: (answers: OtherAnswers) => void; invalidateAiRecommendation: () => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void; isPreparing: boolean;
 }) {
   const question = getUserMessages(locale).questions[step];
   const [title, hint, options] = question;
@@ -817,7 +955,12 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
         && (!hasOtherFamily || Boolean(otherAnswers.family.trim())));
       return;
     }
-    if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
+    if (step === 7) {
+      setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
+      if (value !== "other") setOtherAnswers({ ...otherAnswers, accommodation: "" });
+      markAnswered(value !== "other" || Boolean(otherAnswers.accommodation.trim()));
+      return;
+    }
     if (step === 8) {
       // 「特になし」is exclusive: choosing it clears real needs, and any real
       // need clears it, so nobody must fake a category to finish the flow.
@@ -827,11 +970,24 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
           ? situation.needs.filter((n) => n !== value)
           : [...situation.needs.filter((n) => n !== "none"), value as NeedCategory];
       setSituation({ ...situation, needs: nextNeeds });
-      markAnswered(nextNeeds.length > 0);
+      if (!nextNeeds.includes("other")) setOtherAnswers({ ...otherAnswers, needs: "" });
+      markAnswered(nextNeeds.length > 0
+        && (!nextNeeds.includes("other") || Boolean(otherAnswers.needs.trim())));
       return;
     }
     if (step === 9) setSituation({ ...situation, japaneseLevel: value as Situation["japaneseLevel"] });
     markAnswered();
+  };
+  const clearSearchAnswer = () => {
+    if (step === 0) {
+      setSituation({ ...situation, currentMunicipality: "" });
+      setOtherAnswers({ ...otherAnswers, area: "" });
+    }
+    if (step === 1) {
+      setSituation({ ...situation, nationality: "" });
+      setOtherAnswers({ ...otherAnswers, nationality: "" });
+    }
+    markAnswered(false);
   };
   const toggleChildAge = (age: ChildAgeGroup) => {
     const nextChildren = situation.familyMembers.children.some((child) => child.ageGroup === age)
@@ -845,6 +1001,7 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
   const otherAnswer = otherAnswerKey ? otherAnswers[otherAnswerKey] : undefined;
   const otherCopy = otherAnswerKey ? getUserMessages(locale).otherAnswers[otherAnswerKey] : undefined;
   const otherMaxLength = otherAnswerKey === "visitPurpose" ? 300 : 100;
+  const showOtherGuidance = otherAnswerKey !== "visitPurpose";
   const updateOtherAnswer = (value: string) => {
     if (!otherAnswerKey) return;
     if (otherAnswerKey === "visitPurpose") invalidateAiRecommendation();
@@ -871,25 +1028,178 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     <div className="check-progress"><div className="progress-meta"><span>{t.sectionSituationCheck}</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
-      <h1>{title}</h1><p>{hint}</p>
-      <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selectedOther = (step === 0 && value === "Other" && current === value) || (step === 1 && value === "OTHER" && current === value) || (step === 2 && value === "other" && current === value); const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
-      </div>
+      <h1>{title}</h1>{hint && <p>{hint}</p>}
+      {step === 0 || step === 1
+        ? <SearchableAnswer key={step} id={`question-search-${step}`} label={step === 0 ? searchUi[locale].areaLabel : searchUi[locale].nationalityLabel} placeholder={step === 0 ? searchUi[locale].areaPlaceholder : searchUi[locale].nationalityPlaceholder} noResults={searchUi[locale].noResults} options={options} separateOptionValue={step === 1 ? "OTHER" : undefined} current={answeredSteps.includes(step) || (step === 1 && situation.nationality === "OTHER") ? current : ""} choose={choose} clear={clearSearchAnswer} />
+        : <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
+          {options.map(([value, label]) => { const selectedOther = (step === 2 || step === 7) && value === "other" && current === value; const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
+        </div>}
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
-      {otherAnswer !== undefined && otherCopy && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherCopy.label}</label><textarea id={`other-answer-${step}`} data-testid={`question-${step + 1}-other`} value={otherAnswer} maxLength={otherMaxLength} required aria-invalid={!otherAnswer.trim()} aria-describedby={`other-answer-notice-${step} other-answer-error-${step}`} placeholder={otherCopy.placeholder} onChange={(event) => updateOtherAnswer(event.target.value)} /><div className="other-answer-meta"><small id={`other-answer-notice-${step}`}>{otherCopy.notice}</small><span>{otherAnswer.length} / {otherMaxLength}</span></div>{!otherAnswer.trim() && <p id={`other-answer-error-${step}`} className="inline-error" role="alert">{otherCopy.required}</p>}</div>}
+      {otherAnswer !== undefined && otherCopy && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherCopy.label}</label><textarea id={`other-answer-${step}`} data-testid={`question-${step + 1}-other`} value={otherAnswer} maxLength={otherMaxLength} required aria-invalid={!otherAnswer.trim()} aria-describedby={showOtherGuidance ? `other-answer-notice-${step} other-answer-error-${step}` : undefined} placeholder={otherCopy.placeholder} onChange={(event) => updateOtherAnswer(event.target.value)} />{showOtherGuidance && <><div className="other-answer-meta"><small id={`other-answer-notice-${step}`}>{otherCopy.notice}</small><span>{otherAnswer.length} / {otherMaxLength}</span></div>{!otherAnswer.trim() && <p id={`other-answer-error-${step}`} className="inline-error" role="alert">{otherCopy.required}</p>}</>}</div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
-      <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      <div className="question-actions"><button className="back-button" onClick={() => step === 0 ? backToTop() : setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
-    <details className="privacy-line"><summary>{t.privacyTitle}</summary><p>{t.privacyText}</p></details>
   </section>;
 }
+
+// oxlint-disable jsx-a11y/prefer-tag-over-role -- This WAI-ARIA combobox intentionally replaces browser-native datalist UI.
+function SearchableAnswer({ id, label, placeholder, noResults, options, separateOptionValue, current, choose, clear }: {
+  id: string;
+  label: string;
+  placeholder: string;
+  noResults: string;
+  options: readonly (readonly [string, string])[];
+  separateOptionValue?: string;
+  current: string;
+  choose: (value: string) => void;
+  clear: () => void;
+}) {
+  const separateOption = options.find(([value]) => value === separateOptionValue);
+  const searchableOptions = separateOptionValue ? options.filter(([value]) => value !== separateOptionValue) : options;
+  const selectedLabel = searchableOptions.find(([value]) => value === current)?.[1] ?? "";
+  const [query, setQuery] = useState(selectedLabel);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const localSelectionChange = useRef(false);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const normalizedQuery = query === selectedLabel ? "" : normalizeSearchText(query);
+  const filteredOptions = normalizedQuery
+    ? searchableOptions.filter(([value, optionLabel]) => matchesSearchOption(value, optionLabel, normalizedQuery))
+    : searchableOptions;
+  const listboxId = `${id}-listbox`;
+  const activeOptionId = open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
+
+  useEffect(() => {
+    if (localSelectionChange.current) {
+      localSelectionChange.current = false;
+      return;
+    }
+    setQuery(selectedLabel);
+    setOpen(false);
+    setActiveIndex(-1);
+  }, [selectedLabel]);
+
+  useEffect(() => {
+    if (open && activeIndex >= 0) optionRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex, open]);
+
+  const selectOption = (value: string, optionLabel: string) => {
+    setQuery(optionLabel);
+    setOpen(false);
+    setActiveIndex(-1);
+    choose(value);
+  };
+
+  const selectSeparateOption = () => {
+    if (!separateOption) return;
+    setQuery("");
+    setOpen(false);
+    setActiveIndex(-1);
+    choose(separateOption[0]);
+  };
+
+  return <div className="searchable-answer">
+    <label htmlFor={id}>{label}</label>
+    <div className="searchable-answer-control" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+    }}>
+      <div className="searchable-answer-input-wrap">
+        <input
+          id={id}
+          type="text"
+          role="combobox"
+          value={query}
+          placeholder={placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded={open}
+          aria-activedescendant={activeOptionId}
+          onFocus={() => {
+            setOpen(true);
+            setActiveIndex(current ? searchableOptions.findIndex(([value]) => value === current) : -1);
+          }}
+          onClick={() => setOpen(true)}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            const nextNormalizedQuery = normalizeSearchText(nextQuery);
+            const nextOptions = nextNormalizedQuery
+              ? searchableOptions.filter(([value, optionLabel]) => matchesSearchOption(value, optionLabel, nextNormalizedQuery))
+              : searchableOptions;
+            setQuery(nextQuery);
+            setOpen(true);
+            setActiveIndex(nextOptions.length ? 0 : -1);
+            const match = searchableOptions.find(([, optionLabel]) => optionLabel === nextQuery);
+            if (match) {
+              setOpen(false);
+              setActiveIndex(-1);
+              choose(match[0]);
+            } else {
+              if (selectedLabel) localSelectionChange.current = true;
+              clear();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) => filteredOptions.length ? Math.min(index + 1, filteredOptions.length - 1) : -1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) => filteredOptions.length ? (index <= 0 ? filteredOptions.length - 1 : index - 1) : -1);
+            } else if (event.key === "Enter" && open && activeIndex >= 0) {
+              event.preventDefault();
+              const option = filteredOptions[activeIndex];
+              if (option) selectOption(option[0], option[1]);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+              setActiveIndex(-1);
+            } else if (event.key === "Tab") {
+              setOpen(false);
+              setActiveIndex(-1);
+            }
+          }}
+        />
+        <span className={`searchable-answer-chevron ${open ? "open" : ""}`} aria-hidden="true">⌄</span>
+      </div>
+      {separateOption && <button type="button" className={`option-button searchable-answer-separate ${current === separateOption[0] ? "selected" : ""}`} aria-pressed={current === separateOption[0]} onClick={selectSeparateOption}><span className="option-control" aria-hidden="true">{current === separateOption[0] ? "✓" : ""}</span><span>{separateOption[1]}</span></button>}
+      {open && <div id={listboxId} className="searchable-answer-menu" role="listbox" aria-label={label}>
+        {filteredOptions.length
+          ? filteredOptions.map(([value, optionLabel], index) => <button
+            key={value}
+            type="button"
+            id={`${listboxId}-option-${index}`}
+            ref={(element) => { optionRefs.current[index] = element; }}
+            role="option"
+            tabIndex={-1}
+            aria-selected={value === current}
+            className={index === activeIndex ? "active" : ""}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => selectOption(value, optionLabel)}
+            onMouseEnter={() => setActiveIndex(index)}
+          ><span>{optionLabel}</span>{value === current && <span className="searchable-answer-check" aria-hidden="true">✓</span>}</button>)
+          : <p className="searchable-answer-empty">{noResults}</p>}
+      </div>}
+    </div>
+  </div>;
+}
+// oxlint-enable jsx-a11y/prefer-tag-over-role
 
 function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAnswers: FamilyAnswers): keyof OtherAnswers | null {
   if (step === 0 && situation.currentMunicipality === "Other") return "area";
   if (step === 1 && situation.nationality === "OTHER") return "nationality";
   if (step === 2 && situation.visitPurpose === "other") return "visitPurpose";
   if (step === 6 && familyAnswers.includes("other")) return "family";
+  if (step === 7 && situation.accommodation === "other") return "accommodation";
+  if (step === 8 && situation.needs.includes("other")) return "needs";
   return null;
 }
 
@@ -1017,7 +1327,7 @@ function SupportCard({ locale, source, index, label, details }: { locale: Locale
 
 function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, otherAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; otherAnswers: OtherAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {
   const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers);
-  const asks = summarizeNeeds(locale, situation, answeredSteps);
+  const asks = summarizeNeeds(locale, situation, answeredSteps, otherAnswers);
   const text = `${t.summaryTitle}\n\n${t.current}\n${items.map((i) => `• ${i}`).join("\n")}\n\n${t.questions}\n${asks.map((i, n) => `${n + 1}. ${i}`).join("\n")}`;
   const copyText = async () => {
     try {
@@ -1049,14 +1359,16 @@ export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: Sta
         ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${childAgeLabels}`
         : answer === "other" && otherAnswers.family.trim() ? `${find(6, answer)}: ${otherAnswers.family.trim()}` : find(6, answer)).join(" / ")
       : undefined,
-    7: find(7, s.accommodation),
+    7: s.accommodation === "other" && otherAnswers.accommodation.trim() ? `${find(7, s.accommodation)}: ${otherAnswers.accommodation.trim()}` : find(7, s.accommodation),
     9: `${messages.ui.japaneseLabel}: ${find(9, s.japaneseLevel)}`,
   };
   return answeredSteps.flatMap((step) => byStep[step] ? [byStep[step]] : []);
 }
 
-export function summarizeNeeds(locale: Locale, s: Situation, answeredSteps: number[]) {
+export function summarizeNeeds(locale: Locale, s: Situation, answeredSteps: number[], otherAnswers: OtherAnswers = createInitialOtherAnswers()) {
   const needMap = getUserMessages(locale).needs;
   if (!answeredSteps.includes(8)) return [];
-  return s.needs.map((need) => needMap[need as NeedKey]).filter(Boolean);
+  return s.needs.map((need) => need === "other" && otherAnswers.needs.trim()
+    ? `${needMap[need as NeedKey]}: ${otherAnswers.needs.trim()}`
+    : needMap[need as NeedKey]).filter(Boolean);
 }

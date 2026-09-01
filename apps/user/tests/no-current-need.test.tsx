@@ -80,13 +80,13 @@ describe("No-current-need assessment option", () => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
       situation: {
-        nationality: "UNKNOWN",
-        currentMunicipality: "",
-        visitPurpose: "unknown",
-        originalDepartureWindow: "unknown",
+        nationality: "MM",
+        currentMunicipality: "Kita",
+        visitPurpose: "work",
+        originalDepartureWindow: "within_3_months",
         returnStatus: "possible",
         stayDeadlineKnown: false,
-        accommodation: "prefer_not_to_say",
+        accommodation: "rental",
         japaneseLevel: "advanced",
         familyMembers: { children: [] },
         needs: [],
@@ -94,7 +94,7 @@ describe("No-current-need assessment option", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: [0, 1, 2, 3, 4, 5, 6, 7],
-      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" },
     }));
     navigation.reset("/ja/check?step=8");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

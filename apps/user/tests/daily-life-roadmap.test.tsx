@@ -77,13 +77,13 @@ describe("Daily-life roadmap coverage", () => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
       situation: {
-        nationality: "UNKNOWN",
-        currentMunicipality: "",
+        nationality: "MM",
+        currentMunicipality: "Setagaya",
         visitPurpose: "other",
-        originalDepartureWindow: "unknown",
+        originalDepartureWindow: "after_3_months",
         returnStatus: "possible",
         stayDeadlineKnown: false,
-        accommodation: "prefer_not_to_say",
+        accommodation: "rental",
         japaneseLevel: "advanced",
         familyMembers: { children: [] },
         needs: ["daily_life"],
@@ -91,7 +91,7 @@ describe("Daily-life roadmap coverage", () => {
       stayAnswer: "known",
       familyAnswers: [],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
-      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "" },
+      otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
     navigation.reset("/ja/roadmap");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

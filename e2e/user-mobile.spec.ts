@@ -25,7 +25,12 @@ for (const width of mobileViewportWidths) {
       await expect(start).toBeEnabled();
       await start.click();
       await expectRoute(page, locale, "check");
-      await expect(page.locator(".option-grid")).toHaveAttribute("role", /radio(group)?/);
+      const wardSearch = page.locator(".searchable-answer input[role=combobox]");
+      await expect(wardSearch).toBeVisible();
+      await wardSearch.click();
+      const wardListbox = page.getByRole("listbox");
+      await expect(wardListbox).toBeVisible();
+      await expect(wardListbox.getByRole("option")).toHaveCount(23);
 
       await page.goto(`/${locale}`);
       const demo = page.locator(".hero-actions .secondary-button");
@@ -48,6 +53,28 @@ for (const width of mobileViewportWidths) {
   }
 }
 
+test("custom language menu switches locale with the keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: mobileHeight });
+  await page.goto("/ja");
+
+  await expect(page.locator(".hero-actions .primary-button")).toBeEnabled();
+  await expect(page.locator(".language-select select")).toHaveCount(0);
+  const languageTrigger = page.getByRole("button", { name: /言語: 日本語/ });
+  await languageTrigger.press("Enter");
+
+  const languageListbox = page.getByRole("listbox", { name: "言語" });
+  await expect(languageListbox).toBeVisible();
+  await expect(languageListbox.getByRole("option")).toHaveCount(3);
+  await expect(languageListbox.getByRole("option", { name: /日本語/ })).toHaveAttribute("aria-selected", "true");
+
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/en$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("button", { name: /Language: English/ })).toBeVisible();
+  await expect(languageListbox).toHaveCount(0);
+});
+
 test("keyboard-only persona flow reaches summary without losing focus visibility", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: mobileHeight });
   await page.goto("/ja");
@@ -65,7 +92,14 @@ test("keyboard-only persona flow reaches summary without losing focus visibility
 
   for (let step = 0; step < 10; step += 1) {
     await expect(page.locator(".question-card h1")).toBeVisible();
-    await page.locator(".option-grid .option-button").first().click();
+    if (step < 2) {
+      const search = page.locator(".searchable-answer input[role=combobox]");
+      await search.focus();
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+    } else {
+      await page.locator(".option-grid .option-button").first().click();
+    }
     const next = page.locator(".question-actions .primary-button");
     await expect(next).toBeEnabled();
     await next.click();

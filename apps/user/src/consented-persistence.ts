@@ -11,9 +11,29 @@ import type {
 import { SITUATION_CONSENT_VERSION } from "@staybridge/worker-runtime";
 
 const municipalityCodes: Record<string, string> = {
-  Kita: "13117",
+  Chiyoda: "13101",
+  Chuo: "13102",
+  Minato: "13103",
   Shinjuku: "13104",
+  Bunkyo: "13105",
+  Taito: "13106",
+  Sumida: "13107",
+  Koto: "13108",
+  Shinagawa: "13109",
+  Meguro: "13110",
+  Ota: "13111",
+  Setagaya: "13112",
+  Shibuya: "13113",
+  Nakano: "13114",
+  Suginami: "13115",
   Toshima: "13116",
+  Kita: "13117",
+  Arakawa: "13118",
+  Itabashi: "13119",
+  Nerima: "13120",
+  Adachi: "13121",
+  Katsushika: "13122",
+  Edogawa: "13123",
 };
 
 const visitPurposes = new Set<VisitPurpose>([
@@ -29,6 +49,7 @@ const departureWindows = new Set<DepartureWindow>([
   "within_7_days",
   "within_30_days",
   "within_3_months",
+  "after_3_months",
   "no_departure_plan",
   "unknown",
 ]);
@@ -38,6 +59,7 @@ const accommodations = new Set<AccommodationType>([
   "family_or_friend",
   "rental",
   "temporary_facility",
+  "other",
   "unstable",
   "prefer_not_to_say",
 ]);
@@ -52,6 +74,7 @@ const needs = new Set<NeedCategory>([
   "medical",
   "language",
   "daily_life",
+  "other",
 ]);
 const japaneseLevels = new Set<JapaneseLevel>(["none", "beginner", "daily", "advanced"]);
 const ageGroups = new Set<ChildAgeGroup>(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
