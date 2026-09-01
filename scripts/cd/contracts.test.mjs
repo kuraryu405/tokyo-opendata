@@ -162,7 +162,7 @@ test("selects uploaded and rollback versions deterministically", () => {
   assert.equal(revisionForVersion(versions, "missing"), "");
 });
 
-test("stages both apps and promotes only affected apps after external acceptance", async () => {
+test("stages and promotes both apps as one accepted release pair", async () => {
   const release = await readFile(".github/workflows/release.yml", "utf8");
   const stageCondition = /needs\.detect\.outputs\.user == 'true' \|\| needs\.detect\.outputs\.municipality == 'true'/;
   assert.match(workflowJob(release, "stage-user"), stageCondition);
@@ -175,10 +175,12 @@ test("stages both apps and promotes only affected apps after external acceptance
   assert.doesNotMatch(acceptance, /production_verification_url/);
 
   const promoteUser = workflowJob(release, "promote-user");
-  assert.match(promoteUser, /needs\.detect\.outputs\.user == 'true' && needs\.external-e2e\.result == 'success'/);
+  assert.match(promoteUser, stageCondition);
+  assert.match(promoteUser, /needs\.external-e2e\.result == 'success'/);
   assert.match(promoteUser, /phase: production/);
   const promoteMunicipality = workflowJob(release, "promote-municipality");
-  assert.match(promoteMunicipality, /needs\.detect\.outputs\.municipality == 'true' && needs\.external-e2e\.result == 'success'/);
+  assert.match(promoteMunicipality, stageCondition);
+  assert.match(promoteMunicipality, /needs\.external-e2e\.result == 'success'/);
   assert.match(promoteMunicipality, /phase: production/);
 });
 

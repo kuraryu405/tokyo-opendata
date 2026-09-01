@@ -61,18 +61,20 @@ After a successful push CI on `main`, CI records the push event's exact
 downloads that artifact from the successful CI run and compares the complete
 push range, including pushes that contain more than one commit:
 
-- a change under `apps/user/` promotes only the user Worker to production;
-- a change under `apps/municipality/` promotes only the municipality Worker to production;
-- a shared package, root file, workflow, or documentation change releases both.
+- a change under either app creates one paired Worker release;
+- a shared package, root file, workflow, or documentation change also releases
+  the pair.
 
 Whenever either app is affected, both apps are built from the same release SHA,
 deployed to staging, and tested as one cross-app release candidate. Each
 staging-phase reusable job builds once without a public environment URL and uploads
 `staybridge-<service>-<full SHA>` as an Actions artifact. The tarball includes
 the generated `dist/server/wrangler.json`, `dist/client`, and the Sites metadata
-under `dist/.openai`. After external acceptance succeeds, only the apps detected
-as affected are promoted. Their production-phase jobs download the same tarball
-from the release run and check its SHA-256 before use.
+under `dist/.openai`. After external acceptance succeeds, both apps are promoted
+as the accepted pair. Their production-phase jobs download the same tarballs
+from the release run and check each SHA-256 before use. This prevents a
+previously blocked release from leaving one production Worker behind when a
+later app-only change passes the gate.
 
 Wrangler 4.92.0 uploads a tagged Worker Version with the target environment's
 `COUNTERPART_APP_URL`, deploys it to 100% traffic,
@@ -176,7 +178,7 @@ protected `main`; pull-request or fork code can never reach production.
 External E2E is the production-promotion gate. The release always deploys both
 apps from the exact CI revision to staging, verifies their health/readiness, and
 then runs the external suite against the two staging origins. A failed suite
-ends the release before either affected production Worker is touched. This makes
+ends the release before either production Worker is touched. This makes
 the rollback unit for a cross-app acceptance failure the whole candidate: there
 is nothing to roll back in production.
 
@@ -205,11 +207,10 @@ Issue #56の利用者向け変更は、実際の公開URLでPC幅と390px幅を�
 
 `POST /api/recommend-actions` はブラウザ側でinterceptし、bodyがQUESTION 03のtrim済み文字列だけを含む `{ "text": "..." }` で、他の3項目を含まないことを検証する。有効なallowlist IDを返した場合はRule Engineのカードを残したままAI由来カードが重複なく追加されること、502・不正JSON・allowlist外ID・8秒超の応答ではRule Engineだけで完了することを確認する。応答待ちに戻る、QUESTION 03を書き換える、再読込する、最初からやり直す各操作では、古い応答や保存済み派生IDが復活しないことも確認する。
 
-The promotion matrix is explicit: a user-only change stages both apps and then
-promotes only user; a municipality-only change stages both and promotes only
-municipality; a shared change stages and promotes both. The unchanged staging
-counterpart is intentionally refreshed to the same SHA so cross-app navigation
-is tested without mixing revisions.
+The promotion unit is the accepted pair: a user-only, municipality-only, or
+shared change stages and promotes both apps at the same SHA. The counterpart is
+intentionally refreshed so cross-app navigation is tested and released without
+mixing revisions.
 
 ## Local verification without deployment
 
