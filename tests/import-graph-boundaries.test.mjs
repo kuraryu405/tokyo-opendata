@@ -86,3 +86,15 @@ test("app and package ownership direction stays explicit", async () => {
     }
   }
 });
+
+test("the StayBridge composition root delegates routing, storage, and API ownership", async () => {
+  const source = await readFile(
+    resolve(repositoryRoot, "apps/user/src/components/StayBridgeApp.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(source, /\bsessionStorage\b/u);
+  assert.doesNotMatch(source, /\bfetch\s*\(/u);
+  assert.doesNotMatch(source, /\b(?:usePathname|useRouter|useSearchParams)\b/u);
+  assert.doesNotMatch(source, /from ["']next\/navigation["']/u);
+});
