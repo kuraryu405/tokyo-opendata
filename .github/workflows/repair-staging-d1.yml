@@ -63,15 +63,20 @@ jobs:
           pnpm exec wrangler d1 list --json > d1-inventory.json
           node scripts/cd/validate-d1-inventory.mjs \
             d1-inventory.json "$STAGING_DATABASE_ID" "$PRODUCTION_DATABASE_ID"
+          echo "Authenticated D1 identity verification passed."
           node scripts/d1/prepare-remote-config.mjs \
             staging "$STAGING_DATABASE_ID" >/dev/null
           d1_config=.wrangler/d1/staging.json
 
+          pnpm exec wrangler d1 migrations list STAYBRIDGE_DB \
+            --remote --config "$d1_config"
           pnpm exec wrangler d1 migrations apply STAYBRIDGE_DB \
-            --remote --config "$d1_config" >/dev/null
+            --remote --config "$d1_config"
+          echo "Staging D1 migration apply completed."
           pnpm exec wrangler d1 execute STAYBRIDGE_DB \
             --remote --config "$d1_config" \
-            --file database/seed.sql --yes >/dev/null
+            --file database/seed.sql --yes
+          echo "Staging D1 seed apply completed."
           migration_state="$(pnpm exec wrangler d1 migrations list STAYBRIDGE_DB \
             --remote --config "$d1_config" 2>&1)"
           grep -q 'No migrations to apply' <<<"$migration_state"
