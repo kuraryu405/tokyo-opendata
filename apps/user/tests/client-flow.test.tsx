@@ -188,7 +188,9 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     for (const destination of ["roadmap", "local", "help", "summary"] as const) {
-      navigation.reset(`/${locale}/${destination}`);
+      await act(async () => {
+        navigation.reset(`/${locale}/${destination}`);
+      });
       const home = await screen.findByRole("button", { name: messages.ui.homeLabel });
       home.focus();
       expect(document.activeElement).toBe(home);
@@ -701,6 +703,7 @@ describe("StayBridge client flow", () => {
   it("offers start over after completed answers and returns to the first question", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
+    navigation.reset("/ja/roadmap");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await screen.findByRole("button", { name: "わたしのステップ" });
@@ -716,12 +719,12 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: "今の状況を確認する" }));
+    await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
     expect(navigation.path()).toBe("/ja/check?step=0");
     await user.click(screen.getByRole("button", { name: /戻る/ }));
 
     expect(navigation.path()).toBe("/ja");
-    expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "フォームに回答する" })).toHaveLength(2);
   });
 
   it("keeps a partial ward search visible while requiring an exact option", async () => {
@@ -856,7 +859,7 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-24" />);
 
-    await user.click(screen.getByRole("button", { name: "今の状況を確認する" }));
+    await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
     fireEvent.change(screen.getByRole("combobox", { name: "東京23区から選択" }), { target: { value: "世田谷区" } });
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
@@ -1074,18 +1077,15 @@ describe("StayBridge client flow", () => {
     expect(JSON.parse(sessionStorage.getItem("staybridge.session") ?? "{}")).toMatchObject({ aiRecommendation: null });
   });
 
-  it("keeps completed answers navigable without a landing start button", async () => {
+  it("keeps completed answers accessible and exposes the landing form entry", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await screen.findByRole("button", { name: "わたしのステップ" });
-    expect(screen.queryByRole("button", { name: "今の状況を確認する" })).toBeNull();
-    expect(screen.getByRole("banner").querySelector(".header-restart")).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: "わたしのステップ" }));
-    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "最初からやり直す" })).toBeTruthy();
+    const startButtons = await screen.findAllByRole("button", { name: "フォームに回答する" });
+    expect(startButtons).toHaveLength(2);
+    await user.click(startButtons.at(-1)!);
+    expect(navigation.path()).toBe("/ja/status");
   });
 
   it("uses AI to organize a question without sending saved assessment answers", async () => {
@@ -1405,8 +1405,8 @@ describe("StayBridge client flow", () => {
     navigation.reset("/ja/");
     const landingRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(await screen.findByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(await screen.findAllByRole("button", { name: "フォームに回答する" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "わたしのステップ" })).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
     expect(await screen.findByRole("heading", { name: "回答を確認して、次の行動へ進みましょう" })).toBeTruthy();
@@ -1724,6 +1724,7 @@ describe("StayBridge client flow", () => {
       familyAnswers: ["children", "spouse"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
     }));
+    navigation.reset("/en/roadmap");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     await screen.findByRole("button", { name: "My steps" });
 
@@ -1760,6 +1761,7 @@ describe("StayBridge client flow", () => {
   it("explains each displayed action with its natural-language reason and source link", async () => {
     const user = userEvent.setup();
     restoreCompleteDemoSession();
+    navigation.reset("/ja/roadmap");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     await screen.findByRole("button", { name: "わたしのステップ" });
 

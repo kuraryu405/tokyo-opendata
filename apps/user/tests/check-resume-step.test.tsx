@@ -81,7 +81,7 @@ describe("Assessment resume entry point", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: getUserMessages("ja").ui.start }));
+    await user.click(screen.getAllByRole("button", { name: getUserMessages("ja").ui.start }).at(-1)!);
     expect(navigation.path()).toBe("/ja/check?step=0");
   });
 
@@ -97,7 +97,7 @@ describe("Assessment resume entry point", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    const startButton = await screen.findByRole("button", { name: getUserMessages("ja").ui.start });
+    const startButton = (await screen.findAllByRole("button", { name: getUserMessages("ja").ui.start })).at(-1)!;
     await user.click(startButton);
     await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=5"));
     expect(screen.getByText(getUserMessages("ja").ui.questionLabel + " 06")).toBeTruthy();
@@ -115,7 +115,7 @@ describe("Assessment resume entry point", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    const startButton = await screen.findByRole("button", { name: getUserMessages("en").ui.start });
+    const startButton = (await screen.findAllByRole("button", { name: getUserMessages("en").ui.start })).at(-1)!;
     await user.click(startButton);
 
     await waitFor(() => expect(navigation.path()).toBe("/en/check?step=2"));

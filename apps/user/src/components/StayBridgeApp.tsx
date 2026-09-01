@@ -710,15 +710,17 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     go("check", { step: 0 });
   };
 
+  const switchLocale = (nextLocale: Locale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); };
+  const isLanding = screen === "landing";
   return (
-    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
+    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}${isLanding ? " velorah-scope" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); }} navVisible={navVisible} showStepsNav={showStepsNav} />
+      {!isLanding && <Header locale={locale} screen={screen} go={go} switchLocale={switchLocale} navVisible={navVisible} showStepsNav={showStepsNav} />}
       {storageError && <output className="app-alert">{t.storageError}</output>}
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
@@ -871,31 +873,134 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
-  return <>
-    <section className="hero">
-      <div className="hero-copy">
-        <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
-        <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
-        <p className="lede">{t.intro}</p>
-        <div className="hero-actions">{showStart && <button className="primary-button" disabled={disabled} onClick={start}>{t.start}<span aria-hidden>→</span></button>}{showDemo && <button className="secondary-button" disabled={disabled} onClick={demo}>{t.demo}</button>}</div>
-        <div className="trust-row"><span>{t.noLogin}</span><span>{t.noAddress}</span><span>{t.official}</span></div>
+function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+  const heroLines = t.hero.split("\n");
+  return (
+    <div className="velorah-scope">
+      {/* ── Fullscreen hero ─────────────────────────────── */}
+      <section className="velorah-hero" aria-labelledby="landing-heading">
+        <video
+          className="velorah-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-hidden="true"
+        >
+          <source src="/tokyo-aerial-4308.mp4" type="video/mp4" />
+        </video>
+
+        {/* Navigation floating over video */}
+        <nav className="velorah-nav" aria-label={t.primaryNavLabel}>
+          <button className="velorah-brand" disabled={disabled} onClick={start} aria-label={t.homeLabel}>
+            <span className="velorah-brand-mark" aria-hidden="true">SB</span>
+            <span>StayBridge Tokyo</span>
+          </button>
+
+          <div className="velorah-nav-right">
+            <div className="velorah-language-select liquid-glass">
+              <LanguageSelect locale={locale} switchLocale={switchLocale} />
+            </div>
+            <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
+              {t.start}
+            </button>
+          </div>
+        </nav>
+
+        {/* Centered hero content */}
+        <div className="velorah-hero-main" id="top">
+          <div className="velorah-eyebrow animate-fade-rise">
+            <span className="velorah-eyebrow-dot" aria-hidden="true" />
+            <span>{t.eyebrow}</span>
+          </div>
+
+          <h1 id="landing-heading" className="velorah-headline animate-fade-rise" lang={locale}>
+            {heroLines.map((line, idx) => (
+              <span key={line} className={idx === 0 ? "hl-white" : "hl-muted"}>
+                {line}
+              </span>
+            ))}
+          </h1>
+
+          <p className="velorah-lede animate-fade-rise-delay">{t.intro}</p>
+
+          <div className="animate-fade-rise-delay-2 hero-actions" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <button className="velorah-cta liquid-glass" disabled={disabled} onClick={start}>
+              <span>{t.start}</span>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 3l5 5-5 5" />
+              </svg>
+            </button>
+            {showDemo && (
+              <button className="velorah-demo secondary-button" disabled={disabled} onClick={demo}>
+                {t.demo}
+              </button>
+            )}
+            <div className="velorah-trust">
+              <span>{t.noLogin}</span>
+              <span className="dot" aria-hidden="true" />
+              <span>{t.noAddress}</span>
+              <span className="dot" aria-hidden="true" />
+              <span>{t.official}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Below the fold ─────────────────────────────── */}
+      <div className="velorah-below" id="how-it-works">
+        <div className="velorah-below-inner">
+          <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
+            <div className="preview-top">
+              <span>{t.previewTitle}</span>
+              <span className="safe-chip">{t.previewSafety}</span>
+            </div>
+            <div className="timeline-line" />
+            {t.previewSteps.map((preview, i) => (
+              <div className="preview-step" key={preview.time}>
+                <span className={`time-dot dot-${i}`} />
+                <div>
+                  <small>{preview.time}</small>
+                  <strong>{preview.title}</strong>
+                  <p>{preview.detail}</p>
+                </div>
+                <span className="step-number">0{i + 1}</span>
+              </div>
+            ))}
+            <div className="preview-note">
+              <span>i</span>
+              <details>
+                <summary>{t.sectionOfficialSupport}</summary>
+                <p>{t.notDecision}</p>
+              </details>
+            </div>
+          </div>
+
+          <section className="principles" style={{ marginTop: 48 }}>
+            <div className="section-heading">
+              <span>{t.sectionHowItHelps}</span>
+              <h2>{t.privacyTitle}</h2>
+              <p>{t.privacyText}</p>
+            </div>
+            <div className="principle-grid">
+              {t.principleTitles.map((title, index) => (
+                <article key={title}>
+                  <span>0{index + 1}</span>
+                  <h3>{title}</h3>
+                  <p>{t.principleBodies[index]}</p>
+                </article>
+              ))}
+            </div>
+            <a id="public-teams" className="crisis-link" href={municipalityAppUrl}>
+              <span>{t.sectionPublicTeams}</span>
+              {t.crisis}
+              <b>↗</b>
+            </a>
+          </section>
+        </div>
       </div>
-      <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
-        <div className="preview-top"><span>{t.previewTitle}</span><span className="safe-chip">{t.previewSafety}</span></div>
-        <div className="timeline-line" />
-        {t.previewSteps.map((preview, i) => <div className="preview-step" key={preview.time}><span className={`time-dot dot-${i}`} /><div><small>{preview.time}</small><strong>{preview.title}</strong><p>{preview.detail}</p></div><span className="step-number">0{i + 1}</span></div>)}
-        <div className="preview-note"><span>i</span><details><summary>{t.sectionOfficialSupport}</summary><p>{t.notDecision}</p></details></div>
-      </div>
-    </section>
-    <section className="principles">
-      <div className="section-heading"><span>{t.sectionHowItHelps}</span><h2>{t.privacyTitle}</h2><p>{t.privacyText}</p></div>
-      <div className="principle-grid">
-        {t.principleTitles.map((title, index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{t.principleBodies[index]}</p></article>)}
-      </div>
-      <a className="crisis-link" href={municipalityAppUrl}><span>{t.sectionPublicTeams}</span>{t.crisis}<b>↗</b></a>
-    </section>
-  </>;
+    </div>
+  );
 }
 
 function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {

@@ -46,7 +46,7 @@ const jaMessagesWithoutDailyLife = {
     skip: "本文へ移動", navSteps: "わたしのステップ", brandToSteps: "わたしのステップへ戻る", navLocal: "近くの支援", navHelp: "相談先", crisis: "行政・支援者向け Preparedness View",
     eyebrow: "東京で、予定外に生活を続けることになった方へ", hero: "見つけよう。\n東京での第一歩を。",
     intro: "帰国する予定だったのに、母国の状況が変わって帰ることが難しくなった方へ。今の状況に合わせて、東京で当面生活するために確認したいことを整理します。",
-    start: "今の状況を確認する", demo: "デモの状況を読み込む", noLogin: "すぐに開始", noAddress: "自治体単位で回答", official: "公式情報へ案内",
+    start: "フォームに回答する", demo: "デモの状況を読み込む", noLogin: "すぐに開始", noAddress: "自治体単位で回答", official: "公式情報へ案内",
     notDecision: "在留手続や法律上の判断は、専門相談窓口で確認してください。窓口では現在の書類と滞在期限を伝えます。", privacyTitle: "次の行動に必要な範囲だけ答えます",
     privacyText: "自治体、滞在状況、必要な支援など、次の案内に必要な範囲だけ答えます。氏名や旅券番号は入力せず、完了後にサーバーへ保存する最小項目を選べます。",
     back: "戻る", next: "次へ", finish: "状況を整理する", backToTop: "トップページへ戻る", restart: "最初からやり直す", restartPrompt: "気に入らないですか？", loading: "次のステップを準備しています", selectMany: "あてはまるものをすべて選べます", optional: "分かる範囲で大丈夫です",

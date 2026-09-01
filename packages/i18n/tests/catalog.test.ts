@@ -195,7 +195,7 @@ describe("user message catalogs", () => {
 
   it("keeps representative full-flow copy in every locale", () => {
     const representativeCopy = {
-      ja: ["今の状況を確認する", "東京のどの地域に滞在していますか？", "日本に滞在できる期間を確認する", "予定どおり帰ることが難しいと回答したため、現在の状況を公式窓口で確認する案内を表示しています。", "相談員に見せるサマリー"],
+      ja: ["フォームに回答する", "東京のどの地域に滞在していますか？", "日本に滞在できる期間を確認する", "予定どおり帰ることが難しいと回答したため、現在の状況を公式窓口で確認する案内を表示しています。", "相談員に見せるサマリー"],
       en: ["Check my situation", "Where are you staying in Tokyo now?", "Confirm how long you can stay", "You said it is difficult to return as planned, so an official check of your current situation is shown.", "Summary to show a support worker"],
       "zh-CN": ["确认我的情况", "你目前住在东京哪个地区？", "确认可以在日本停留多久", "你表示难以按计划回国，因此这里建议通过官方窗口确认当前情况。", "向支援人员出示的摘要"],
       "zh-TW": ["確認我的情況", "你目前住在東京哪個地區？", "確認可以在日本停留多久", "你表示難以按計畫回國，因此這裡建議透過官方窗口確認目前情況。", "向支援人員出示的摘要"],
