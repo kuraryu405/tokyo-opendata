@@ -145,14 +145,40 @@ describe("StayBridge client flow", () => {
 
     await user.click(screen.getByRole("button", { name: messages.ui.navHelp }));
     expect(screen.getByRole("heading", { name: messages.ui.helpTitle })).toBeTruthy();
-    const legalDetails = screen.getByText(messages.ui.notDecision).closest("details") as HTMLDetailsElement;
-    expect(legalDetails.open).toBe(false);
+    expect(document.querySelector("details.safe-notice")).toBeNull();
+    expect(screen.queryByText(messages.ui.notDecision)).toBeNull();
     expect(screen.getByText(messages.ui.emergency)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: new RegExp(messages.ui.summary) }));
     expect(screen.getByRole("heading", { name: messages.ui.summaryTitle })).toBeTruthy();
     expect(screen.getByText(messages.ui.summaryIntro)).toBeTruthy();
     expect(screen.queryByText(messages.ui.notDecision)).toBeNull();
     expect(screen.queryByText(messages.ui.helpIntro)).toBeNull();
+  });
+
+  it("remounts the result and next destinations as cinematic slide cards", async () => {
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(screen.getByRole("button", { name: "デモの状況を読み込む" }));
+    const statusCard = document.querySelector(".cinematic-route-card");
+    expect(statusCard).toBeTruthy();
+    expect(document.querySelector(".cinematic-shell > .velorah-video source")?.getAttribute("src")).toBe("/tokyo-aerial-4308.mp4");
+    expect(document.querySelector(".cinematic-shell > .velorah-nav")).toBeTruthy();
+    expect(document.querySelector(".site-header")).toBeNull();
+    expect(document.querySelector(".site-footer")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    const roadmapCard = document.querySelector(".cinematic-route-card");
+    expect(roadmapCard).toBeTruthy();
+    expect(roadmapCard).not.toBe(statusCard);
+
+    await user.click(screen.getByRole("button", { name: "近くの支援" }));
+    const localCard = document.querySelector(".cinematic-route-card");
+    expect(localCard).not.toBe(roadmapCard);
+
+    await user.click(screen.getByRole("button", { name: "相談先" }));
+    expect(document.querySelector(".cinematic-route-card")).not.toBe(localCard);
+    expect(document.querySelector("details.safe-notice")).toBeNull();
   });
 
   it.each(selectableUserLocales)("keeps primary actions before supplemental persistence details in %s", async (locale) => {
@@ -201,10 +227,12 @@ describe("StayBridge client flow", () => {
     }
   });
 
-  it("links from the user landing page to the municipality preparedness view", async () => {
+  it("keeps the landing page to the fullscreen hero without the former lower content", async () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("/crisis");
+    expect(screen.queryByRole("link", { name: /行政・支援者向けの確認画面/ })).toBeNull();
+    expect(document.querySelector(".velorah-below")).toBeNull();
+    expect(document.querySelector(".site-footer")).toBeNull();
   });
 
   it("saves only allowlisted Situation fields after separate explicit consent", async () => {
@@ -431,17 +459,15 @@ describe("StayBridge client flow", () => {
     expect(screen.getByText(/このタブのsessionStorageにも保持/)).toBeTruthy();
   });
 
-  it("treats an absent saved-credentials key as unsaved and allows the normal local clear", async () => {
+  it("removes the former footer clear action when there are no saved credentials", async () => {
     navigation.reset("/ja/status");
     restoreCompleteUserSession();
-    const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await screen.findByRole("heading", { name: "回答の保存方法を選ぶ" });
-    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
-
-    expect(navigation.path()).toBe("/ja");
-    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
+    expect(screen.queryByRole("button", { name: "この端末のデータを消す" })).toBeNull();
+    expect(document.querySelector(".site-footer")).toBeNull();
+    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
     expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBeNull();
   });
 
@@ -467,10 +493,6 @@ describe("StayBridge client flow", () => {
     await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
     await user.click(screen.getByRole("button", { name: "回答を見直す" }));
     expect(navigation.path()).toBe("/ja/status");
-    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
-    expect(navigation.path()).toBe("/ja/status");
-    expect(sessionStorage.getItem("staybridge.session")).not.toBeNull();
-    expect(sessionStorage.getItem("staybridge.saved-situation-credentials")).toBe(storedCredentials);
 
     await user.click(screen.getByRole("button", { name: "サーバー記録を残して端末データだけ破棄" }));
     expect(navigation.path()).toBe("/ja");
@@ -694,11 +716,11 @@ describe("StayBridge client flow", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("does not embed a build-time municipality origin in the landing link", async () => {
+  it("does not restore the removed municipality link from a build-time origin", async () => {
     vi.stubEnv("NEXT_PUBLIC_MUNICIPALITY_APP_URL", "https://municipality.staybridge.example/");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    expect(screen.getByRole("link", { name: /行政・支援者向けの確認画面/ }).getAttribute("href")).toBe("/crisis");
+    expect(screen.queryByRole("link", { name: /行政・支援者向けの確認画面/ })).toBeNull();
   });
 
   it("offers start over after completed answers and returns to the first question", async () => {
@@ -724,8 +746,8 @@ describe("StayBridge client flow", () => {
     await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
     expect(document.querySelector(".velorah-hero-main.is-exiting")).toBeTruthy();
     await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
-    expect(document.querySelector(".check-cinematic .velorah-video source")?.getAttribute("src")).toBe("/tokyo-aerial-4308.mp4");
-    expect(document.querySelector(".check-cinematic > .velorah-nav")).toBeTruthy();
+    expect(document.querySelector(".cinematic-shell .velorah-video source")?.getAttribute("src")).toBe("/tokyo-aerial-4308.mp4");
+    expect(document.querySelector(".cinematic-shell > .velorah-nav")).toBeTruthy();
     expect(document.querySelector(".site-header")).toBeNull();
     expect(document.querySelector(".site-footer")).toBeNull();
     const firstCard = document.querySelector(".question-card");
@@ -1485,8 +1507,8 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     await user.click(screen.getByRole("button", { name: /言語:/ }));
     await user.click(screen.getByRole("option", { name: "English" }));
-    expect(screen.getByText("Organize your situation one question at a time without knowing official terms.")).toBeTruthy();
-    expect(screen.queryByText("制度名を知らなくても、今の状況を一問ずつ整理。")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Find your next step for staying in Tokyo." })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /見つけよう/ })).toBeNull();
   });
 
   it("uses a custom keyboard-operable language listbox", async () => {

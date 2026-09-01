@@ -105,17 +105,15 @@ describe("Unreadable stored session handling", () => {
     await waitFor(() => expect(sessionStorage.getItem("staybridge.session")).toContain('"provenance":"demo"'));
   });
 
-  it("also clears the unreadable session through the device-data reset", async () => {
-    const user = userEvent.setup();
+  it("does not expose the removed footer data reset for an unreadable session", async () => {
     const rawSession = "{broken";
     sessionStorage.setItem("staybridge.session", rawSession);
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await screen.findByRole("heading", { name: "前回の回答を読み取れません" });
-    await user.click(screen.getByRole("button", { name: "この端末のデータを消す" }));
-
-    expect(navigation.path()).toBe("/ja");
-    expect(sessionStorage.getItem("staybridge.session")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "前回の回答を読み取れません" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "この端末のデータを消す" })).toBeNull();
+    expect(navigation.path()).toBe("/ja/");
+    expect(sessionStorage.getItem("staybridge.session")).toBe(rawSession);
+    expect(screen.getByRole("heading", { name: "前回の回答を読み取れません" })).toBeTruthy();
   });
 });
