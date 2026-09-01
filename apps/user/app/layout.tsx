@@ -3,6 +3,12 @@ import { headers } from "next/headers";
 import { selectableUserLocales, type SelectableUserLocale } from "@staybridge/i18n";
 import "./globals.css";
 
+const deletionLinkCopy: Record<SelectableUserLocale, string> = {
+  ja: "保存済み記録を削除",
+  en: "Delete a saved record",
+  my: "သိမ်းထားသောမှတ်တမ်းကို ဖျက်ရန်",
+};
+
 function resolveSiteUrl(requestHeaders: Pick<Headers, "get">): URL | undefined {
   const forwardedHost = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim();
   const host = forwardedHost || requestHeaders.get("host")?.split(",")[0]?.trim();
@@ -54,6 +60,12 @@ export default async function RootLayout({
     <html lang={locale}>
       <body className="antialiased">
         {children}
+        <nav
+          aria-label={deletionLinkCopy[locale]}
+          style={{ textAlign: "center", padding: "12px 16px 28px", fontSize: "0.875rem" }}
+        >
+          <a href={`/${locale}/delete`}>{deletionLinkCopy[locale]}</a>
+        </nav>
       </body>
     </html>
   );
