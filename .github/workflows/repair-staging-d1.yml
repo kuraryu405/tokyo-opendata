@@ -73,6 +73,53 @@ jobs:
           pnpm exec wrangler d1 migrations apply STAYBRIDGE_DB \
             --remote --config "$d1_config"
           echo "Staging D1 migration apply completed."
+
+          schema_markers="$(pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+            --remote --config "$d1_config" \
+            --command "SELECT (SELECT COUNT(*) FROM pragma_table_info('open_data_sources') WHERE name = 'landing_page_url') + (SELECT COUNT(*) FROM pragma_table_info('open_data_dataset_versions') WHERE name = 'source_id') + (SELECT COUNT(*) FROM pragma_table_info('open_data_resources') WHERE name = 'description') + (SELECT COUNT(*) FROM pragma_table_info('open_data_active_datasets') WHERE name = 'source_id') + (SELECT COUNT(*) FROM pragma_table_info('open_data_import_runs') WHERE name = 'http_status') AS legacy_markers, (SELECT COUNT(*) FROM pragma_table_info('open_data_sources') WHERE name IN ('data_updated_at', 'fetched_at')) + (SELECT COUNT(*) FROM pragma_table_info('open_data_dataset_versions') WHERE name = 'dataset_key') + (SELECT COUNT(*) FROM pragma_table_info('open_data_resources') WHERE name IN ('source_id', 'data_updated_at')) + (SELECT COUNT(*) FROM pragma_table_info('open_data_active_datasets') WHERE name = 'dataset_key') + (SELECT COUNT(*) FROM pragma_table_info('open_data_import_runs') WHERE name = 'dataset_key') AS current_markers" \
+            --json)"
+          legacy_markers="$(jq -r '.[0].results[0].legacy_markers' \
+            <<<"$schema_markers")"
+          current_markers="$(jq -r '.[0].results[0].current_markers' \
+            <<<"$schema_markers")"
+          if [ "$current_markers" = "7" ] && [ "$legacy_markers" = "0" ]; then
+            echo "The staging Open Data schema is already current."
+          else
+            [ "$legacy_markers" = "5" ] && [ "$current_markers" = "0" ] || {
+              echo "The staging Open Data schema is neither the reviewed legacy shape nor the current shape." >&2
+              exit 1
+            }
+            legacy_table_count="$(pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+              --remote --config "$d1_config" \
+              --command "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name LIKE 'legacy_open_data_%_20260823'" \
+              --json)"
+            jq -e '.[0].success == true and .[0].results[0].count == 0' \
+              <<<"$legacy_table_count" >/dev/null
+            before_counts="$(pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+              --remote --config "$d1_config" \
+              --command "SELECT (SELECT COUNT(*) FROM open_data_sources) AS sources, (SELECT COUNT(*) FROM open_data_dataset_versions) AS versions, (SELECT COUNT(*) FROM open_data_resources) AS resources, (SELECT COUNT(*) FROM open_data_active_datasets) AS active_datasets, (SELECT COUNT(*) FROM open_data_import_runs) AS import_runs" \
+              --json)"
+
+            repair_file="$RUNNER_TEMP/repair-staging-open-data-schema.sql"
+            cp scripts/d1/repair-staging-open-data-schema.sql "$repair_file"
+            printf '\n' >> "$repair_file"
+            sed -n '1,$p' database/migrations/0003_open_data_cache.sql >> "$repair_file"
+            pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+              --remote --config "$d1_config" \
+              --file "$repair_file" --yes
+
+            after_counts="$(pnpm exec wrangler d1 execute STAYBRIDGE_DB \
+              --remote --config "$d1_config" \
+              --command "SELECT (SELECT COUNT(*) FROM legacy_open_data_sources_20260823) AS sources, (SELECT COUNT(*) FROM legacy_open_data_dataset_versions_20260823) AS versions, (SELECT COUNT(*) FROM legacy_open_data_resources_20260823) AS resources, (SELECT COUNT(*) FROM legacy_open_data_active_datasets_20260823) AS active_datasets, (SELECT COUNT(*) FROM legacy_open_data_import_runs_20260823) AS import_runs" \
+              --json)"
+            [ "$(jq -c '.[0].results[0]' <<<"$before_counts")" = \
+              "$(jq -c '.[0].results[0]' <<<"$after_counts")" ] || {
+              echo "Legacy Open Data row-count preservation failed." >&2
+              exit 1
+            }
+            echo "The legacy Open Data tables were preserved and the current schema was created."
+          fi
+
           pnpm exec wrangler d1 execute STAYBRIDGE_DB \
             --remote --config "$d1_config" \
             --file database/seed.sql --yes
