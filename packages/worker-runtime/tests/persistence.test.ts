@@ -212,6 +212,14 @@ function capabilityRequest(headers: HeadersInit = {}): Request {
   });
 }
 
+function capabilityRequestWithBody(body: BodyInit): Request {
+  return new Request("https://staybridge.example/api/situation-submission-capabilities", {
+    method: "POST",
+    headers: { origin: "https://staybridge.example" },
+    body,
+  });
+}
+
 async function issueCapability(environment: PersistenceEnv, issuedAt = now): Promise<string> {
   const response = await handleConsentedPersistenceRequest(
     capabilityRequest(),
@@ -572,6 +580,23 @@ test("fails closed without exposing internals when capability issuance state is 
 
   assert.equal(response?.status, 503);
   assert.doesNotMatch(body, /D1 internal|nonce detail/);
+});
+
+test("accepts an explicitly empty capability request body and rejects non-empty bodies", async () => {
+  const environment = env();
+  const emptyBody = await handleConsentedPersistenceRequest(
+    capabilityRequestWithBody(new Uint8Array(0)),
+    environment,
+    { now },
+  );
+  const nonEmptyBody = await handleConsentedPersistenceRequest(
+    capabilityRequestWithBody("{}"),
+    environment,
+    { now },
+  );
+
+  assert.equal(emptyBody?.status, 201);
+  assert.equal(nonEmptyBody?.status, 400);
 });
 
 test("fails closed without a signing secret or an atomic submission backend", async () => {
