@@ -100,10 +100,27 @@ const routeUi = {
 } satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string; aiReason: string }>;
 
 const searchUi = {
-  ja: { areaLabel: "東京23区から選択", areaPlaceholder: "区名を入力して検索", nationalityLabel: "国名・地域名から選択", nationalityPlaceholder: "国名・地域名を入力して検索" },
-  en: { areaLabel: "Choose from Tokyo's 23 wards", areaPlaceholder: "Search by ward name", nationalityLabel: "Choose a country or region", nationalityPlaceholder: "Search by country or region" },
-  my: { areaLabel: "တိုကျို ၂၃ မြို့နယ်မှ ရွေးပါ", areaPlaceholder: "မြို့နယ်အမည်ဖြင့် ရှာပါ", nationalityLabel: "နိုင်ငံ သို့မဟုတ် ဒေသကို ရွေးပါ", nationalityPlaceholder: "နိုင်ငံ သို့မဟုတ် ဒေသအမည်ဖြင့် ရှာပါ" },
-} satisfies Record<Locale, { areaLabel: string; areaPlaceholder: string; nationalityLabel: string; nationalityPlaceholder: string }>;
+  ja: { areaLabel: "東京23区から選択", areaPlaceholder: "区名を入力して検索", nationalityLabel: "国名・地域名から選択", nationalityPlaceholder: "国名・地域名を入力して検索", noResults: "一致する候補がありません" },
+  en: { areaLabel: "Choose from Tokyo's 23 wards", areaPlaceholder: "Search by ward name", nationalityLabel: "Choose a country or region", nationalityPlaceholder: "Search by country or region", noResults: "No matching options" },
+  my: { areaLabel: "တိုကျို ၂၃ မြို့နယ်မှ ရွေးပါ", areaPlaceholder: "မြို့နယ်အမည်ဖြင့် ရှာပါ", nationalityLabel: "နိုင်ငံ သို့မဟုတ် ဒေသကို ရွေးပါ", nationalityPlaceholder: "နိုင်ငံ သို့မဟုတ် ဒေသအမည်ဖြင့် ရှာပါ", noResults: "ကိုက်ညီသော ရွေးချယ်စရာ မရှိပါ" },
+} satisfies Record<Locale, { areaLabel: string; areaPlaceholder: string; nationalityLabel: string; nationalityPlaceholder: string; noResults: string }>;
+
+const tokyoWardSearchAliases: Record<string, string> = {
+  Chiyoda: "ちよだ", Chuo: "ちゅうおう", Minato: "みなと", Shinjuku: "しんじゅく", Bunkyo: "ぶんきょう", Taito: "たいとう",
+  Sumida: "すみだ", Koto: "こうとう", Shinagawa: "しながわ", Meguro: "めぐろ", Ota: "おおた", Setagaya: "せたがや",
+  Shibuya: "しぶや", Nakano: "なかの", Suginami: "すぎなみ", Toshima: "としま", Kita: "きた", Arakawa: "あらかわ",
+  Itabashi: "いたばし", Nerima: "ねりま", Adachi: "あだち", Katsushika: "かつしか", Edogawa: "えどがわ",
+};
+
+function normalizeSearchText(value: string) {
+  return value.normalize("NFKC").trim().toLocaleLowerCase().replace(/[ぁ-ゖ]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 0x60));
+}
+
+function matchesSearchOption(value: string, label: string, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return [label, value, tokyoWardSearchAliases[value] ?? ""]
+    .some((candidate) => normalizeSearchText(candidate).includes(normalizedQuery));
+}
 
 const RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS = 8_000;
 
@@ -908,7 +925,7 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1>{hint && <p>{hint}</p>}
       {step === 0 || step === 1
-        ? <SearchableAnswer key={step} id={`question-search-${step}`} label={step === 0 ? searchUi[locale].areaLabel : searchUi[locale].nationalityLabel} placeholder={step === 0 ? searchUi[locale].areaPlaceholder : searchUi[locale].nationalityPlaceholder} options={options} current={answeredSteps.includes(step) ? current : ""} choose={choose} clear={clearSearchAnswer} />
+        ? <SearchableAnswer key={step} id={`question-search-${step}`} label={step === 0 ? searchUi[locale].areaLabel : searchUi[locale].nationalityLabel} placeholder={step === 0 ? searchUi[locale].areaPlaceholder : searchUi[locale].nationalityPlaceholder} noResults={searchUi[locale].noResults} options={options} separateOptionValue={step === 1 ? "OTHER" : undefined} current={answeredSteps.includes(step) || (step === 1 && situation.nationality === "OTHER") ? current : ""} choose={choose} clear={clearSearchAnswer} />
         : <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
           {options.map(([value, label]) => { const selectedOther = step === 2 && value === "other" && current === value; const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
         </div>}
@@ -921,52 +938,155 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
   </section>;
 }
 
-function SearchableAnswer({ id, label, placeholder, options, current, choose, clear }: {
+// oxlint-disable jsx-a11y/prefer-tag-over-role -- This WAI-ARIA combobox intentionally replaces browser-native datalist UI.
+function SearchableAnswer({ id, label, placeholder, noResults, options, separateOptionValue, current, choose, clear }: {
   id: string;
   label: string;
   placeholder: string;
+  noResults: string;
   options: readonly (readonly [string, string])[];
+  separateOptionValue?: string;
   current: string;
   choose: (value: string) => void;
   clear: () => void;
 }) {
-  const selectedLabel = options.find(([value]) => value === current)?.[1] ?? "";
-  const inputRef = useRef<HTMLInputElement>(null);
+  const separateOption = options.find(([value]) => value === separateOptionValue);
+  const searchableOptions = separateOptionValue ? options.filter(([value]) => value !== separateOptionValue) : options;
+  const selectedLabel = searchableOptions.find(([value]) => value === current)?.[1] ?? "";
+  const [query, setQuery] = useState(selectedLabel);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const localSelectionChange = useRef(false);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const normalizedQuery = query === selectedLabel ? "" : normalizeSearchText(query);
+  const filteredOptions = normalizedQuery
+    ? searchableOptions.filter(([value, optionLabel]) => matchesSearchOption(value, optionLabel, normalizedQuery))
+    : searchableOptions;
+  const listboxId = `${id}-listbox`;
+  const activeOptionId = open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
+
   useEffect(() => {
     if (localSelectionChange.current) {
       localSelectionChange.current = false;
       return;
     }
-    if (inputRef.current && inputRef.current.value !== selectedLabel) inputRef.current.value = selectedLabel;
+    setQuery(selectedLabel);
+    setOpen(false);
+    setActiveIndex(-1);
   }, [selectedLabel]);
+
+  useEffect(() => {
+    if (open && activeIndex >= 0) optionRefs.current[activeIndex]?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex, open]);
+
+  const selectOption = (value: string, optionLabel: string) => {
+    setQuery(optionLabel);
+    setOpen(false);
+    setActiveIndex(-1);
+    choose(value);
+  };
+
+  const selectSeparateOption = () => {
+    if (!separateOption) return;
+    setQuery("");
+    setOpen(false);
+    setActiveIndex(-1);
+    choose(separateOption[0]);
+  };
+
   return <div className="searchable-answer">
     <label htmlFor={id}>{label}</label>
-    <input
-      ref={inputRef}
-      id={id}
-      type="search"
-      list={`${id}-options`}
-      defaultValue={selectedLabel}
-      placeholder={placeholder}
-      autoComplete="off"
-      onChange={(event) => {
-        const nextQuery = event.target.value;
-        const match = options.find(([, optionLabel]) => optionLabel === nextQuery);
-        if (match) {
-          if (match[0] !== current) localSelectionChange.current = true;
-          choose(match[0]);
-        } else {
-          if (current) localSelectionChange.current = true;
-          clear();
-        }
-      }}
-    />
-    <datalist id={`${id}-options`}>
-      {options.map(([value, optionLabel]) => <option key={value} value={optionLabel} aria-label={optionLabel}>{optionLabel}</option>)}
-    </datalist>
+    <div className="searchable-answer-control" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+    }}>
+      <div className="searchable-answer-input-wrap">
+        <input
+          id={id}
+          type="text"
+          role="combobox"
+          value={query}
+          placeholder={placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded={open}
+          aria-activedescendant={activeOptionId}
+          onFocus={() => {
+            setOpen(true);
+            setActiveIndex(current ? searchableOptions.findIndex(([value]) => value === current) : -1);
+          }}
+          onClick={() => setOpen(true)}
+          onChange={(event) => {
+            const nextQuery = event.target.value;
+            const nextNormalizedQuery = normalizeSearchText(nextQuery);
+            const nextOptions = nextNormalizedQuery
+              ? searchableOptions.filter(([value, optionLabel]) => matchesSearchOption(value, optionLabel, nextNormalizedQuery))
+              : searchableOptions;
+            setQuery(nextQuery);
+            setOpen(true);
+            setActiveIndex(nextOptions.length ? 0 : -1);
+            const match = searchableOptions.find(([, optionLabel]) => optionLabel === nextQuery);
+            if (match) {
+              setOpen(false);
+              setActiveIndex(-1);
+              choose(match[0]);
+            } else {
+              if (selectedLabel) localSelectionChange.current = true;
+              clear();
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) => filteredOptions.length ? Math.min(index + 1, filteredOptions.length - 1) : -1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              setActiveIndex((index) => filteredOptions.length ? (index <= 0 ? filteredOptions.length - 1 : index - 1) : -1);
+            } else if (event.key === "Enter" && open && activeIndex >= 0) {
+              event.preventDefault();
+              const option = filteredOptions[activeIndex];
+              if (option) selectOption(option[0], option[1]);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+              setActiveIndex(-1);
+            } else if (event.key === "Tab") {
+              setOpen(false);
+              setActiveIndex(-1);
+            }
+          }}
+        />
+        <span className={`searchable-answer-chevron ${open ? "open" : ""}`} aria-hidden="true">⌄</span>
+      </div>
+      {separateOption && <button type="button" className={`option-button searchable-answer-separate ${current === separateOption[0] ? "selected" : ""}`} aria-pressed={current === separateOption[0]} onClick={selectSeparateOption}><span className="option-control" aria-hidden="true">{current === separateOption[0] ? "✓" : ""}</span><span>{separateOption[1]}</span></button>}
+      {open && <div id={listboxId} className="searchable-answer-menu" role="listbox" aria-label={label}>
+        {filteredOptions.length
+          ? filteredOptions.map(([value, optionLabel], index) => <button
+            key={value}
+            type="button"
+            id={`${listboxId}-option-${index}`}
+            ref={(element) => { optionRefs.current[index] = element; }}
+            role="option"
+            tabIndex={-1}
+            aria-selected={value === current}
+            className={index === activeIndex ? "active" : ""}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => selectOption(value, optionLabel)}
+            onMouseEnter={() => setActiveIndex(index)}
+          ><span>{optionLabel}</span>{value === current && <span className="searchable-answer-check" aria-hidden="true">✓</span>}</button>)
+          : <p className="searchable-answer-empty">{noResults}</p>}
+      </div>}
+    </div>
   </div>;
 }
+// oxlint-enable jsx-a11y/prefer-tag-over-role
 
 function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAnswers: FamilyAnswers): keyof OtherAnswers | null {
   if (step === 0 && situation.currentMunicipality === "Other") return "area";

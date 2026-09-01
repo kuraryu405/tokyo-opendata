@@ -729,12 +729,39 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
     const search = await screen.findByRole("combobox", { name: "東京23区から選択" }) as HTMLInputElement;
 
+    expect(document.querySelector("datalist")).toBeNull();
+    fireEvent.focus(search);
+    const listbox = screen.getByRole("listbox", { name: "東京23区から選択" });
+    expect(listbox).toBeTruthy();
+    expect(within(listbox).getAllByRole("option")).toHaveLength(23);
     fireEvent.change(search, { target: { value: "世" } });
     expect(search.value).toBe("世");
+    expect(screen.getByRole("option", { name: "世田谷区" })).toBeTruthy();
     expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(true);
 
-    fireEvent.change(search, { target: { value: "世田谷区" } });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
     expect(search.value).toBe("世田谷区");
+    expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("finds a ward by hiragana and ignores the Enter used to confirm IME composition", async () => {
+    navigation.reset("/ja/check?step=0");
+    restoreCompleteUserSession();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    const search = await screen.findByRole("combobox", { name: "東京23区から選択" }) as HTMLInputElement;
+
+    fireEvent.focus(search);
+    fireEvent.change(search, { target: { value: "あらかわ" } });
+    expect(screen.getByRole("option", { name: "荒川区" })).toBeTruthy();
+    fireEvent.change(search, { target: { value: "荒川" } });
+    fireEvent.keyDown(search, { key: "Enter", keyCode: 229, isComposing: true });
+    expect(search.value).toBe("荒川");
+    expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(search.value).toBe("荒川区");
     expect((screen.getByRole("button", { name: /次へ/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -805,7 +832,12 @@ describe("StayBridge client flow", () => {
     const secondSearch = screen.getAllByRole("combobox").find((element) => element instanceof HTMLInputElement) as HTMLInputElement;
     const otherLabel = messages.questions[1][2].find(([value]) => value === "OTHER")?.[1] ?? "";
     expect(messages.questions[1][2]).toHaveLength(250);
-    fireEvent.change(secondSearch, { target: { value: otherLabel } });
+    fireEvent.focus(secondSearch);
+    const countryListbox = screen.getByRole("listbox");
+    expect(within(countryListbox).getAllByRole("option")).toHaveLength(249);
+    expect(within(countryListbox).queryByRole("option", { name: otherLabel })).toBeNull();
+    await user.click(screen.getByRole("button", { name: otherLabel }));
+    expect(screen.getByRole("button", { name: otherLabel }).getAttribute("aria-pressed")).toBe("true");
     const textarea = screen.getByRole("textbox", { name: messages.otherAnswers.nationality.label }) as HTMLTextAreaElement;
     expect(textarea.maxLength).toBe(100);
     expect(textarea.getAttribute("aria-invalid")).toBe("true");
@@ -826,7 +858,7 @@ describe("StayBridge client flow", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "東京23区から選択" }), { target: { value: "世田谷区" } });
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
-    fireEvent.change(screen.getByRole("combobox", { name: "国名・地域名から選択" }), { target: { value: "その他" } });
+    await user.click(screen.getByRole("button", { name: "その他" }));
     await user.type(screen.getByRole("textbox", { name: "国籍または地域を入力" }), "タイ");
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
