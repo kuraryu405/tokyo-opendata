@@ -189,10 +189,42 @@ export async function handleConsentedPersistenceRequest(
     return deleteRecord(request, env.STAYBRIDGE_DB, deletionRoute.kind, deletionRoute.id);
   }
 
-  // Conversation creation remains server-internal until #62 owns assistant
-  // generation and provenance. Browser-authored assistant/model/source content
-  // must never be promoted to trusted conversation records.
-  if (routeKind === "conversation") return createMethodNotAllowedResponse("DELETE");
+  if (routeKind === "conversation") {
+    if (request.method === "DELETE") return createMethodNotAllowedResponse("DELETE");
+    if (request.method !== "POST") return createMethodNotAllowedResponse("POST");
+    if (!hasExplicitSameOrigin(request)) return invalidOriginResponse();
+    if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") {
+      return createApiErrorResponse(
+        { code: "UNSUPPORTED_MEDIA_TYPE", message: "Content-Type must be application/json." },
+        415,
+      );
+    }
+    {
+      const convDeclaredLength = Number(request.headers.get("content-length"));
+      if (Number.isFinite(convDeclaredLength) && convDeclaredLength > MAX_BODY_BYTES) {
+        return payloadTooLargeResponse();
+      }
+      const convRateLimit = await enforceRateLimit(request, env, `create:${routeKind}`);
+      if (convRateLimit) return convRateLimit;
+      const convBody = await readJsonBody(request);
+      if (convBody.kind === "too-large") return payloadTooLargeResponse();
+      if (convBody.kind === "invalid") {
+        return createApiErrorResponse(
+          { code: "INVALID_REQUEST", message: "The JSON request is invalid." },
+          400,
+        );
+      }
+      const conversationPolicy: PersistencePolicy = {
+        conversationModelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        trustedConversationSourceIds: new Set([
+          "OFFICIAL_1","TOKYO_CONSULTATION","ISA","FRESC","TMC_NAVI","TOKYO_FRAC","TIPS_CONSULTATIONS","TMG_CONSULTATION_KURASHI","TOKYO_FRESC_STATUS_CONSULT","TOKYO_HOUSING_SUPPORT","TOKYO_SCHOOL_ENROLL_EN","TOKYO_SCHOOL_ATTENDANCE_BOE","MEXT_SCHOOL","TIPS_SCHOOL","TOKYO_CHILDCARE_SUPPORT","TOKYO_CHILD_GUIDANCE","TOKYO_MEDICAL_INFO","TOKYO_MEDICAL_FLOW","TOKYO_MEDICAL_HIMAWARI","TOKYO_MEDICAL_TMCNAVI","TOKYO_MEDICAL_GAIKOKUGO","TOKYO_LABOR_CONSULT","TOKYO_FOREIGN_WORKERS_HANDBOOK","TOKYO_CAREER_CONSULT","HELLO_WORK_TOKYO_FOREIGNER","TIPS_JAPANESE","TIPS_LIVING_GUIDE","TIPS_PROCEDURES","TIPS_LIFE_GUIDE_JP","KEISHICHO_FOREIGN_RESIDENT_MANUAL","KITA_ELEMENTARY_SCHOOLS_OPEN_DATA","KITA_MEDICAL_INSTITUTIONS_OPEN_DATA","KITA_CHILDCARE_FACILITIES_OPEN_DATA","KITA_PUBLIC_FACILITIES_OPEN_DATA",
+        ]),
+      };
+      const parsed = parseConversation(convBody.value, conversationPolicy);
+      if (!parsed.ok) return invalidSubmissionResponse(parsed.highRisk);
+      return persistConversation(env.STAYBRIDGE_DB, parsed.value);
+    }
+  }
 
   if (request.method !== "POST") return createMethodNotAllowedResponse("POST");
   if (!hasExplicitSameOrigin(request)) return invalidOriginResponse();

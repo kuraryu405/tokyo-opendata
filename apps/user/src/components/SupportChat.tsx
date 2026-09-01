@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import type { SupportChatMessage } from "../ai/support-chat";
 import { prefersReducedMotion } from "../motion";
 import type { Locale } from "./staybridge-session";
+import { saveConversationSubmission, type SavedConversationCredentials } from "../conversation-persistence";
 
 const SUPPORT_CHAT_TIMEOUT_MS = 15_000;
 
@@ -85,7 +86,7 @@ const readErrorCode = async (response: Response): Promise<string> => {
   }
 };
 
-export function SupportChat({ locale }: { locale: Locale }) {
+export function SupportChat({ locale, conversationConsent, onConversationSaved, onSaveError }: { locale: Locale; conversationConsent?: "idle" | "accepted" | "declined"; onConversationSaved?: (creds: SavedConversationCredentials) => void; onSaveError?: () => void }) {
   const t = chatCopy[locale];
   const panelId = useId();
   const nextMessageId = useRef(inMemoryConversation.nextMessageId);
@@ -152,7 +153,18 @@ export function SupportChat({ locale }: { locale: Locale }) {
       if (typeof body.reply !== "string" || !body.reply.trim()) throw new Error("Support chat returned no reply");
       const reply = body.reply.trim();
       if (activeRequestId.current !== requestId) return;
-      setMessages((current) => [...current, createEntry("assistant", reply)]);
+      const assistantMessage = createEntry("assistant", reply);
+      setMessages((current) => [...current, assistantMessage]);
+      if (conversationConsent === "accepted" && onConversationSaved) {
+        const conversationForSave = [...messages, userMessage, assistantMessage].slice(-7).map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          sourceIds: [] as string[],
+        }));
+        void saveConversationSubmission(conversationForSave)
+          .then((creds) => onConversationSaved(creds))
+          .catch(() => onSaveError?.());
+      }
     } catch (requestError) {
       if (activeRequestId.current !== requestId) return;
       setMessages((current) => current.filter((message) => message.id !== userMessage.id));

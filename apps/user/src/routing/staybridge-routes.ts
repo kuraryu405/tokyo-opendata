@@ -12,14 +12,18 @@ export const stayBridgeScreens = [
   "local",
   "help",
   "summary",
+  "chat",
+  "settings",
+  "helpPrepare",
 ] as const;
 
-export type StayBridgeScreen = (typeof stayBridgeScreens)[number];
+export type StayBridgeScreen = (typeof stayBridgeScreens)[number] | "roadmapAction";
 export type LocalFilter = LocalFilterKey;
 
 export type StayBridgeQuery = {
   step?: number;
   filter?: LocalFilter;
+  actionId?: string;
 };
 
 export type StayBridgeRoute = {
@@ -54,7 +58,18 @@ const screenBySegment: Record<string, StayBridgeScreen> = {
   local: "local",
   help: "help",
   summary: "summary",
+  chat: "chat",
+  settings: "settings",
 };
+
+function actionIdToSlug(actionId: string): string {
+  return actionId.toLowerCase().replaceAll("_", "-");
+}
+
+function slugToActionId(slug: string): string | null {
+  const normalized = slug.toUpperCase().replaceAll("-", "_");
+  return /^[A-Z0-9_]+$/.test(normalized) ? normalized : null;
+}
 
 export function isSelectableLocale(value: string | undefined): value is SelectableUserLocale {
   return selectableUserLocales.includes(value as SelectableUserLocale);
@@ -78,7 +93,11 @@ export function buildStayBridgePath({
   query?: StayBridgeQuery;
 }): string {
   const safeLocale = isSelectableLocale(locale) ? locale : "ja";
-  const segment = screen === "landing" ? "" : `/${screen}`;
+  let segment: string;
+  if (screen === "landing") segment = "";
+  else if (screen === "helpPrepare") segment = "/help/prepare";
+  else if (screen === "roadmapAction") segment = query.actionId ? `/roadmap/action/${actionIdToSlug(query.actionId)}` : "/roadmap";
+  else segment = `/${screen}`;
   const params = new URLSearchParams();
 
   if (screen === "check") {
@@ -86,6 +105,9 @@ export function buildStayBridgePath({
   }
   if (screen === "local") {
     params.set("filter", isLocalFilter(query.filter) ? query.filter : "all");
+  }
+  if (screen === "roadmapAction" && query.filter && isLocalFilter(query.filter)) {
+    params.set("filter", query.filter);
   }
 
   const search = params.toString();
@@ -102,9 +124,28 @@ export function parseStayBridgeRoute(
   const segments = pathOnly.split("/").filter(Boolean);
   const requestedLocale = segments[0];
   const locale = isSelectableLocale(requestedLocale) ? requestedLocale : "ja";
-  const screen = segments.length > 1 ? screenBySegment[segments[1]] ?? "landing" : "landing";
+  let screen: StayBridgeScreen = "landing";
   const query: StayBridgeQuery = {};
   const routeSearchParams = searchParams ?? queryFromPath;
+
+  if (segments.length > 1) {
+    const seg1 = segments[1];
+    const seg2 = segments[2];
+    const seg3 = segments[3];
+    if (seg1 === "roadmap" && seg2 === "action" && seg3) {
+      const actionId = slugToActionId(seg3);
+      if (actionId) {
+        screen = "roadmapAction";
+        query.actionId = actionId;
+      } else {
+        screen = "roadmap";
+      }
+    } else if (seg1 === "help" && seg2 === "prepare") {
+      screen = "helpPrepare";
+    } else {
+      screen = screenBySegment[seg1] ?? "landing";
+    }
+  }
 
   if (screen === "check") {
     const rawStep = readSearchParam(routeSearchParams, "step");

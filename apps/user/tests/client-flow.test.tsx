@@ -171,12 +171,15 @@ describe("StayBridge client flow", () => {
 
     await user.click(nextStep);
     const firstAction = screen.getAllByRole("heading", { level: 3 })[0];
-    const conversationConsent = screen.getByRole("heading", { name: persistence.conversationTitle });
-    expect(firstAction.compareDocumentPosition(conversationConsent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const conversationDetails = screen.getByText(persistence.detailsTitle).closest("details") as HTMLDetailsElement;
+    const chatCta = screen.getByRole("button", { name: new RegExp(messages.ui.viewChat + ".*→") });
+    expect(firstAction.compareDocumentPosition(chatCta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Conversation consent is now grouped with situation consent on the settings page, not on roadmap
+    await user.click(screen.getByRole("button", { name: new RegExp(messages.ui.viewSettings + ".*→") }));
+    expect(screen.getByRole("heading", { name: persistence.situationTitle })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: persistence.conversationTitle })).toBeTruthy();
+    const conversationDetails = screen.getAllByText(persistence.detailsTitle)[1].closest("details") as HTMLDetailsElement;
     expect(conversationDetails.open).toBe(false);
     expect(within(conversationDetails).getByText(persistence.deletion)).toBeTruthy();
-    expect(screen.getByText(persistence.warning)).toBeTruthy();
   });
 
   it.each(selectableUserLocales)("returns from every primary destination to the %s locale home", async (locale) => {
@@ -367,9 +370,7 @@ describe("StayBridge client flow", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
-    expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
+    // Conversation consent is now grouped on settings/chat, not roadmap. The child action should still be visible without extra decline.
     expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
   });
 
@@ -658,7 +659,7 @@ describe("StayBridge client flow", () => {
   });
 
   it("labels conversation consent as a preference without claiming a saved conversation", async () => {
-    navigation.reset("/ja/roadmap");
+    navigation.reset("/ja/chat");
     restoreCompleteUserSession();
     const fetchMock = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchMock);
@@ -991,7 +992,7 @@ describe("StayBridge client flow", () => {
     }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     restoreCompleteDemoSession();
-    navigation.reset("/ja/roadmap");
+    navigation.reset("/ja/chat");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     expect(await screen.findByRole("heading", { name: "AI相談アシスタント" })).toBeTruthy();
@@ -1027,7 +1028,7 @@ describe("StayBridge client flow", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     restoreCompleteDemoSession();
-    navigation.reset("/ja/roadmap");
+    navigation.reset("/ja/chat");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     const input = await screen.findByRole("textbox", { name: "相談したいこと" });
@@ -1050,7 +1051,7 @@ describe("StayBridge client flow", () => {
     const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new Error("unavailable"));
     vi.stubGlobal("fetch", fetchMock);
     restoreCompleteDemoSession();
-    navigation.reset("/ja/roadmap");
+    navigation.reset("/ja/chat");
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     const input = await screen.findByRole("textbox", { name: "相談したいこと" });

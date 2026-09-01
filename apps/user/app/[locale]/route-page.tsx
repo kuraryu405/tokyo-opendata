@@ -40,7 +40,24 @@ function buildRequestedPath(
   screen: StayBridgeScreen,
   searchParams: StayBridgeSearchParams,
 ): string {
-  const path = `/${locale}${screen === "landing" ? "" : `/${screen}`}`;
+  if (screen === "helpPrepare") {
+    const base = `/${locale}/help/prepare`;
+    const queryString = searchParamsToString(searchParams);
+    return `${base}${queryString ? `?${queryString}` : ""}`;
+  }
+  if (screen === "roadmapAction") {
+    const base = `/${locale}/roadmap`;
+    const queryString = searchParamsToString(searchParams);
+    return `${base}${queryString ? `?${queryString}` : ""}`;
+  }
+  let segment: string;
+  if (screen === "landing") segment = "";
+  else segment = `/${screen}`;
+  const queryString = searchParamsToString(searchParams);
+  return `/${locale}${segment}${queryString ? `?${queryString}` : ""}`;
+}
+
+function searchParamsToString(searchParams: StayBridgeSearchParams): string {
   const query = new URLSearchParams();
   if (typeof searchParams === "string") {
     for (const [key, value] of new URLSearchParams(searchParams)) query.append(key, value);
@@ -60,6 +77,5 @@ function buildRequestedPath(
       }
     }
   }
-  const queryString = query.toString();
-  return `${path}${queryString ? `?${queryString}` : ""}`;
+  return query.toString();
 }

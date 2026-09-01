@@ -121,6 +121,8 @@ export type UserMessages = {
     navSteps: string;
     navLocal: string;
     navHelp: string;
+    navChat: string;
+    navSettings: string;
     crisis: string;
     eyebrow: string;
     hero: string;
@@ -167,6 +169,16 @@ export type UserMessages = {
     noResources: string;
     helpTitle: string;
     helpIntro: string;
+    chatTitle: string;
+    chatIntro: string;
+    settingsTitle: string;
+    settingsIntro: string;
+    viewChat: string;
+    viewSettings: string;
+    backToHelp: string;
+    nearbySchoolsNote: string;
+    preparingHelp: string;
+    actionDetail: string;
     prepare: string;
     prepareItems: readonly string[];
     summary: string;

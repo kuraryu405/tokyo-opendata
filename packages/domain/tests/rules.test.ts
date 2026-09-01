@@ -57,6 +57,8 @@ describe("production action rule table", () => {
         familyMembers: { children: [{ ageGroup: "6-11" }] },
         needs: ["accommodation", "living_cost", "employment", "education", "childcare", "medical", "language", "daily_life"],
       })),
+      actions(quietSituation({ familyMembers: { children: [{ ageGroup: "6-11" }] } })),
+      actions(quietSituation({ familyMembers: { children: [{ ageGroup: "0-2" }] } })),
     ];
     const matched = new Set(branchResults.flatMap((result) => result.flatMap((action) => action.matchedRuleIds)));
     expect([...matched].sort()).toEqual([...ruleIds].sort());
@@ -157,7 +159,7 @@ describe("generateActions", () => {
   it("adds education and child support only at their age and need boundaries", () => {
     const schoolAge = ids(quietSituation({ familyMembers: { children: [{ ageGroup: "6-11" }] }, needs: ["education", "childcare"] }));
     const adult = ids(quietSituation({ familyMembers: { children: [{ ageGroup: "18+" }] }, needs: ["education", "childcare"] }));
-    expect(schoolAge).toEqual(["CHECK_CHILD_EDUCATION", "CHECK_CHILD_LOCAL_SUPPORT"]);
+    expect(schoolAge).toEqual(["CHECK_CHILD_EDUCATION_GUIDANCE", "FIND_NEARBY_SCHOOLS", "CHECK_CHILD_LOCAL_SUPPORT"]);
     expect(adult).toEqual([]);
   });
 
@@ -166,8 +168,12 @@ describe("generateActions", () => {
       familyMembers: { children: [{ ageGroup: "15-17" }, { ageGroup: "6-11" }, { ageGroup: "15-17" }] },
       needs: ["education", "childcare"],
     }));
-    expect(result.find((action) => action.id === "CHECK_CHILD_EDUCATION")?.answerCodes).toEqual([
+    expect(result.find((action) => action.id === "CHECK_CHILD_EDUCATION_GUIDANCE")?.answerCodes).toEqual([
       "needs=education",
+      "childAge=15-17",
+      "childAge=6-11",
+    ]);
+    expect(result.find((action) => action.id === "FIND_NEARBY_SCHOOLS")?.answerCodes).toEqual([
       "childAge=15-17",
       "childAge=6-11",
     ]);

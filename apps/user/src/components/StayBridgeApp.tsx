@@ -34,6 +34,16 @@ import {
   type PublicUserMessages,
 } from "@staybridge/i18n/client";
 import {
+  CONVERSATION_PERSISTENCE_PREFERENCE_KEY,
+  SAVED_CONVERSATION_CREDENTIALS_KEY,
+  deleteConversationSubmission,
+  parseSavedConversationCredentials,
+  readConversationPersistencePreference,
+  serializeSavedConversationCredentials,
+  type ConversationPersistenceState,
+  type SavedConversationCredentials,
+} from "../conversation-persistence";
+import {
   getLocalizedSupportText,
   supportUiCopy,
   type NeedKey,
@@ -123,6 +133,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
   const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
+  const [conversationPersistence, setConversationPersistence] = useState<ConversationPersistenceState>({ status: "idle" });
   const [hasUnreadableSession, setHasUnreadableSession] = useState(false);
   const [isDemoSituation, setIsDemoSituation] = useState(false);
   // Keep the request's assessment date pinned for answer-dependent rules while
@@ -205,12 +216,43 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           setSituationPersistence({ status: "declined" });
         }
       }
+      // Conversation consent and persistence
+      const convPreference = sessionStorage.getItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY);
+      if (readConversationPersistencePreference(convPreference) === "declined") {
+        setConversationConsent("declined");
+        setConversationPersistence({ status: "declined" });
+      } else if (convPreference === "accepted") {
+        setConversationConsent("accepted");
+      }
+      const savedConv = parseSavedConversationCredentials(sessionStorage.getItem(SAVED_CONVERSATION_CREDENTIALS_KEY));
+      if (savedConv) {
+        setConversationPersistence({ status: "saved", credentials: savedConv });
+        setConversationConsent("accepted");
+      }
     } catch {
       setStorageError(true);
     } finally {
       setStorageReady(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      if (conversationConsent === "accepted") {
+        sessionStorage.setItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY, "accepted");
+        // oxlint-disable-next-line react/set-state-in-effect -- Syncs declined persistence reset.
+        if (conversationPersistence.status === "declined") setConversationPersistence({ status: "idle" });
+      } else if (conversationConsent === "declined") {
+        sessionStorage.setItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY, "declined");
+        setConversationPersistence({ status: "declined" });
+      } else {
+        sessionStorage.removeItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY);
+      }
+    } catch {
+      setStorageError(true);
+    }
+  }, [conversationConsent, conversationPersistence.status, storageReady]);
 
   useEffect(() => () => situationRequestController.current?.abort(), []);
 
@@ -254,16 +296,16 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const firstIncompleteStep = firstUnansweredStep(answeredSteps);
   const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
   const showStepsNav = assessmentComplete || isDemoSituation;
-  const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
+  const storageGate = !storageReady && ["check", "status", "roadmap", "roadmapAction", "local", "summary", "chat", "helpPrepare", "settings"].includes(screen);
   const protectedSituationRouteGuard = storageReady
     && hasProtectedSituationSubmission
     && (screen === "landing" || screen === "check");
   const demoSituationRouteGuard = storageReady
     && isDemoSituation
-    && (screen === "check" || ((screen === "roadmap" || screen === "summary") && !assessmentComplete));
+    && (screen === "check" || ((screen === "roadmap" || screen === "roadmapAction" || screen === "summary") && !assessmentComplete));
   const routeNeedsAssessmentGuard = storageReady && !hasProtectedSituationSubmission && !isDemoSituation && (
     (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
-    ((screen === "status" || screen === "roadmap" || screen === "summary") && !assessmentComplete)
+    ((screen === "status" || screen === "roadmap" || screen === "roadmapAction" || screen === "summary" || screen === "chat" || screen === "helpPrepare" || screen === "settings") && !assessmentComplete)
   );
 
   useEffect(() => {
@@ -346,7 +388,13 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   };
 
   const setLocalFilter = (nextFilter: LocalFilter) => {
-    router.replace(buildStayBridgePath({ locale, screen: "local", query: { filter: nextFilter } }));
+    router.push(buildStayBridgePath({ locale, screen: "local", query: { filter: nextFilter } }));
+  };
+
+  const openActionDetail = (actionId: string) => {
+    cancelPendingRecommendation();
+    router.push(buildStayBridgePath({ locale, screen: "roadmapAction", query: { actionId } }));
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const complete = async () => {
@@ -475,12 +523,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setAnsweredSteps([]);
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
+    setConversationPersistence({ status: "idle" });
     setIsDemoSituation(false);
     setHasUnreadableSession(false);
     pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+      sessionStorage.removeItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY);
+      sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY);
     } catch {
       setStorageError(true);
     }
@@ -510,12 +561,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setCopyState("idle");
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
+    setConversationPersistence({ status: "idle" });
     setIsDemoSituation(false);
     setHasUnreadableSession(false);
     pendingSituationSubmission.current = null;
     try {
       sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
       sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+      sessionStorage.removeItem(CONVERSATION_PERSISTENCE_PREFERENCE_KEY);
+      sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY);
     } catch {
       setStorageError(true);
     }
@@ -697,9 +751,18 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
             }
             setSituationPersistence({ status: "declined" });
           }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} roadmap={() => go("roadmap")} edit={editSituation} />}
-          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+          {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} go={go} openAction={openAction} openActionDetail={openActionDetail} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
+        {screen === "roadmapAction" && <ActionDetail locale={locale} t={t} actions={actions} actionId={query.actionId} visitPurpose={situation.visitPurpose} go={go} openAction={openAction} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
-          {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
+          {screen === "help" && <HumanSupport locale={locale} t={t} situation={situation} summary={() => go("summary")} go={go} />}
+          {screen === "helpPrepare" && <HelpPrepare locale={locale} t={t} go={go} />}
+          {screen === "chat" && <ChatPage locale={locale} t={t} situation={situation} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} conversationPersistence={conversationPersistence} setConversationPersistence={setConversationPersistence} />}
+          {screen === "settings" && <DataSettings locale={locale} situationPersistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} conversationPersistence={conversationPersistence} setConversationPersistence={setConversationPersistence} persist={() => void persistSituation()} declinePersistence={() => {
+            try {
+              sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
+            } catch {}
+            setSituationPersistence({ status: "declined" });
+          }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} go={go} />}
           {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
         </>}
       </main>
@@ -716,9 +779,10 @@ function Header({ locale, screen, go, switchLocale, navVisible, showStepsNav }: 
   return <header className="site-header">
     <button className="brand" onClick={() => go("landing")} aria-label={t.homeLabel}><span className="brand-mark">SB</span><span className="brand-name">StayBridge <b>Tokyo</b></span><span className="brand-home-label">{t.backToTop}</span></button>
     {navVisible && <nav aria-label={t.primaryNavLabel}>
-      {showStepsNav && <button className={screen === "roadmap" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>}
+      {showStepsNav && <button className={screen === "roadmap" || screen === "roadmapAction" ? "active" : ""} onClick={() => go("roadmap")}>{t.navSteps}</button>}
       <button className={screen === "local" ? "active" : ""} onClick={() => go("local")}>{t.navLocal}</button>
-      <button className={screen === "help" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
+      <button className={screen === "help" || screen === "helpPrepare" ? "active" : ""} onClick={() => go("help")}>{t.navHelp}</button>
+      <button className={screen === "chat" ? "active" : ""} onClick={() => go("chat")}>{t.navChat}</button>
     </nav>}
     <label className="language-select" title={t.languageSelectTitle}><span className="sr-only">{t.languageSelectLabel}</span><select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>{selectableUserLocales.map((availableLocale) => <option key={availableLocale} value={availableLocale}>{getUserMessages(availableLocale).metadata.nativeLabel}</option>)}</select></label>
   </header>;
@@ -920,13 +984,21 @@ function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, othe
 
 }
 
-function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
+function Roadmap({ locale, t, actions, visitPurpose, go, openAction, openActionDetail, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; go: (s: Screen, query?: StayBridgeQuery) => void; openAction: (destination: ActionDestination) => void; openActionDetail: (actionId: string) => void; restart: () => void; restartLabel: string }) {
   const groups = ["today", "this_week", "next_30_days", "before_deadline", "long_term"].map((timing) => ({ timing, actions: actions.filter((a) => a.timing === timing) })).filter((g) => g.actions.length);
   const numberedGroups = groups.reduce<Array<{ timing: string; actions: Action[]; offset: number }>>((all, group) => {
     const last = all[all.length - 1];
     return [...all, { ...group, offset: last ? last.offset + last.actions.length : 0 }];
   }, []);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} openDetail={() => openActionDetail(action.id)} />)}</section>) : <div className="empty-state"><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><div className="aside-card chat-cta-card"><h3>{t.chatTitle}</h3><p>{t.chatIntro}</p><button className="primary-button" onClick={() => go("chat")}>{t.viewChat} →</button></div><div className="aside-card"><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div><div className="aside-card"><h3>{t.settingsTitle}</h3><p>{t.settingsIntro}</p><button onClick={() => go("settings")}>{t.viewSettings} →</button></div></aside></div><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+}
+
+function ActionDetail({ locale, t, actions, actionId, visitPurpose, go, openAction }: { locale: Locale; t: UserCopy; actions: Action[]; actionId?: string; visitPurpose: Situation["visitPurpose"]; go: (s: Screen, query?: StayBridgeQuery) => void; openAction: (destination: ActionDestination) => void }) {
+  const action = actions.find((a) => a.id === actionId);
+  if (!action) {
+    return <section className="content-page"><div className="page-heading"><h1>{t.actionDetail}</h1><p>{routeUi[locale].catalogUnavailable}</p><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button></div></section>;
+  }
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.actionDetail}</span><h1>{getUserMessages(locale).actions[action.id as ActionId]?.title ?? action.title}</h1><p>{getUserMessages(locale).actions[action.id as ActionId]?.desc ?? action.shortDescription}</p></div><div className="action-detail-card"><ActionCard locale={locale} t={t} action={action} number={1} visitPurpose={visitPurpose} openAction={openAction} openDetail={() => {}} hideDetailLink /></div><div className="page-actions"><button className="secondary-button" onClick={() => go("roadmap")}>← {t.backToRoadmap}</button></div></section>;
 }
 
 function SituationPersistenceConsent({ locale, state, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, decline, deleteRecord, discardCorruptLocalData, discardCorruptPending }: { locale: Locale; state: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void }) {
@@ -943,6 +1015,7 @@ function CorruptSavedCredentials({ copy, keepsPendingSave, discardLocalData }: {
   return <div id="corrupt-saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.corruptCredentialsTitle}</h3><p>{copy.corruptCredentialsBody}</p><p className="consent-warning">{keepsPendingSave ? copy.corruptCredentialsPendingWarning : copy.corruptCredentialsDiscardWarning}</p><div className="consent-actions"><button className="secondary-button" onClick={discardLocalData}>{keepsPendingSave ? copy.discardOnlyCorruptCredentials : copy.discardCorruptLocalData}</button></div></div>;
 }
 
+// oxlint-disable-next-line no-unused-vars
 function ConversationPersistenceConsent({ locale, state, setState }: { locale: Locale; state: ConversationConsentState; setState: (state: ConversationConsentState) => void }) {
   const copy = getPersistenceCopy(locale);
   return <section className="consent-card conversation-consent" aria-labelledby="conversation-consent-title"><h2 id="conversation-consent-title">{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={state === "accepted"} onClick={() => setState("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={state === "declined"} onClick={() => setState("declined")}>{copy.decline}</button></div>{state !== "idle" && <output className="consent-status" aria-live="polite">{state === "accepted" ? copy.conversationAccepted : copy.declined}</output>}</section>;
@@ -967,7 +1040,7 @@ function SavedCredentials({ copy, state, deleteRecord }: { copy: PersistenceCopy
   return <div id="saved-situation-credentials" className="saved-credentials" tabIndex={-1}><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{state.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{state.credentials.deletionToken}</code></dd></div></dl><p>{copy.savedSessionWarning}</p><p>{copy.deleteBeforeReset}</p><div className="consent-actions"><button className="secondary-button" onClick={() => void copyCredentials()}>{copy.copyCredentials}</button><button className="secondary-button" disabled={state.status === "deleting"} onClick={() => deleteRecord(state.credentials)}>{state.status === "deleting" ? copy.deleting : copy.deleteNow}</button></div>{credentialCopyState !== "idle" && <output className={`consent-status ${credentialCopyState === "error" ? "error" : ""}`} aria-live="polite">{credentialCopyState === "copied" ? copy.credentialsCopied : copy.credentialsCopyFailed}</output>}{state.status === "delete-error" && <output className="consent-status error" aria-live="polite">{copy.deleteFailed}</output>}</div>;
 }
 
-function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { locale: Locale; t: UserCopy; action: Action; number: number; visitPurpose: Situation["visitPurpose"]; openAction: (destination: ActionDestination) => void }) {
+function ActionCard({ locale, t, action, number, visitPurpose, openAction, openDetail, hideDetailLink }: { locale: Locale; t: UserCopy; action: Action; number: number; visitPurpose: Situation["visitPurpose"]; openAction: (destination: ActionDestination) => void; openDetail: () => void; hideDetailLink?: boolean }) {
   const messages = getUserMessages(locale);
   const catalogEntry = getActionCatalogEntry(action.id);
   if (!catalogEntry) return null;
@@ -979,7 +1052,7 @@ function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { l
   const reason = action.selectionSource === "ai"
     ? routeUi[locale].aiReason
     : messages.reasons[action.reasonCode as ReasonCode];
-  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{reason}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
+  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{reason}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a></div>)}</div><div className="action-buttons"><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button>{!hideDetailLink && <button className="text-button" onClick={openDetail}>{t.actionDetail} →</button>}</div></div></div></article>;
 }
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
@@ -995,19 +1068,92 @@ function ResourceCard({ resource, locale, t }: { resource: LocalResource & { id:
   return <article className="resource-card"><div className={`resource-icon ${resource.category}`}>{icon}</div><div className="resource-main"><div className="resource-meta"><span>{t[resource.category as keyof UserCopy] as string}</span><span>{resource.municipality}</span></div><h2>{resource.name}</h2><p>{display.description}</p><dl><div><dt>{t.addressLabel}</dt><dd>{resource.address ?? t.unavailable}</dd></div>{resource.phone && <div><dt>{t.phoneLabel}</dt><dd><a href={`tel:${resource.phone}`}>{resource.phone}</a></dd></div>}</dl>{resource.category === "school" && <p className="resource-disclaimer">i {t.schoolNote}</p>}<details className="resource-source"><summary>{t.sourceLabel}</summary><a href={source?.url || resource.website || "#"} target="_blank" rel="noreferrer">{source?.title || t.publicDataLabel}</a><small>{source?.publisher ?? t.publicDataLabel}</small>{source?.license && <small>{source.licenseUrl ? <a href={source.licenseUrl} target="_blank" rel="noreferrer">LICENSE: {source.license}</a> : `LICENSE: ${source.license}`}</small>}{source?.adaptation === "selected_and_normalized" && <small>{t.changesMade}</small>}<small>{t.updated}: {updatedAt ?? t.unavailable}</small><small>{t.fetched}: {source?.fetchedAt ?? t.unavailable}</small></details>{resource.website && <a className="card-link" href={resource.website} target="_blank" rel="noreferrer">{t.details} ↗</a>}</div></article>;
 }
 
-function HumanSupport({ locale, t, needs, visitPurpose, summary }: { locale: Locale; t: UserCopy; needs: NeedCategory[]; visitPurpose: Situation["visitPurpose"]; summary: () => void }) {
+function deriveRelatedSourceIds(situation: Situation): string[] {
+  const ids = new Set<string>();
+  const schoolAge = situation.familyMembers.children.some((c) => ["6-11", "12-14", "15-17"].includes(c.ageGroup));
+  const earlyChild = situation.familyMembers.children.some((c) => ["0-2", "3-5"].includes(c.ageGroup));
+  if (schoolAge) {
+    ["TOKYO_SCHOOL_ENROLL_EN", "TOKYO_SCHOOL_ATTENDANCE_BOE", "MEXT_SCHOOL", "TIPS_SCHOOL"].forEach((id) => ids.add(id));
+  }
+  if (earlyChild) {
+    ["TOKYO_CHILDCARE_SUPPORT", "TOKYO_CHILD_GUIDANCE"].forEach((id) => ids.add(id));
+  }
+  if (situation.japaneseLevel === "none" || situation.japaneseLevel === "beginner") {
+    ["TIPS_JAPANESE"].forEach((id) => ids.add(id));
+  }
+  if (situation.accommodation === "unstable") {
+    ["TOKYO_HOUSING_SUPPORT"].forEach((id) => ids.add(id));
+  }
+  if (situation.stayDeadlineKnown || situation.returnStatus === "difficult" || situation.returnStatus === "unknown") {
+    ["ISA", "FRESC", "TOKYO_FRESC_STATUS_CONSULT"].forEach((id) => ids.add(id));
+  }
+  return [...ids];
+}
+
+function HumanSupport({ locale, t, situation, summary, go }: { locale: Locale; t: UserCopy; situation: Situation; summary: () => void; go: (s: Screen, query?: StayBridgeQuery) => void }) {
   const ui = supportUiCopy[locale];
-  const infoSourceIds = [...new Set(needs.flatMap((need) => consultationSourcesByNeed[need]))];
-  const infoSources = infoSourceIds
+  const relatedIds = deriveRelatedSourceIds(situation);
+  const needIds = [...new Set(situation.needs.flatMap((need) => consultationSourcesByNeed[need]))];
+  const allInfoIds = [...new Set([...relatedIds, ...needIds])];
+  const infoSources = allInfoIds
     .map((id) => sourceRegistry[id])
     .filter((source): source is DataSource => Boolean(source))
-    .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
+    .filter((source) => isSourceEligibleForVisitPurpose(source, situation.visitPurpose));
+  const relatedSources = relatedIds
+    .map((id) => sourceRegistry[id])
+    .filter((source): source is DataSource => Boolean(source))
+    .filter((source) => isSourceEligibleForVisitPurpose(source, situation.visitPurpose))
+    .filter((source, idx, arr) => arr.findIndex((s) => s.id === source.id) === idx);
   const handoffSources = humanHandoffSourceIds
     .map((id) => sourceRegistry[id])
     .filter((source): source is DataSource => Boolean(source))
-    .filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{infoSources.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{infoSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : <p className="handoff-empty">{ui.emptyNote}</p>}<section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffSources.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section></div><aside className="prepare-card"><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><details className="safe-notice"><summary>{t.sectionOfficialSupport}</summary><p>{t.notDecision}</p></details><div className="emergency-note">{t.emergency}</div></section>;
+    .filter((source) => isSourceEligibleForVisitPurpose(source, situation.visitPurpose));
+  // Group official info not in related
+  const officialSources = infoSources.filter((s) => !relatedIds.includes(s.id) && !(humanHandoffSourceIds as readonly string[]).includes(s.id));
+  // Deduplicate across groups
+  const seen = new Set<string>();
+  const dedupe = (sources: DataSource[]) => sources.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+  const relatedDeduped = dedupe(relatedSources);
+  const handoffDeduped = dedupe(handoffSources);
+  const officialDeduped = dedupe(officialSources);
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionHumanHandoff}</span><h1>{t.helpTitle}</h1><p>{t.helpIntro}</p></div><div className="handoff-grid"><div className="handoff-main">{relatedDeduped.length > 0 && <section className="handoff-group"><h2 className="handoff-group-title">この状況で確認するとよい相談先</h2><p className="handoff-group-note">あなたの回答から、確認しておくと役立つ可能性のある相談先です。断定ではなく、必要に応じて確認してください。</p><div className="support-list">{relatedDeduped.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section>}{handoffDeduped.length > 0 && <section className="handoff-group"><h2 className="handoff-group-title">{ui.talkTitle}</h2><p className="handoff-group-note">{ui.talkNote}</p><div className="support-list">{handoffDeduped.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.handoffLabel} details={t.details} />)}</div></section>}{officialDeduped.length > 0 ? <section className="handoff-group"><h2 className="handoff-group-title">{ui.infoTitle}</h2><p className="handoff-group-note">{ui.infoNote}</p><div className="support-list">{officialDeduped.map((source, index) => <SupportCard key={source.id} locale={locale} source={source} index={index} label={ui.infoLabel} details={t.details} />)}</div></section> : relatedDeduped.length === 0 && handoffDeduped.length === 0 ? <p className="handoff-empty">{ui.emptyNote}</p> : null}</div><aside className="prepare-card"><h2>{t.prepare}</h2><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><button className="text-button" onClick={() => go("helpPrepare")}>{t.preparingHelp} →</button><button className="primary-button wide" onClick={summary}>{t.summary}<span>→</span></button></aside></div><details className="safe-notice"><summary>{t.sectionOfficialSupport}</summary><p>{t.notDecision}</p></details><div className="emergency-note">{t.emergency}</div></section>;
 }
+
+function HelpPrepare({ locale: _locale, t, go }: { locale: Locale; t: UserCopy; go: (s: Screen, query?: StayBridgeQuery) => void }) {
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.preparingHelp}</span><h1>{t.prepare}</h1></div><div className="prepare-detail"><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><div className="page-actions"><button className="secondary-button" onClick={() => go("help")}>← {t.backToHelp}</button><button className="primary-button" onClick={() => go("summary")}>{t.summary} →</button></div></div></section>;
+}
+
+
+
+function ChatPage({ locale, t, situation: _situation, conversationConsent, setConversationConsent, conversationPersistence, setConversationPersistence }: { locale: Locale; t: UserCopy; situation: Situation; conversationConsent: ConversationConsentState; setConversationConsent: (s: ConversationConsentState) => void; conversationPersistence: ConversationPersistenceState; setConversationPersistence: (s: ConversationPersistenceState) => void }) {
+  const copy = getPersistenceCopy(locale);
+  const [saveError, setSaveError] = useState(false);
+  const handleSaved = (creds: SavedConversationCredentials) => {
+    try {
+      sessionStorage.setItem(SAVED_CONVERSATION_CREDENTIALS_KEY, serializeSavedConversationCredentials(creds));
+    } catch {}
+    setConversationPersistence({ status: "saved", credentials: creds });
+  };
+  const handleDelete = async () => {
+    if (conversationPersistence.status !== "saved") return;
+    setConversationPersistence({ status: "saving", } as ConversationPersistenceState);
+    try {
+      await deleteConversationSubmission(conversationPersistence.credentials);
+      try { sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY); } catch {}
+      setConversationPersistence({ status: "deleted" });
+      setTimeout(() => setConversationPersistence({ status: "idle" }), 2000);
+    } catch {
+      setConversationPersistence({ status: "error" });
+    }
+  };
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.chatTitle}</span><h1>{t.chatTitle}</h1><p>{t.chatIntro}</p></div><div className="chat-page-layout"><div className="chat-main"><SupportChat locale={locale} conversationConsent={conversationConsent} onConversationSaved={handleSaved} onSaveError={() => setSaveError(true)} /><div className="chat-notices"><p>{copy.warning}</p><p>AIは誤る可能性があります。法的判断・在留資格判断は行いません。</p><p>Situation Checkの回答は自動送信されません。</p><p>氏名・メール・電話・旅券番号・在留カード番号・正確な住所を入力しないでください。</p><p>マスキングは完全ではありません。</p></div>{conversationPersistence.status === "saved" && <div className="saved-credentials"><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{conversationPersistence.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{conversationPersistence.credentials.deletionToken}</code></dd></div></dl><button className="secondary-button" onClick={() => void handleDelete()}>会話記録を削除</button></div>}{saveError && <p className="consent-status error">保存できませんでした。会話は保存されていません。</p>}{conversationPersistence.status === "error" && <p className="consent-status error">保存に失敗しました</p>}</div><aside className="chat-side"><div className="consent-card"><h3>{copy.conversationTitle}</h3><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li></ul></details><div className="consent-actions"><button className="primary-button" aria-pressed={conversationConsent === "accepted"} onClick={() => setConversationConsent("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={conversationConsent === "declined"} onClick={() => setConversationConsent("declined")}>{copy.decline}</button></div>{conversationConsent !== "idle" && <output className="consent-status">{conversationConsent === "accepted" ? copy.conversationAccepted : copy.declined}</output>}{conversationConsent === "accepted" && conversationPersistence.status === "saved" && <p className="consent-status">保存されています</p>}{conversationConsent === "declined" && <p className="consent-status">保存せずに利用中</p>}</div></aside></div></section>;
+}
+
+function DataSettings({ locale, situationPersistence, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, conversationConsent, setConversationConsent, conversationPersistence, setConversationPersistence, persist, declinePersistence, deletePersistence, discardCorruptLocalData, discardCorruptPending, go }: { locale: Locale; situationPersistence: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; conversationConsent: ConversationConsentState; setConversationConsent: (s: ConversationConsentState) => void; conversationPersistence: ConversationPersistenceState; setConversationPersistence: (s: ConversationPersistenceState) => void; persist: () => void; declinePersistence: () => void; deletePersistence: (c: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void; go: (s: Screen, query?: StayBridgeQuery) => void }) {
+  const copy = getPersistenceCopy(locale);
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{copy.situationTitle}</span><h1>{getUserMessages(locale).ui.settingsTitle}</h1><p>{getUserMessages(locale).ui.settingsIntro}</p></div><div className="settings-grid"><section className="consent-card"><h2>データ保存設定</h2><div className="settings-section"><h3>Situation Check の回答を保存</h3><SituationPersistenceConsent locale={locale} state={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} /></div><div className="settings-section"><h2>{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li></ul></details><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={conversationConsent === "accepted"} onClick={() => setConversationConsent("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={conversationConsent === "declined"} onClick={() => setConversationConsent("declined")}>{copy.decline}</button></div>{conversationConsent !== "idle" && <output className="consent-status">{conversationConsent === "accepted" ? copy.conversationAccepted : copy.declined}</output>}{conversationPersistence.status === "saved" && <div className="saved-credentials"><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{conversationPersistence.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{conversationPersistence.credentials.deletionToken}</code></dd></div></dl><button className="secondary-button" onClick={async () => { try { await deleteConversationSubmission(conversationPersistence.credentials); sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY); setConversationPersistence({ status: "deleted" }); } catch { setConversationPersistence({ status: "error" }); }}}>会話記録を削除</button></div>}{conversationPersistence.status === "error" && <p className="consent-status error">保存に失敗しました</p>}</div></section></div><div className="page-actions"><button className="secondary-button" onClick={() => go("roadmap")}>← {getUserMessages(locale).ui.backToRoadmap}</button></div></section>;
+}
+
 
 function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {
   const answer = getLocalizedSupportText(source.id, "answersInText", locale);

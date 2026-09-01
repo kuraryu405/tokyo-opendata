@@ -270,6 +270,10 @@ test("server-renders each URL-driven reviewed route", async () => {
     "/ja/roadmap",
     "/en/local?filter=medical",
     "/my/help",
+    "/ja/help/prepare",
+    "/en/chat",
+    "/ja/roadmap/action/check-child-education-guidance",
+    "/ja/settings",
     "/ja/summary",
   ]) {
     const response = await render(pathname);
@@ -328,14 +332,13 @@ test("resolves the municipality redirect from the deployed environment", async (
 test("routes the compiled Worker persistence API without exposing a conversation list", async () => {
   const listResponse = await callBuiltWorker(new Request("https://staybridge.example/api/conversations"));
   assert.equal(listResponse.status, 405);
-  assert.equal(listResponse.headers.get("allow"), "DELETE");
+  assert.equal(listResponse.headers.get("allow"), "POST");
 
   const publicConversationPost = await callBuiltWorker(new Request(
     "https://staybridge.example/api/conversations",
-    { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
+    { method: "POST", headers: { "content-type": "application/json", origin: "https://staybridge.example" }, body: "{}" },
   ));
-  assert.equal(publicConversationPost.status, 405);
-  assert.equal(publicConversationPost.headers.get("allow"), "DELETE");
+  assert.equal(publicConversationPost.status, 400);
 
   const wrongTypeResponse = await callBuiltWorker(new Request(
     "https://staybridge.example/api/situation-submissions",

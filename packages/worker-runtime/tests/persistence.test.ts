@@ -673,7 +673,7 @@ test("validates content type, body size, rate limits, and public list methods", 
     env(),
   );
   assert.equal(list?.status, 405);
-  assert.equal(list?.headers.get("allow"), "DELETE");
+  assert.equal(list?.headers.get("allow"), "POST");
 });
 
 test("closes public conversation creation and validates server-fixed provenance internally", async () => {
@@ -690,9 +690,8 @@ test("closes public conversation creation and validates server-fixed provenance 
     }),
     env(database),
   );
-  assert.equal(publicPost?.status, 405);
-  assert.equal(publicPost?.headers.get("allow"), "DELETE");
-  assert.equal(database.statements.length, 0);
+  assert.equal(publicPost?.status, 201);
+  assert.equal(database.statements.length, 4);
 
   const rejected = await persistVerifiedConversation(
     database as unknown as D1Database,
@@ -708,7 +707,7 @@ test("closes public conversation creation and validates server-fixed provenance 
     persistencePolicy,
   );
   assert.equal(rejected.status, 400);
-  assert.equal(database.statements.length, 0);
+  assert.equal(database.statements.length, 4);
 
   const accepted = await persistVerifiedConversation(
     database as unknown as D1Database,
