@@ -176,7 +176,7 @@ export async function handleConsentedPersistenceRequest(
 
   if (routeKind === "situation-capability") {
     if (request.method !== "POST") return createMethodNotAllowedResponse("POST");
-    if (!hasExplicitSameOrigin(request) || request.body) return invalidOriginResponse();
+    if (!hasExplicitSameOrigin(request) || await requestHasNonEmptyBody(request)) return invalidOriginResponse();
     const rateLimitResponse = await enforceRateLimit(request, env, "issue:situation-capability");
     if (rateLimitResponse) return rateLimitResponse;
     return issueSituationSubmissionCapability(env, options.now ?? new Date());
@@ -846,6 +846,23 @@ function isSameOrigin(request: Request): boolean {
 
 function hasExplicitSameOrigin(request: Request): boolean {
   return request.headers.get("origin") === new URL(request.url).origin;
+}
+
+async function requestHasNonEmptyBody(request: Request): Promise<boolean> {
+  if (!request.body) return false;
+  const reader = request.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return false;
+      if (value.byteLength > 0) {
+        await reader.cancel("Request bodies are not accepted");
+        return true;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 async function readJsonBody(request: Request): Promise<
