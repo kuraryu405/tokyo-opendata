@@ -156,7 +156,7 @@ export function DeleteSavedSituation({ locale }: { locale: Locale }) {
       </button>
       {state === "invalid" && <p className="inline-error" role="alert">{t.invalid}</p>}
       {state === "error" && <p className="inline-error" role="alert">{t.error}</p>}
-      {state === "deleted" && <p role="status">{t.deleted}</p>}
+      {state === "deleted" && <output>{t.deleted}</output>}
     </form>
     <p className="chat-disclosure">{t.privacy}</p>
     <p><a href={`/${locale}`}>{t.back}</a></p>
