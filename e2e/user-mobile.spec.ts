@@ -25,7 +25,8 @@ for (const width of mobileViewportWidths) {
       await expect(start).toBeEnabled();
       await start.click();
       await expectRoute(page, locale, "check");
-      await expect(page.locator(".option-grid")).toHaveAttribute("role", /radio(group)?/);
+      await expect(page.locator(".searchable-answer input[type=search]")).toBeVisible();
+      await expect(page.locator(".searchable-answer datalist option")).toHaveCount(23);
 
       await page.goto(`/${locale}`);
       const demo = page.locator(".hero-actions .secondary-button");
@@ -65,7 +66,13 @@ test("keyboard-only persona flow reaches summary without losing focus visibility
 
   for (let step = 0; step < 10; step += 1) {
     await expect(page.locator(".question-card h1")).toBeVisible();
-    await page.locator(".option-grid .option-button").first().click();
+    if (step < 2) {
+      const search = page.locator(".searchable-answer input[type=search]");
+      const firstOption = page.locator(".searchable-answer datalist option").first();
+      await search.fill(await firstOption.getAttribute("value") ?? "");
+    } else {
+      await page.locator(".option-grid .option-button").first().click();
+    }
     const next = page.locator(".question-actions .primary-button");
     await expect(next).toBeEnabled();
     await next.click();
