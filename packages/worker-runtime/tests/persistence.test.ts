@@ -296,6 +296,12 @@ test("requires explicit versioned consent and strict situation fields", async ()
   const invalid = await submitWithNewCapability(database, extraField);
   assert.equal(invalid?.status, 400);
   assert.equal(database.statements.some((statement) => statement.query.includes("INSERT INTO situation_submissions (")), false);
+
+  const noCurrentNeedDatabase = new FakeDatabase();
+  const noCurrentNeedBody = situationBody();
+  noCurrentNeedBody.answers.needs = ["none"];
+  const noCurrentNeed = await submitWithNewCapability(noCurrentNeedDatabase, noCurrentNeedBody);
+  assert.equal(noCurrentNeed?.status, 201);
 });
 
 test("persists only allowlisted situation values with hashed tokens and idempotent duplicates", async () => {

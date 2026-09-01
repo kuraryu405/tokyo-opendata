@@ -1,3 +1,4 @@
+import { situationSubmissionAnswerCodes } from "@staybridge/domain/persistence-contracts";
 import {
   createApiErrorResponse,
   createApiSuccessResponse,
@@ -26,51 +27,13 @@ const situationPath = "/api/situation-submissions";
 const situationCapabilityPath = "/api/situation-submission-capabilities";
 const conversationPath = "/api/conversations";
 
-const visitPurposes = new Set([
-  "tourism",
-  "visiting_family_or_friends",
-  "work",
-  "study",
-  "resident",
-  "other",
-  "unknown",
-]);
-const departureWindows = new Set([
-  "within_7_days",
-  "within_30_days",
-  "within_3_months",
-  "after_3_months",
-  "no_departure_plan",
-  "unknown",
-]);
-const returnStatuses = new Set(["possible", "difficult", "unknown"]);
-const accommodations = new Set([
-  "hotel",
-  "family_or_friend",
-  "rental",
-  "temporary_facility",
-  "other",
-  "unstable",
-  "prefer_not_to_say",
-]);
-const needs = new Set([
-  "stay",
-  "consultation",
-  "accommodation",
-  "living_cost",
-  "employment",
-  "education",
-  "childcare",
-  "medical",
-  "language",
-  "daily_life",
-  "other",
-  // Honest "no current need" answers are stored but never aggregated: the
-  // Crisis View whitelist simply has no such category.
-  "none",
-]);
-const japaneseLevels = new Set(["none", "beginner", "daily", "advanced"]);
-const ageGroups = new Set(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
+const visitPurposes = new Set<string>(situationSubmissionAnswerCodes.visitPurpose);
+const departureWindows = new Set<string>(situationSubmissionAnswerCodes.departureWindow);
+const returnStatuses = new Set<string>(situationSubmissionAnswerCodes.returnStatus);
+const accommodations = new Set<string>(situationSubmissionAnswerCodes.accommodation);
+const needs = new Set<string>(situationSubmissionAnswerCodes.needs);
+const japaneseLevels = new Set<string>(situationSubmissionAnswerCodes.japaneseLevel);
+const ageGroups = new Set<string>(situationSubmissionAnswerCodes.childAgeGroup);
 
 const emailPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu;
 const phonePattern = /(?<![A-Z0-9])(?:\+?81[-\s()]?|0)\d(?:[-\s()]?\d){8,10}(?![A-Z0-9])/giu;
