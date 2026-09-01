@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_SMOKE_ATTEMPTS,
+  DEFAULT_SMOKE_REQUEST_TIMEOUT_MS,
   MAX_CONFIGURED_SMOKE_DURATION_MS,
   maximumSmokeDurationMs,
   smokeHealth,
@@ -187,8 +189,10 @@ test("maximum duration rejects configurations that cannot provide the supported 
 });
 
 test("default smoke timeout budget is bounded well below the production job timeout", () => {
+  assert.equal(DEFAULT_SMOKE_ATTEMPTS, 5);
+  assert.equal(DEFAULT_SMOKE_REQUEST_TIMEOUT_MS, 15_000);
   assert.equal(MAX_CONFIGURED_SMOKE_DURATION_MS, 180_000);
-  assert.equal(maximumSmokeDurationMs(), 154_000);
+  assert.equal(maximumSmokeDurationMs(), 174_000);
   assert.ok(maximumSmokeDurationMs() <= MAX_CONFIGURED_SMOKE_DURATION_MS);
   assert.ok(MAX_CONFIGURED_SMOKE_DURATION_MS < 20 * 60 * 1000);
 });

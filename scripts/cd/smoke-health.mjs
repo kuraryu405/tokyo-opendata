@@ -1,9 +1,9 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-export const DEFAULT_SMOKE_ATTEMPTS = 10;
+export const DEFAULT_SMOKE_ATTEMPTS = 5;
 export const DEFAULT_SMOKE_DELAY_MS = 6000;
-export const DEFAULT_SMOKE_REQUEST_TIMEOUT_MS = 5000;
+export const DEFAULT_SMOKE_REQUEST_TIMEOUT_MS = 15000;
 export const MAX_CONFIGURED_SMOKE_DURATION_MS = 3 * 60 * 1000;
 
 function requirePositiveInteger(value, name) {
