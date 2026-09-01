@@ -193,6 +193,8 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     ".github/workflows/deploy-worker.yml",
     "utf8",
   );
+  const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+  const wranglerVersion = packageJson.devDependencies.wrangler;
 
   for (const command of [
     "pnpm install --frozen-lockfile",
@@ -258,7 +260,12 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
   );
   assert.match(deploy, /d1_identity:\n    needs: configuration/);
   assert.match(deploy, /build:\n    if: \$\{\{ inputs\.phase == 'staging' \}\}\n    needs: \[configuration, d1_identity\]/);
-  assert.match(deploy, /wrangler@4\.92\.0 d1 list --json/);
+  assert.match(
+    deploy,
+    new RegExp(`WRANGLER_VERSION: "${wranglerVersion.replaceAll(".", "\\.")}"`),
+  );
+  assert.doesNotMatch(deploy, /pnpm dlx wrangler@\d/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} d1 list --json/);
   assert.match(deploy, /node scripts\/cd\/validate-d1-inventory\.mjs/);
   assert.match(deploy, /staging:\n    if: \$\{\{ inputs\.phase == 'staging' \}\}\n    needs: \[configuration, build\]/);
   assert.match(deploy, /production:\n    if: \$\{\{ inputs\.phase == 'production' \}\}\n    needs: \[configuration, d1_identity\]/);
@@ -267,8 +274,8 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     deploy.match(/name: \$\{\{ needs\.configuration\.outputs\.environment \}\}/g)?.length,
     2,
   );
-  assert.match(deploy, /wrangler@4\.92\.0 versions upload/);
-  assert.match(deploy, /wrangler@4\.92\.0 versions deploy/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} versions upload/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} versions deploy/);
   assert.match(deploy, /node scripts\/cd\/configure-d1\.mjs/);
   assert.equal(
     deploy.match(/node scripts\/cd\/configure-ai-binding\.mjs/g)?.length,
@@ -278,7 +285,7 @@ test("workflow contracts gate deployment and preserve the artifact", async () =>
     deploy.match(/node scripts\/cd\/configure-rate-limits\.mjs/g)?.length,
     2,
   );
-  assert.match(deploy, /wrangler@4\.92\.0 rollback/);
+  assert.match(deploy, /wrangler@\$\{WRANGLER_VERSION\} rollback/);
   assert.match(deploy, /steps\.production_smoke\.outcome == 'failure'/);
   assert.match(deploy, /steps\.previous\.outputs\.version_id/);
   assert.match(deploy, /Automatic production promotion requires an existing rollback version/);
