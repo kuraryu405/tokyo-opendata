@@ -256,10 +256,11 @@ test("declares local-safe and explicitly remote AI binding configurations", asyn
   );
 });
 
-test("omits the former below-fold municipality link from the landing page", async () => {
+test("keeps the municipality route in the landing header without restoring below-fold content", async () => {
   const response = await render("/ja");
   const html = await response.text();
-  assert.doesNotMatch(html, /href="\/crisis"/i);
+  assert.equal(html.match(/href="\/crisis"/gi)?.length, 1);
+  assert.doesNotMatch(html, /class="crisis-link"/i);
 });
 
 test("server-renders each URL-driven reviewed route", async () => {

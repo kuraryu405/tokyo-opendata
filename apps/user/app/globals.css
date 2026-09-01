@@ -192,13 +192,30 @@
   white-space: nowrap;
   transition: transform 220ms ease;
 }
+.velorah-public-link {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 220ms ease, background 220ms ease;
+}
+.velorah-public-link:hover { background: rgba(18,26,29,.34); transform: scale(1.03); }
 .velorah-nav-cta:hover { transform: scale(1.03); }
 .velorah-nav-cta:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 .velorah-brand:focus-visible,
+.velorah-public-link:focus-visible,
 .velorah-nav-cta:focus-visible,
 .velorah-demo:focus-visible,
 .velorah-cta:focus-visible { outline: 3px solid #ffbf47; outline-offset: 3px; }
 @media (min-width: 768px) { .velorah-nav-cta { display: inline-flex; } }
+@media (min-width: 1080px) { .velorah-public-link { display: inline-flex; } }
 @media (max-width: 390px) {
   .velorah-nav { padding: 16px 12px; gap: 8px; }
   .velorah-brand { gap: 7px; font-size: 22px; }
