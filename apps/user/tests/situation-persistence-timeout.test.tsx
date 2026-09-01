@@ -265,6 +265,7 @@ describe("Situation persistence request timeouts", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "このサーバー記録を削除" }));
     expect(screen.getByText("削除しています…")).toBeTruthy();
+    await flushSubmissions();
     expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submissions/sit_22222222-2222-4222-8222-222222222222");
 
     await act(async () => {
