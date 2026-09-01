@@ -137,6 +137,41 @@ jobs:
 
           user_url="https://staybridge-user-staging.${WORKERS_SUBDOMAIN}.workers.dev"
           municipality_url="https://staybridge-municipality-staging.${WORKERS_SUBDOMAIN}.workers.dev"
+          if ! curl --fail --silent --show-error --max-time 20 \
+            "$user_url/readyz" >/dev/null; then
+            pnpm --filter @staybridge/user run build
+            user_config="$PWD/apps/user/dist/server/wrangler.json"
+            node scripts/cd/configure-d1.mjs \
+              "$user_config" staging "$STAGING_DATABASE_ID"
+            node scripts/cd/configure-ai-binding.mjs "$user_config" user
+            node scripts/cd/configure-rate-limits.mjs \
+              "$user_config" user staging
+
+            capability_secret="$(openssl rand -base64 48 | tr -d '\n')"
+            echo "::add-mask::$capability_secret"
+            secret_tag="staging-secret-${GITHUB_RUN_ID}"
+            printf '%s' "$capability_secret" | \
+              pnpm exec wrangler versions secret put \
+                SITUATION_CAPABILITY_SECRET \
+                --config "$user_config" \
+                --name staybridge-user-staging \
+                --tag "$secret_tag" \
+                --message "staging capability secret bootstrap"
+            unset capability_secret
+            pnpm exec wrangler versions list \
+              --config "$user_config" \
+              --name staybridge-user-staging \
+              --json > staging-user-versions.json
+            secret_version="$(node scripts/cd/wrangler-state.mjs \
+              uploaded staging-user-versions.json "$secret_tag")"
+            pnpm exec wrangler versions deploy "${secret_version}@100%" \
+              --config "$user_config" \
+              --name staybridge-user-staging \
+              --message "staging capability secret bootstrap" --yes
+            pnpm exec wrangler triggers deploy \
+              --config "$user_config" --name staybridge-user-staging
+            echo "The staging-only Situation capability secret was bootstrapped."
+          fi
           user_health="$(curl --fail --silent --show-error --max-time 20 \
             "$user_url/healthz")"
           revision="$(jq -r 'select(.status == "ok" and .service == "user") | .revision' \
