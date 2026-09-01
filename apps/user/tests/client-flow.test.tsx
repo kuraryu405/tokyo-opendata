@@ -803,6 +803,7 @@ describe("StayBridge client flow", () => {
     const accommodationOther = screen.getByRole("radio", { name: "その他" });
     expect((accommodationOther as HTMLInputElement).checked).toBe(false);
     await user.click(accommodationOther);
+    expect((accommodationOther as HTMLInputElement).checked).toBe(true);
     const accommodationDetails = screen.getByRole("textbox", { name: "その他の滞在場所を入力" }) as HTMLTextAreaElement;
     expect(accommodationDetails.maxLength).toBe(100);
     expect((screen.getByRole("button", { name: "次へ" }) as HTMLButtonElement).disabled).toBe(true);
