@@ -86,7 +86,16 @@ afterEach(() => {
 });
 
 describe("Landing demo entry protection", () => {
+  const startLabel = getUserMessages("ja").ui.start;
   const demoLabel = getUserMessages("ja").ui.demo;
+
+  it("keeps the form entry available after a real session is complete", () => {
+    sessionStorage.setItem("staybridge.session", completeUserSession());
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    expect(screen.getAllByRole("button", { name: startLabel })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: demoLabel })).toBeNull();
+  });
 
   it("keeps the demo available on a fresh landing", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

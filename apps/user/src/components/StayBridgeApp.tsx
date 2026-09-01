@@ -741,7 +741,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
@@ -799,7 +799,7 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, locale, switchLocale, showStart, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showStart: boolean; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
   const heroLines = t.hero.split("\n");
   return (
     <div className="velorah-scope">
@@ -842,11 +842,9 @@ function Landing({ t, locale, switchLocale, showStart, showDemo, disabled, start
                 ))}
               </select>
             </label>
-            {showStart && (
-              <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
-                {t.start}
-              </button>
-            )}
+            <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
+              {t.start}
+            </button>
           </div>
         </nav>
 
@@ -868,14 +866,12 @@ function Landing({ t, locale, switchLocale, showStart, showDemo, disabled, start
           <p className="velorah-lede animate-fade-rise-delay">{t.intro}</p>
 
           <div className="animate-fade-rise-delay-2 hero-actions" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            {showStart && (
-              <button className="velorah-cta liquid-glass" disabled={disabled} onClick={start}>
-                <span>{t.start}</span>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M5 3l5 5-5 5" />
-                </svg>
-              </button>
-            )}
+            <button className="velorah-cta liquid-glass" disabled={disabled} onClick={start}>
+              <span>{t.start}</span>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 3l5 5-5 5" />
+              </svg>
+            </button>
             {showDemo && (
               <button className="velorah-demo secondary-button" disabled={disabled} onClick={demo}>
                 {t.demo}

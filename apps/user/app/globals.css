@@ -269,18 +269,21 @@
 .velorah-cta svg { width: 16px; height: 16px; opacity: 0.85; }
 
 .velorah-demo {
-  margin-top: 16px;
-  border: 0;
-  background: none;
+  margin-top: 14px;
+  border: 1px solid rgba(255,255,255,0.62);
+  background: rgba(7,30,43,0.46);
+  border-radius: 999px;
   font-family: var(--font-body);
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
   color: rgba(255,255,255,0.55);
   cursor: pointer;
-  transition: color 180ms ease;
-  padding: 6px 10px;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  padding: 11px 20px;
+  min-height: 44px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
 }
-.velorah-demo:hover { color: white; }
+.velorah-demo:hover { color: white; background: rgba(7,30,43,0.68); border-color: rgba(255,255,255,0.88); transform: translateY(-1px); }
 .velorah-demo:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .velorah-trust {
@@ -355,28 +358,35 @@
 .velorah-below .crisis-link { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: white; }
 .velorah-below .crisis-link span { color: #b9e4d0; }
 
-/* Compat for tests that query .hero-actions .secondary-button inside landing */
+/* Keep the landing actions stacked while preserving clear action boundaries. */
 .velorah-hero .hero-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
 }
+.velorah-hero .hero-actions .velorah-cta {
+  min-width: min(100%, 300px);
+  border: 1px solid rgba(255,255,255,0.76);
+  background: rgba(7,30,43,0.56);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12);
+}
 .velorah-hero .hero-actions .velorah-demo.secondary-button {
-  background: none !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  min-height: 0 !important;
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  color: rgba(255,255,255,0.55) !important;
-  gap: 0 !important;
+  border-color: rgba(255,255,255,0.62);
+  background: rgba(7,30,43,0.46);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+  min-height: 44px;
+  padding: 11px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.78);
+  gap: 0;
 }
 .velorah-hero .hero-actions .velorah-demo.secondary-button:hover {
-  color: white !important;
-  border-color: transparent !important;
+  color: white;
+  border-color: rgba(255,255,255,0.88);
+  background: rgba(7,30,43,0.68);
+  transform: translateY(-1px);
 }
 
 
@@ -489,6 +499,10 @@
   .content-page, .summary-page, .crisis-main { padding: 48px 16px 70px; }.page-heading h1 { font-size: 38px; }.action-card { grid-template-columns: 40px 1fr; }.action-content { padding: 20px 17px; }.action-footer { align-items: start; flex-direction: column; }.roadmap-aside { grid-template-columns: 1fr; }.resource-card { grid-template-columns: 42px 1fr; padding: 18px 14px; gap: 12px; }.resource-icon { width: 40px; height: 40px; }.resource-main dl div { grid-template-columns: 1fr; }.site-footer { align-items: flex-start; gap: 20px; }.site-footer p { display: none; }
   .handoff-grid { gap: 18px; }.support-card { grid-template-columns: 32px 1fr; padding: 20px 16px; }.support-chat-heading { padding: 20px 18px 14px; }.support-chat-panel { padding: 0 18px 20px; }.summary-toolbar { flex-wrap: wrap; }.summary-toolbar > span { width: 100%; margin: 0; }.summary-sheet > section { grid-template-columns: 30px 1fr; gap: 10px; }.summary-sheet header time { display: none; }
   .crisis-header .admin-label { border: 0; padding: 0; }.crisis-header .admin-label { font-size: 0; }.crisis-header .admin-label span { display: block; }.back-to-service { font-size: 12px; }.coverage-banner { grid-template-columns: 22px 1fr; }.coverage-banner a { grid-column: 2; }.crisis-section-title { grid-template-columns: 30px 1fr; }.crisis-section-title > p { grid-column: 2; text-align: left; }.resource-counts { grid-template-columns: repeat(2, 1fr); }.gap-grid { grid-template-columns: 1fr; }.checklist-grid { grid-template-columns: 1fr; }.dataset-details ul { grid-template-columns: 1fr; }.feedback-loop { padding: 25px 18px; }.loop-flow { grid-template-columns: repeat(2, 1fr); }.loop-flow b { display: none; }.crisis-footer { display: grid; gap: 7px; }
+}
+
+@media (max-width: 240px) {
+  .site-header nav button { padding-inline: 3px; font-size: 11px; line-height: 1.1; }
 }
 
 @media print {
