@@ -11,6 +11,16 @@
 - 各ルールのSource requirementは `catalog_sources_required`。Source Registryで全Source IDを解決できないカードはUIで除外する。
 - safetyは `check_only`（公式確認のみ）、`consult_only`（人への相談のみ）、`resource_listing_only`（一覧であり利用可否を断定しない）のいずれか。
 
+## Q3「その他」の補助分類
+
+Q3の自由記述はRule Engine入力にせず、固定ルール評価後にだけ補助分類を適用する。`packages/domain/src/ai-actions.ts` のallowlistは既存のレビュー済みCHECK / CONSULT中心のAction IDに限定し、期限を推測する`CHECK_BEFORE_STAY_DEADLINE`は含めない。
+
+- AI応答は配列、一意、0〜3件、allowlist内であることをserver/clientの両方で検証し、1件でも不正なら全件破棄する。
+- `mergeAiRecommendedActions` はRule Engine結果を先にMapへ入れる。同じAction IDは既存のRule ID、priority、reason、answer codeを保持し、AIは削除・置換・並べ替えない。
+- AIだけが追加するカードは、評価日時点で公開可能なAction Catalog entryに限り、`selectionSource=ai`、priority 55、`ruleId=null`として区別する。
+- AIなし、timeout、rate limit、不正応答、通信失敗、Q3編集、戻る操作後のlate responseは追加0件として扱い、固定ルール結果だけを表示する。
+- Q1、Q2、Q7の自由記述は分類routeへ送らない。全自由記述は回答要約だけに使い、Rule条件へ推測変換しない。
+
 ## Production rule table
 
 |Rule ID|入力コード・条件|除外|Action ID|Timing / Priority|Reason code|Safety|
@@ -87,3 +97,4 @@
 - 全Rule branch、priority、同点tie-break、Action重複排除、過去/当日/将来、不正日付、unknown、prefer-not-to-say、no-card境界をunit testする。
 - 代表ケースは `packages/domain/tests/fixtures/rule-golden.ts` でAction ID、Rule ID、timing、priority、reason codeをgolden固定する。
 - UI integrationでRule ID・採用回答コード・Sourceが同じカード内に表示されること、回答変更・reload・restartで最新カードへ再評価されることを確認する。
+- Q3分類はallowlist、一意性、3件上限、Rule union、client再検証、failure/invalid/late fallback、Q3変更時の無効化を別のunit/client-flow testで固定する。

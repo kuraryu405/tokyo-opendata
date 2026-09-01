@@ -187,6 +187,7 @@ export function generateActions(situation: Situation, context: RuleContext): Act
       ruleId: winner.rule.id,
       matchedRuleIds: ranked.map(({ rule: matchedRule }) => matchedRule.id),
       answerCodes: [...winner.answerCodes],
+      selectionSource: "rule",
       sourceIds: [...catalogEntry.sourceIds],
       humanReviewRequired: catalogEntry.humanReviewRequired,
       disclaimer: catalogEntry.fallback.notice,

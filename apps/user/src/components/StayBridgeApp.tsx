@@ -9,6 +9,11 @@ import {
   type ActionId,
 } from "@staybridge/domain/action-catalog";
 import { generateActions } from "@staybridge/domain/rules";
+import {
+  mergeAiRecommendedActions,
+  parseAiActionIds,
+  type AiSelectableActionId,
+} from "@staybridge/domain/ai-actions";
 import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
 import type { Action, ChildAgeGroup, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
@@ -46,6 +51,7 @@ import {
 } from "../routing/staybridge-routes";
 import {
   createInitialSituation,
+  createInitialOtherAnswers,
   isAssessmentComplete,
   firstUnansweredStep,
   readStoredSession,
@@ -53,6 +59,8 @@ import {
   type FamilyAnswer,
   type FamilyAnswers,
   type Locale,
+  type OtherAnswers,
+  type AiRecommendation,
   type StayAnswer,
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
@@ -86,10 +94,12 @@ type ConversationConsentState = "idle" | "accepted" | "declined";
 const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
 const routeUi = {
-  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています", catalogUnavailable: "現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。", contactOfficial: "公式相談先を見る" },
-  en: { restart: "Start over", preparing: "Preparing your next steps", catalogUnavailable: "No reviewed action card is currently available. Please confirm your situation with an official support service.", contactOfficial: "View official support" },
-  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်" },
-} satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string }>;
+  ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています", catalogUnavailable: "現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。", contactOfficial: "公式相談先を見る", aiReason: "入力したその他の来日目的から、確認すると役立つ可能性がある既存カードを追加しています。最終判断ではありません。" },
+  en: { restart: "Start over", preparing: "Preparing your next steps", catalogUnavailable: "No reviewed action card is currently available. Please confirm your situation with an official support service.", contactOfficial: "View official support", aiReason: "Your other reason for coming to Japan suggested this existing reviewed card may be useful to check. This is not a decision." },
+  my: { restart: "အစမှ ပြန်စရန်", preparing: "သင့်နောက်အဆင့်များကို ပြင်ဆင်နေသည်", catalogUnavailable: "လက်ရှိပြသနိုင်သည့် စစ်ဆေးပြီးကတ် မရှိပါ။ သင့်အခြေအနေကို တရားဝင်အကူအညီဌာနတွင် အတည်ပြုပါ။", contactOfficial: "တရားဝင်အကူအညီ ကြည့်ရန်", aiReason: "ဂျပန်သို့ လာရောက်ရသည့် အခြားရည်ရွယ်ချက်အရ စစ်ဆေးထားသော ဤကတ်သည် အသုံးဝင်နိုင်သဖြင့် ထည့်ပြထားပါသည်။ ဤသည်မှာ ဆုံးဖြတ်ချက်မဟုတ်ပါ။" },
+} satisfies Record<Locale, { restart: string; preparing: string; catalogUnavailable: string; contactOfficial: string; aiReason: string }>;
+
+const RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS = 8_000;
 
 export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDate }: { route?: StayBridgeRoute; assessmentDate: string }) {
   const router = useRouter();
@@ -105,6 +115,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   const [situation, setSituation] = useState<Situation>(createInitialSituation);
   const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
   const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
+  const [otherAnswers, setOtherAnswers] = useState<OtherAnswers>(createInitialOtherAnswers);
+  const [aiRecommendation, setAiRecommendation] = useState<AiRecommendation | null>(null);
   const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
@@ -117,8 +129,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   // independently advancing the Tokyo date used only for catalog publication.
   const [publicationToday, setPublicationToday] = useState(assessmentDate);
   const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
-  const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
+  const [isPreparingRecommendations, setIsPreparingRecommendations] = useState(false);
   const skipNextSessionWrite = useRef(false);
+  const recommendationController = useRef<AbortController | null>(null);
+  const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
   const situationRequestController = useRef<AbortController | null>(null);
   const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
   const t = getUserMessages(locale).ui;
@@ -138,6 +152,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         setSituation(storedSession.situation);
         setStayAnswer(storedSession.stayAnswer);
         setFamilyAnswers(storedSession.familyAnswers);
+        setOtherAnswers(storedSession.otherAnswers);
+        setAiRecommendation(storedSession.aiRecommendation);
         setAnsweredSteps(storedSession.answeredSteps);
         setIsDemoSituation(storedSession.provenance === "demo");
       } else if (storedSessionResult.status !== "absent") {
@@ -216,6 +232,17 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   }, []);
 
   useEffect(() => {
+    if (screen === "check" && step === 9) return;
+    recommendationController.current?.abort();
+    recommendationController.current = null;
+  }, [screen, step]);
+
+  useEffect(() => () => {
+    recommendationController.current?.abort();
+    recommendationController.current = null;
+  }, []);
+
+  useEffect(() => {
     if (!pathname) return;
     const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
     if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
@@ -265,16 +292,19 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       return;
     }
     try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({ provenance: isDemoSituation ? "demo" : "user", situation, stayAnswer, familyAnswers, answeredSteps }));
+      sessionStorage.setItem("staybridge.session", serializeStoredSession({ provenance: isDemoSituation ? "demo" : "user", situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers, aiRecommendation }));
     } catch {
       window.setTimeout(() => setStorageError(true), 0);
     }
-  }, [answeredSteps, familyAnswers, hasUnreadableSession, isDemoSituation, situation, stayAnswer, storageReady]);
+  }, [aiRecommendation, answeredSteps, familyAnswers, hasUnreadableSession, isDemoSituation, otherAnswers, situation, stayAnswer, storageReady]);
 
   const actions = useMemo(() => {
     if (!assessmentComplete) return [];
     const municipality = situation.currentMunicipality;
-    return generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer }).filter((action) => {
+    const ruleActions = generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer });
+    const currentOtherPurpose = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
+    const recommendedActionIds = aiRecommendation?.input === currentOtherPurpose ? aiRecommendation.actionIds : [];
+    return mergeAiRecommendedActions(ruleActions, recommendedActionIds, assessmentDate).filter((action) => {
       if (action.sourceIds.length === 0 || !action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId]))) {
         return false;
       }
@@ -286,7 +316,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       if (!municipality || municipality === "Other") return false;
       return localResources.some((resource) => resource.municipality === municipality && resource.category === destination.filter);
     });
-  }, [assessmentComplete, assessmentDate, publicationToday, situation, stayAnswer]);
+  }, [aiRecommendation, assessmentComplete, assessmentDate, otherAnswers.visitPurpose, publicationToday, situation, stayAnswer]);
   const availableResources = useMemo(() => {
     const municipality = situation.currentMunicipality;
     if (!municipality) return [];
@@ -296,12 +326,21 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     });
   }, [situation.currentMunicipality, localFilter]);
 
+  const cancelPendingRecommendation = () => {
+    if (!recommendationController.current) return;
+    recommendationController.current.abort();
+    recommendationController.current = null;
+    setIsPreparingRecommendations(false);
+  };
+
   const go = (next: Screen, nextQuery: StayBridgeQuery = {}) => {
+    cancelPendingRecommendation();
     router.push(buildStayBridgePath({ locale, screen: next, query: nextQuery }));
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
 
   const setStep = (nextStep: number) => {
+    cancelPendingRecommendation();
     router.push(buildStayBridgePath({ locale, screen: "check", query: { step: nextStep } }));
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   };
@@ -310,7 +349,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     router.replace(buildStayBridgePath({ locale, screen: "local", query: { filter: nextFilter } }));
   };
 
-  const complete = () => {
+  const complete = async () => {
+    if (recommendationController.current) return;
     if (!assessmentComplete) {
       router.replace(buildStayBridgePath({
         locale,
@@ -319,6 +359,34 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }));
       return;
     }
+    const input = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
+    if (!input) {
+      setAiRecommendation(null);
+      go("status");
+      return;
+    }
+    setAiRecommendation(null);
+    const controller = new AbortController();
+    recommendationController.current = controller;
+    setIsPreparingRecommendations(true);
+    let timeout: number | undefined;
+    const actionIds = await Promise.race([
+      requestRecommendedActions(input, controller.signal),
+      new Promise<null>((resolve) => {
+        timeout = window.setTimeout(() => {
+          controller.abort();
+          resolve(null);
+        }, RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS);
+      }),
+    ]);
+    if (timeout !== undefined) window.clearTimeout(timeout);
+    if (recommendationController.current !== controller) {
+      if (recommendationController.current === null) setIsPreparingRecommendations(false);
+      return;
+    }
+    recommendationController.current = null;
+    setAiRecommendation(actionIds === null ? null : { input, actionIds });
+    setIsPreparingRecommendations(false);
     go("status");
   };
 
@@ -330,6 +398,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituation(demoSituation);
     setStayAnswer("unknown");
     setFamilyAnswers(["children"]);
+    setOtherAnswers(createInitialOtherAnswers());
+    setAiRecommendation(null);
     const demoAnsweredSteps = Array.from({ length: 10 }, (_, index) => index);
     setAnsweredSteps(demoAnsweredSteps);
     setIsDemoSituation(true);
@@ -340,6 +410,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         stayAnswer: "unknown",
         familyAnswers: ["children"],
         answeredSteps: demoAnsweredSteps,
+        otherAnswers: createInitialOtherAnswers(),
+        aiRecommendation: null,
       }));
     } catch {
       setStorageError(true);
@@ -395,6 +467,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituation(createInitialSituation());
     setStayAnswer("unknown");
     setFamilyAnswers([]);
+    setOtherAnswers(createInitialOtherAnswers());
+    setAiRecommendation(null);
+    recommendationController.current?.abort();
+    recommendationController.current = null;
+    setIsPreparingRecommendations(false);
     setAnsweredSteps([]);
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
@@ -424,6 +501,11 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituation(createInitialSituation());
     setStayAnswer("unknown");
     setFamilyAnswers([]);
+    setOtherAnswers(createInitialOtherAnswers());
+    setAiRecommendation(null);
+    recommendationController.current?.abort();
+    recommendationController.current = null;
+    setIsPreparingRecommendations(false);
     setAnsweredSteps([]);
     setCopyState("idle");
     setSituationPersistence({ status: "idle" });
@@ -598,16 +680,16 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
   return (
     <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => router.push(buildStayBridgePath({ locale: nextLocale, screen, query }))} navVisible={navVisible} showStepsNav={showStepsNav} />
+      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); }} navVisible={navVisible} showStepsNav={showStepsNav} />
       {storageError && <output className="app-alert">{t.storageError}</output>}
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
-            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={complete} />
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
-          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
+          {screen === "status" && <ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
             try {
               sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
             } catch {
@@ -618,7 +700,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           {screen === "roadmap" && <Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} />}
         {screen === "local" && <LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} />}
           {screen === "help" && <HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} />}
-          {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
+          {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
         </>}
       </main>
       <footer className="site-footer">
@@ -678,8 +760,8 @@ function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAp
   </>;
 }
 
-function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, answeredSteps, setAnsweredSteps, restart, restartLabel, finish }: {
-  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void;
+function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
+  locale: Locale; t: UserCopy; step: number; setStep: (n: number) => void; situation: Situation; setSituation: (s: Situation) => void; stayAnswer: StayAnswer; setStayAnswer: (s: StayAnswer) => void; familyAnswers: FamilyAnswers; setFamilyAnswers: (s: FamilyAnswers) => void; otherAnswers: OtherAnswers; setOtherAnswers: (answers: OtherAnswers) => void; invalidateAiRecommendation: () => void; answeredSteps: number[]; setAnsweredSteps: (steps: number[]) => void; restart: () => void; restartLabel: string; finish: () => void; isPreparing: boolean;
 }) {
   const question = getUserMessages(locale).questions[step];
   const [title, hint, options] = question;
@@ -692,9 +774,25 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
     setAnsweredSteps(next);
   };
   const choose = (value: string) => {
-    if (step === 0) setSituation({ ...situation, currentMunicipality: value });
-    if (step === 1) setSituation({ ...situation, nationality: value });
-    if (step === 2) setSituation({ ...situation, visitPurpose: value as Situation["visitPurpose"] });
+    if (step === 0) {
+      setSituation({ ...situation, currentMunicipality: value });
+      if (value !== "Other") setOtherAnswers({ ...otherAnswers, area: "" });
+      markAnswered(value !== "Other" || Boolean(otherAnswers.area.trim()));
+      return;
+    }
+    if (step === 1) {
+      setSituation({ ...situation, nationality: value });
+      if (value !== "OTHER") setOtherAnswers({ ...otherAnswers, nationality: "" });
+      markAnswered(value !== "OTHER" || Boolean(otherAnswers.nationality.trim()));
+      return;
+    }
+    if (step === 2) {
+      invalidateAiRecommendation();
+      setSituation({ ...situation, visitPurpose: value as Situation["visitPurpose"] });
+      if (value !== "other") setOtherAnswers({ ...otherAnswers, visitPurpose: "" });
+      markAnswered(value !== "other" || Boolean(otherAnswers.visitPurpose.trim()));
+      return;
+    }
     if (step === 3) setSituation({ ...situation, originalDepartureWindow: value as Situation["originalDepartureWindow"] });
     if (step === 4) setSituation({ ...situation, returnStatus: value as Situation["returnStatus"] });
     if (step === 5) { setStayAnswer(value as StayAnswer); setSituation({ ...situation, knownStayDeadline: value === "known" ? situation.knownStayDeadline : undefined, stayDeadlineKnown: value === "known" && Boolean(situation.knownStayDeadline) }); }
@@ -708,11 +806,15 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       setFamilyAnswers(nextAnswers);
       const hasChildren = nextAnswers.includes("children");
       const children = hasChildren ? situation.familyMembers.children : [];
+      const hasOtherFamily = nextAnswers.includes("other");
+      if (!hasOtherFamily) setOtherAnswers({ ...otherAnswers, family: "" });
       setSituation({
         ...situation,
         familyMembers: { children },
       });
-      markAnswered(nextAnswers.length > 0 && (!hasChildren || children.length > 0));
+      markAnswered(nextAnswers.length > 0
+        && (!hasChildren || children.length > 0)
+        && (!hasOtherFamily || Boolean(otherAnswers.family.trim())));
       return;
     }
     if (step === 7) setSituation({ ...situation, accommodation: value as Situation["accommodation"] });
@@ -737,34 +839,85 @@ function SituationCheck({ locale, t, step, setStep, situation, setSituation, sta
       : [...situation.familyMembers.children, { ageGroup: age }].sort((a, b) =>
         assessmentOptionCodes.childAge.indexOf(a.ageGroup) - assessmentOptionCodes.childAge.indexOf(b.ageGroup));
     setSituation({ ...situation, familyMembers: { children: nextChildren } });
-    markAnswered(nextChildren.length > 0);
+    markAnswered(nextChildren.length > 0 && (!familyAnswers.includes("other") || Boolean(otherAnswers.family.trim())));
   };
-  const familyComplete = familyAnswers.length > 0 && (!familyAnswers.includes("children") || situation.familyMembers.children.length > 0);
-  const enabled = answeredSteps.includes(step) && (step === 6 ? familyComplete : step === 8 ? situation.needs.length > 0 : Boolean(current));
+  const otherAnswerKey = getSelectedOtherAnswerKey(step, situation, familyAnswers);
+  const otherAnswer = otherAnswerKey ? otherAnswers[otherAnswerKey] : undefined;
+  const otherCopy = otherAnswerKey ? getUserMessages(locale).otherAnswers[otherAnswerKey] : undefined;
+  const otherMaxLength = otherAnswerKey === "visitPurpose" ? 300 : 100;
+  const updateOtherAnswer = (value: string) => {
+    if (!otherAnswerKey) return;
+    if (otherAnswerKey === "visitPurpose") invalidateAiRecommendation();
+    const nextOtherAnswers = { ...otherAnswers, [otherAnswerKey]: value };
+    setOtherAnswers(nextOtherAnswers);
+    const familyIsComplete = familyAnswers.length > 0
+      && (!familyAnswers.includes("children") || situation.familyMembers.children.length > 0)
+      && (!familyAnswers.includes("other") || Boolean(nextOtherAnswers.family.trim()));
+    markAnswered(step === 6 ? familyIsComplete : Boolean(value.trim()));
+  };
+  const familyComplete = familyAnswers.length > 0
+    && (!familyAnswers.includes("children") || situation.familyMembers.children.length > 0)
+    && (!familyAnswers.includes("other") || Boolean(otherAnswers.family.trim()));
+  const enabled = answeredSteps.includes(step) && (
+    otherAnswer !== undefined
+      ? Boolean(otherAnswer.trim()) && (step !== 6 || familyComplete)
+      : step === 6
+        ? familyComplete
+        : step === 8
+          ? situation.needs.length > 0
+          : Boolean(current)
+  );
   return <section className="check-page">
     <div className="check-progress"><div className="progress-meta"><span>{t.sectionSituationCheck}</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
     <div className="question-card">
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1><p>{hint}</p>
       <div className="option-grid" role={multi ? "group" : "radiogroup"} aria-label={title}>
-        {options.map(([value, label]) => { const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : answeredSteps.includes(step) && current === value; return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
+        {options.map(([value, label]) => { const selectedOther = (step === 0 && value === "Other" && current === value) || (step === 1 && value === "OTHER" && current === value) || (step === 2 && value === "other" && current === value); const selected = step === 6 ? familyAnswers.includes(value as FamilyAnswer) : step === 8 ? situation.needs.includes(value as NeedCategory) : selectedOther || (answeredSteps.includes(step) && current === value); return <label key={value} className={`option-button ${selected ? "selected" : ""}`}><input type={multi ? "checkbox" : "radio"} name={`q-${step}`} className="option-input" checked={selected} onChange={() => choose(value)} /><span className="option-control" aria-hidden="true">{selected ? "✓" : ""}</span><span>{label}</span></label>; })}
       </div>
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
+      {otherAnswer !== undefined && otherCopy && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherCopy.label}</label><textarea id={`other-answer-${step}`} data-testid={`question-${step + 1}-other`} value={otherAnswer} maxLength={otherMaxLength} required aria-invalid={!otherAnswer.trim()} aria-describedby={`other-answer-notice-${step} other-answer-error-${step}`} placeholder={otherCopy.placeholder} onChange={(event) => updateOtherAnswer(event.target.value)} /><div className="other-answer-meta"><small id={`other-answer-notice-${step}`}>{otherCopy.notice}</small><span>{otherAnswer.length} / {otherMaxLength}</span></div>{!otherAnswer.trim() && <p id={`other-answer-error-${step}`} className="inline-error" role="alert">{otherCopy.required}</p>}</div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
-      <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      <div className="question-actions"><button className="back-button" disabled={step === 0} onClick={() => setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
     <details className="privacy-line"><summary>{t.privacyTitle}</summary><p>{t.privacyText}</p></details>
   </section>;
 }
 
+function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAnswers: FamilyAnswers): keyof OtherAnswers | null {
+  if (step === 0 && situation.currentMunicipality === "Other") return "area";
+  if (step === 1 && situation.nationality === "OTHER") return "nationality";
+  if (step === 2 && situation.visitPurpose === "other") return "visitPurpose";
+  if (step === 6 && familyAnswers.includes("other")) return "family";
+  return null;
+}
+
 function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
 }
 
-function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, persistence, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, declinePersistence, deletePersistence, discardCorruptLocalData, discardCorruptPending, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void; roadmap: () => void; edit: () => void }) {
-  const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps);
+async function requestRecommendedActions(text: string, signal: AbortSignal): Promise<AiSelectableActionId[] | null> {
+  try {
+    const response = await fetch("/api/recommend-actions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json" || !response.ok) return null;
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object" || Object.keys(payload).length !== 1 || !("actionIds" in payload)) return null;
+    return parseAiActionIds(payload.actionIds);
+  } catch {
+    return null;
+  }
+}
+
+function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, otherAnswers, answeredSteps, persistence, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, declinePersistence, deletePersistence, discardCorruptLocalData, discardCorruptPending, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; otherAnswers: OtherAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void; roadmap: () => void; edit: () => void }) {
+  const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers);
   return <section className="result-page narrow-page"><span className="section-label">{t.sectionSituationReview}</span><h1>{t.reviewed}</h1><p className="page-intro">{t.reviewedIntro}</p><div className="status-list">{items.length ? items.map((item) => <div key={item}>{item}</div>) : <p>{t.noEnteredInfo}</p>}</div><div className="stack-actions"><button className="primary-button wide" onClick={roadmap}>{t.seeRoadmap}<span>→</span></button><button className="text-button" onClick={edit}>{t.answerAgain}</button></div><SituationPersistenceConsent locale={locale} state={persistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} /><div className="safe-notice"><strong>{t.notDecision}</strong><p>{t.helpIntro}</p></div></section>;
+
 }
 
 function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setConversationConsent, go, openAction, restart, restartLabel }: { locale: Locale; t: UserCopy; actions: Action[]; visitPurpose: Situation["visitPurpose"]; conversationConsent: ConversationConsentState; setConversationConsent: (state: ConversationConsentState) => void; go: (s: Screen) => void; openAction: (destination: ActionDestination) => void; restart: () => void; restartLabel: string }) {
@@ -823,7 +976,10 @@ function ActionCard({ locale, t, action, number, visitPurpose, openAction }: { l
   if (sourceCandidates.length !== action.sourceIds.length) return null;
   const sources = sourceCandidates.filter((source) => isSourceEligibleForVisitPurpose(source, visitPurpose));
   if (sources.length === 0) return null;
-  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{messages.reasons[action.reasonCode as ReasonCode]}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
+  const reason = action.selectionSource === "ai"
+    ? routeUi[locale].aiReason
+    : messages.reasons[action.reasonCode as ReasonCode];
+  return <article className="action-card"><div className="action-number">{String(number).padStart(2, "0")}</div><div className="action-content"><h3>{ui.title}</h3><p>{ui.desc}</p><p className="action-disclaimer">i {getActionNotice(locale, catalogEntry.id)}</p><details><summary>{t.why}</summary><p>{reason}</p></details><div className="action-footer"><div className="source-list">{sources.map((source) => <div className="source-mini" key={source.id}><span>{source.sourceType === "open_data" ? t.sourceTypeLabels.openData : t.sourceTypeLabels.official}</span><a href={source.url} target="_blank" rel="noreferrer">{source.publisher} · {source.title}</a></div>)}</div><button onClick={() => openAction(catalogEntry.destination)}>{ui.cta} →</button></div></div></article>;
 }
 
 function LocalAction({ locale, t, resources, filter, setFilter, go }: { locale: Locale; t: UserCopy; resources: Array<LocalResource & { id: LocalResourceId }>; filter: LocalFilter; setFilter: (s: LocalFilter) => void; go: (screen: Screen) => void }) {
@@ -859,8 +1015,8 @@ function SupportCard({ locale, source, index, label, details }: { locale: Locale
   return <article className="support-card"><span className="support-index">{String(index + 1).padStart(2, "0")}</span><div><small>{label}</small><h3>{source.title}</h3>{answer && <p className="support-answer">{answer}</p>}{note && <p className="support-note">{note}</p>}<a href={source.url} target="_blank" rel="noreferrer" aria-label={`${details}: ${source.title}`}>{details} ↗</a></div></article>;
 }
 
-function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {
-  const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps);
+function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, otherAnswers, answeredSteps, summaryDate, copyState, setCopyState }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; otherAnswers: OtherAnswers; answeredSteps: number[]; summaryDate: string; copyState: CopyState; setCopyState: (state: CopyState) => void }) {
+  const items = summarizeSituation(locale, situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers);
   const asks = summarizeNeeds(locale, situation, answeredSteps);
   const text = `${t.summaryTitle}\n\n${t.current}\n${items.map((i) => `• ${i}`).join("\n")}\n\n${t.questions}\n${asks.map((i, n) => `${n + 1}. ${i}`).join("\n")}`;
   const copyText = async () => {
@@ -876,22 +1032,22 @@ function ConsultationSummary({ locale, t, situation, stayAnswer, familyAnswers, 
   return <section className="summary-page"><div className="page-heading"><span className="section-label">{t.sectionConsultationSummary}</span><h1>{t.summaryTitle}</h1><p>{t.summaryIntro}</p></div><div className="summary-toolbar"><button className="secondary-button" onClick={copyText}>{copyState === "copied" ? `✓ ${t.copied}` : t.copy}</button><button className="secondary-button" onClick={() => window.print()}>{t.print}</button><span>{t.showMode}</span>{copyState === "error" && <p className="inline-error" role="alert">{t.copyError}</p>}</div><article className="summary-sheet"><header><span className="brand-mark">SB</span><div><strong>StayBridge Tokyo</strong><small>{t.summarySheetLabel}</small></div><time>{summaryDate}</time></header><section><span className="sheet-label">{t.summarySheetSections[0]}</span><div><h2>{t.current}</h2>{items.length ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <p>{t.noEnteredInfo}</p>}</div></section><section><span className="sheet-label">{t.summarySheetSections[1]}</span><div><h2>{t.questions}</h2>{asks.length ? <ol>{asks.map((item) => <li key={item}>{item}</li>)}</ol> : <p>{t.noSelectedNeeds}</p>}</div></section></article></section>;
 }
 
-export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: StayAnswer, familyAnswers: FamilyAnswers, answeredSteps: number[]) {
+export function summarizeSituation(locale: Locale, s: Situation, stayAnswer: StayAnswer, familyAnswers: FamilyAnswers, answeredSteps: number[], otherAnswers: OtherAnswers = createInitialOtherAnswers()) {
   const labels = getUserMessages(locale).questions;
   const messages = getUserMessages(locale);
   const find = (q: number, value: string) => labels[q][2].find(([v]) => v === value)?.[1] ?? "";
   const childAgeLabels = s.familyMembers.children.map((child) => child.ageGroup).join(locale === "ja" ? "、" : ", ");
   const byStep: Record<number, string | undefined> = {
-    0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${find(0, s.currentMunicipality)}` : undefined,
-    1: s.nationality ? `${messages.ui.nationalityLabel}: ${find(1, s.nationality)}` : undefined,
-    2: find(2, s.visitPurpose),
+    0: s.currentMunicipality ? `${messages.ui.areaLabel}: ${s.currentMunicipality === "Other" ? otherAnswers.area.trim() || find(0, s.currentMunicipality) : find(0, s.currentMunicipality)}` : undefined,
+    1: s.nationality ? `${messages.ui.nationalityLabel}: ${s.nationality === "OTHER" ? otherAnswers.nationality.trim() || find(1, s.nationality) : find(1, s.nationality)}` : undefined,
+    2: s.visitPurpose === "other" && otherAnswers.visitPurpose.trim() ? `${find(2, s.visitPurpose)}: ${otherAnswers.visitPurpose.trim()}` : find(2, s.visitPurpose),
     3: find(3, s.originalDepartureWindow),
     4: find(4, s.returnStatus),
     5: s.knownStayDeadline ? `${find(5, stayAnswer)}: ${s.knownStayDeadline}` : find(5, stayAnswer),
     6: familyAnswers.length
       ? familyAnswers.map((answer) => answer === "children" && childAgeLabels
         ? `${find(6, answer)} · ${messages.ui.ageValueLabel}: ${childAgeLabels}`
-        : find(6, answer)).join(" / ")
+        : answer === "other" && otherAnswers.family.trim() ? `${find(6, answer)}: ${otherAnswers.family.trim()}` : find(6, answer)).join(" / ")
       : undefined,
     7: find(7, s.accommodation),
     9: `${messages.ui.japaneseLabel}: ${find(9, s.japaneseLevel)}`,

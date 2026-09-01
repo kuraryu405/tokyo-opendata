@@ -12,11 +12,17 @@ import {
 } from "@staybridge/worker-runtime";
 import { handleSupportChatRequest, type SupportChatAi, type SupportChatRateLimiter } from "../src/ai/support-chat";
 import { createMunicipalityAppRedirect, municipalityAppRoute } from "../src/municipality-url";
+import {
+  handleRecommendActionsRequest,
+  type RecommendActionsAi,
+  type RecommendActionsRateLimiter,
+} from "../src/ai/recommend-actions";
 
 interface Env extends PersistenceEnv {
-  AI?: SupportChatAi;
+  AI?: SupportChatAi & RecommendActionsAi;
   COUNTERPART_APP_URL?: string;
   SUPPORT_CHAT_RATE_LIMITER?: SupportChatRateLimiter;
+  OTHER_ACTIONS_RATE_LIMITER?: RecommendActionsRateLimiter;
   ASSETS: Fetcher;
   PERSISTENCE_RATE_LIMITER: PersistenceRateLimiter;
   IMAGES: {
@@ -51,6 +57,13 @@ const worker = {
       return handleSupportChatRequest(request, {
         ai: env?.AI,
         rateLimiter: env?.SUPPORT_CHAT_RATE_LIMITER,
+      });
+    }
+
+    if (url.pathname === "/api/recommend-actions") {
+      return handleRecommendActionsRequest(request, {
+        ai: env?.AI,
+        rateLimiter: env?.OTHER_ACTIONS_RATE_LIMITER,
       });
     }
 

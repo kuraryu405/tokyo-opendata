@@ -15,6 +15,11 @@ function userConfig() {
         namespace_id: "202608230020",
         simple: { limit: 20, period: 60 },
       },
+      {
+        name: "OTHER_ACTIONS_RATE_LIMITER",
+        namespace_id: "20260823005601",
+        simple: { limit: 10, period: 60 },
+      },
     ],
   };
 }
@@ -30,9 +35,11 @@ test("uses distinct staging and production rate limit namespaces", () => {
   assert.equal(production.ratelimits[0].namespace_id, "202608230259");
   assert.equal(staging.ratelimits[1].namespace_id, "202608230021");
   assert.equal(production.ratelimits[1].namespace_id, "202608230022");
+  assert.equal(staging.ratelimits[2].namespace_id, "20260823005611");
+  assert.equal(production.ratelimits[2].namespace_id, "20260823005621");
   assert.notEqual(
-    staging.ratelimits[1].namespace_id,
-    production.ratelimits[1].namespace_id,
+    staging.ratelimits[2].namespace_id,
+    production.ratelimits[2].namespace_id,
   );
 });
 

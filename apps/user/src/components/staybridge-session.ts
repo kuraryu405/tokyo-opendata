@@ -9,6 +9,10 @@ import type {
   VisitPurpose,
 } from "@staybridge/domain/types";
 import type { SelectableUserLocale } from "@staybridge/i18n/client";
+import {
+  parseAiActionIds,
+  type AiSelectableActionId,
+} from "@staybridge/domain/ai-actions";
 
 /** Locales that have passed review and may be used by the public client. */
 export type Locale = SelectableUserLocale;
@@ -16,14 +20,26 @@ export type StayAnswer = "known" | "unknown" | "documents";
 export type FamilyAnswer = "none" | "children" | "spouse" | "other";
 export type FamilyAnswers = FamilyAnswer[];
 export type SituationProvenance = "user" | "demo";
+export type OtherAnswers = {
+  area: string;
+  nationality: string;
+  visitPurpose: string;
+  family: string;
+};
+export type AiRecommendation = {
+  input: string;
+  actionIds: AiSelectableActionId[];
+};
 
 export type StoredSession = {
-  version: 3;
+  version: 4;
   provenance: SituationProvenance;
   situation: Situation;
   stayAnswer: StayAnswer;
   familyAnswers: FamilyAnswers;
   answeredSteps: number[];
+  otherAnswers: OtherAnswers;
+  aiRecommendation: AiRecommendation | null;
 };
 
 const visitPurposes = new Set<VisitPurpose>([
@@ -85,10 +101,10 @@ export function createInitialSituation(): Situation {
   };
 }
 
-export function parseStoredSession(raw: string | null): StoredSession | null {
-  const result = readStoredSession(raw);
-  return result.status === "valid" ? result.session : null;
+export function createInitialOtherAnswers(): OtherAnswers {
+  return { area: "", nationality: "", visitPurpose: "", family: "" };
 }
+
 
 export type StoredSessionReadResult =
   | { status: "absent" }
@@ -107,11 +123,11 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
     const value: unknown = JSON.parse(raw);
     if (!isRecord(value)) return { status: "corrupt" };
 
-    if (typeof value.version === "number" && Number.isInteger(value.version) && value.version > 3) {
+    if (typeof value.version === "number" && Number.isInteger(value.version) && value.version > 4) {
       return { status: "unsupported", version: value.version };
     }
 
-    if (value.version === 3 && isSituation(value.situation)) {
+    if (value.version === 4 && isSituation(value.situation) && isOtherAnswers(value.otherAnswers)) {
       if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
@@ -119,12 +135,35 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       return {
         status: "valid",
         session: {
-          version: 3,
+          version: 4,
           provenance: value.provenance,
           situation: value.situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: value.familyAnswers,
-          answeredSteps: value.answeredSteps,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, value.otherAnswers, value.answeredSteps),
+          otherAnswers: value.otherAnswers,
+          aiRecommendation: parseAiRecommendation(value.aiRecommendation, value.situation, value.otherAnswers),
+        },
+      };
+    }
+
+    if (value.version === 3 && isSituation(value.situation)) {
+      if (value.provenance !== "user" && value.provenance !== "demo") return { status: "corrupt" };
+      if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
+      if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
+      if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
+      const otherAnswers = createInitialOtherAnswers();
+      return {
+        status: "valid",
+        session: {
+          version: 4,
+          provenance: value.provenance,
+          situation: value.situation,
+          stayAnswer: value.stayAnswer as StayAnswer,
+          familyAnswers: value.familyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
         },
       };
     }
@@ -136,15 +175,18 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
       if (!isFamilyAnswers(value.familyAnswers)) return { status: "corrupt" };
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
+      const otherAnswers = createInitialOtherAnswers();
       return {
         status: "valid",
         session: {
-          version: 3,
+          version: 4,
           provenance: "demo",
           situation: value.situation,
           stayAnswer: value.stayAnswer as StayAnswer,
           familyAnswers: value.familyAnswers,
-          answeredSteps: value.answeredSteps,
+          answeredSteps: normalizeAnsweredSteps(value.situation, value.familyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
         },
       };
     }
@@ -153,15 +195,19 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
       if (!stayAnswers.has(value.stayAnswer as StayAnswer)) return { status: "corrupt" };
       if (!familyAnswers.has(value.familyAnswer as FamilyAnswer)) return { status: "corrupt" };
       if (!isAnsweredSteps(value.answeredSteps)) return { status: "corrupt" };
+      const migratedFamilyAnswers = [value.familyAnswer as FamilyAnswer];
+      const otherAnswers = createInitialOtherAnswers();
       return {
         status: "valid",
         session: {
-          version: 3,
+          version: 4,
           provenance: "demo",
           situation: value.situation,
           stayAnswer: value.stayAnswer as StayAnswer,
-          familyAnswers: [value.familyAnswer as FamilyAnswer],
-          answeredSteps: value.answeredSteps,
+          familyAnswers: migratedFamilyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value.situation, migratedFamilyAnswers, otherAnswers, value.answeredSteps),
+          otherAnswers,
+          aiRecommendation: null,
         },
       };
     }
@@ -169,15 +215,19 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
     // Safely migrate the original MVP shape. Only fields that are clearly
     // distinguishable from defaults count as answered.
     if (isSituation(value)) {
+      const migratedFamilyAnswers: FamilyAnswers = value.familyMembers.children.length ? ["children"] : [];
+      const otherAnswers = createInitialOtherAnswers();
       return {
         status: "valid",
         session: {
-          version: 3,
+          version: 4,
           provenance: "demo",
           situation: value,
           stayAnswer: value.stayDeadlineKnown ? "known" : "unknown",
-          familyAnswers: value.familyMembers.children.length ? ["children"] : [],
-          answeredSteps: inferLegacyAnsweredSteps(value),
+          familyAnswers: migratedFamilyAnswers,
+          answeredSteps: normalizeAnsweredSteps(value, migratedFamilyAnswers, otherAnswers, inferLegacyAnsweredSteps(value)),
+          otherAnswers,
+          aiRecommendation: null,
         },
       };
     }
@@ -187,8 +237,23 @@ export function readStoredSession(raw: string | null): StoredSessionReadResult {
   return { status: "corrupt" };
 }
 
-export function serializeStoredSession(session: Omit<StoredSession, "version">): string {
-  return JSON.stringify({ version: 3, ...session } satisfies StoredSession);
+export function parseStoredSession(raw: string | null): StoredSession | null {
+  const result = readStoredSession(raw);
+  return result.status === "valid" ? result.session : null;
+}
+
+export function serializeStoredSession(
+  session: Omit<StoredSession, "version" | "otherAnswers" | "aiRecommendation"> & {
+    otherAnswers?: OtherAnswers;
+    aiRecommendation?: AiRecommendation | null;
+  },
+): string {
+  return JSON.stringify({
+    version: 4,
+    ...session,
+    otherAnswers: session.otherAnswers ?? createInitialOtherAnswers(),
+    aiRecommendation: session.aiRecommendation ?? null,
+  } satisfies StoredSession);
 }
 
 export function isAssessmentComplete(answeredSteps: number[]): boolean {
@@ -227,6 +292,50 @@ function isFamilyAnswers(value: unknown): value is FamilyAnswers {
   if (!Array.isArray(value) || new Set(value).size !== value.length) return false;
   if (!value.every((answer) => familyAnswers.has(answer as FamilyAnswer))) return false;
   return value.includes("none") ? value.length === 1 : true;
+}
+
+function isOtherAnswers(value: unknown): value is OtherAnswers {
+  if (!isRecord(value) || Object.keys(value).length !== 4) return false;
+  return isFreeText(value.area, 100)
+    && isFreeText(value.nationality, 100)
+    && isFreeText(value.visitPurpose, 300)
+    && isFreeText(value.family, 100);
+}
+
+function isFreeText(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
+function parseAiRecommendation(
+  value: unknown,
+  situation: Situation,
+  otherAnswers: OtherAnswers,
+): AiRecommendation | null {
+  if (!isRecord(value) || Object.keys(value).length !== 2 || typeof value.input !== "string") return null;
+  const input = value.input.trim();
+  const actionIds = parseAiActionIds(value.actionIds);
+  if (
+    !input
+    || input.length > 300
+    || actionIds === null
+    || situation.visitPurpose !== "other"
+    || input !== otherAnswers.visitPurpose.trim()
+  ) return null;
+  return { input, actionIds };
+}
+
+function normalizeAnsweredSteps(
+  situation: Situation,
+  selectedFamilyAnswers: FamilyAnswers,
+  otherAnswers: OtherAnswers,
+  answeredSteps: number[],
+): number[] {
+  const incomplete = new Set<number>();
+  if (situation.currentMunicipality === "Other" && !otherAnswers.area.trim()) incomplete.add(0);
+  if (situation.nationality === "OTHER" && !otherAnswers.nationality.trim()) incomplete.add(1);
+  if (situation.visitPurpose === "other" && !otherAnswers.visitPurpose.trim()) incomplete.add(2);
+  if (selectedFamilyAnswers.includes("other") && !otherAnswers.family.trim()) incomplete.add(6);
+  return incomplete.size ? answeredSteps.filter((step) => !incomplete.has(step)) : answeredSteps;
 }
 
 function inferLegacyAnsweredSteps(situation: Situation): number[] {

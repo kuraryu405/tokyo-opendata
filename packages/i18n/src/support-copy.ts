@@ -69,12 +69,12 @@ export const supportCopy = {
   },
   ISA: {
     answersInText: {
-      ja: "在留手続き・相談窓口の一般的な情報が書いてある（個別の判断はしない）。",
+      ja: "在留手続きや相談窓口の一般的な案内がまとまっています。個別の可否は窓口でご確認ください。",
       en: "Provides general information about residence procedures and consultation desks. It does not decide individual cases.",
       my: "နေထိုင်ခွင့်လုပ်ထုံးလုပ်နည်းများနှင့် တိုင်ပင်နိုင်သည့်ဌာနများအကြောင်း အထွေထွေသတင်းအချက်အလက်များကို ပေးထားသည်။ တစ်ဦးချင်းကိစ္စများကို ဆုံးဖြတ်ပေးခြင်းမရှိပါ။",
     },
     notes: {
-      ja: "個別の在留可否や許可の見込みは判断しません。",
+      ja: "個別の在留可否や許可の見込みは、窓口でご確認ください。",
       en: "This source provides general information and does not decide individual cases or permission prospects.",
       my: "ဤအချက်အလက်သည် အထွေထွေလမ်းညွှန်သာဖြစ်ပြီး တစ်ဦးချင်းနေထိုင်ခွင့် သို့မဟုတ် ခွင့်ပြုချက်ရနိုင်မှုကို မဆုံးဖြတ်ပါ။",
     },
@@ -137,12 +137,12 @@ export const supportCopy = {
   },
   TOKYO_FRESC_STATUS_CONSULT: {
     answersInText: {
-      ja: "在留資格・在留期間について、やさしい日本語など14言語で無料相談できる（要予約0120-142-142、在住/在勤/在学の外国人対象）。",
+      ja: "在留資格・在留期間について、やさしい日本語など14言語で無料相談できます（要予約 0120-142-142、在住・在勤・在学の外国人対象）。",
       en: "Free consultations about residence status and period are available in 14 languages. Reservations are required.",
       my: "နေထိုင်ခွင့်အမျိုးအစားနှင့် နေထိုင်ခွင့်ကာလအကြောင်းကို ဘာသာစကား ၁၄ မျိုးဖြင့် အခမဲ့တိုင်ပင်နိုင်သည်။ ကြိုတင်ချိန်းဆိုရန် လိုအပ်သည်။",
     },
     notes: {
-      ja: "個別の在留可否は決定しない。",
+      ja: "個別の在留可否については、窓口でご確認ください。",
       en: "This desk does not decide individual residence eligibility.",
       my: "တစ်ဦးချင်းနေထိုင်ခွင့်ရရှိနိုင်မှုကို ဤဌာနက ဆုံးဖြတ်ပေးခြင်းမရှိပါ။",
     },
@@ -269,12 +269,12 @@ export const supportCopy = {
   },
   TOKYO_LABOR_CONSULT: {
     answersInText: {
-      ja: "外国人労働者の労働問題について、通訳（英・中）付きで相談できる窓口と時間が書いてある。",
+      ja: "外国人労働者の労働問題について、通訳（英・中）付きで相談できる窓口と対応時間がまとまっています。",
       en: "Lists consultation desks and hours for foreign workers' labor issues, with English and Chinese interpretation.",
       my: "နိုင်ငံခြားသားအလုပ်သမားများ၏ အလုပ်သမားရေးရာပြဿနာများကို အင်္ဂလိပ်နှင့် တရုတ်စကားပြန်အကူအညီဖြင့် တိုင်ပင်နိုင်သည့်ဌာနများနှင့် အချိန်များကို ဖော်ပြထားသည်။",
     },
     notes: {
-      ja: "働けるかどうかの可否は決定しない。",
+      ja: "働けるかどうかの個別判断は、窓口でご確認ください。",
       en: "This desk does not decide whether you are permitted to work.",
       my: "အလုပ်လုပ်ခွင့်ရှိ၊ မရှိကို ဤဌာနက ဆုံးဖြတ်ပေးခြင်းမရှိပါ။",
     },
@@ -289,12 +289,12 @@ export const supportCopy = {
   },
   TOKYO_CAREER_CONSULT: {
     answersInText: {
-      ja: "東京で働くための相談（キャリアコンサルタントが電話・メール・オンラインで対応）が書いてある。",
+      ja: "東京で働くための相談（キャリアコンサルタントが電話・メール・オンラインで対応）がまとまっています。",
       en: "Explains career consultations for working in Tokyo by phone, email, or online.",
       my: "တိုကျိုတွင် အလုပ်လုပ်ရန် အသက်မွေးဝမ်းကျောင်းဆိုင်ရာ တိုင်ပင်မှုများကို ဖုန်း၊ အီးမေးလ် သို့မဟုတ် အွန်လိုင်းမှ ပြုလုပ်နိုင်ကြောင်း ရှင်းပြထားသည်။",
     },
     notes: {
-      ja: "求人の紹介は行わない。",
+      ja: "求人そのものの紹介は対象外です。",
       en: "This service does not introduce specific job openings.",
       my: "သီးခြားအလုပ်နေရာများကို မိတ်ဆက်ပေးခြင်းမရှိပါ။",
     },
