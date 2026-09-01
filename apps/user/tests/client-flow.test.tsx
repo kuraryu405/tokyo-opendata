@@ -720,8 +720,22 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
-    expect(navigation.path()).toBe("/ja/check?step=0");
-    await user.click(screen.getByRole("button", { name: /戻る/ }));
+    expect(document.querySelector(".velorah-hero-main.is-exiting")).toBeTruthy();
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
+    expect(document.querySelector(".check-cinematic .velorah-video source")?.getAttribute("src")).toBe("/tokyo-aerial-4308.mp4");
+    expect(document.querySelector(".check-cinematic > .velorah-nav")).toBeTruthy();
+    expect(document.querySelector(".site-header")).toBeNull();
+    expect(document.querySelector(".site-footer")).toBeNull();
+    const firstCard = document.querySelector(".question-card");
+    fireEvent.change(screen.getByRole("combobox", { name: "東京23区から選択" }), { target: { value: "世田谷区" } });
+    await user.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByRole("heading", { name: "国籍・地域を教えてください。" })).toBeTruthy();
+    const secondCard = document.querySelector(".question-card");
+    expect(secondCard).not.toBe(firstCard);
+    expect(secondCard?.classList.contains("question-card-forward")).toBe(true);
+    await user.click(screen.getByRole("button", { name: /^← 戻る$/ }));
+    expect(document.querySelector(".question-card")?.classList.contains("question-card-backward")).toBe(true);
+    await user.click(screen.getByRole("button", { name: /^← 戻る$/ }));
 
     expect(navigation.path()).toBe("/ja");
     expect(screen.getAllByRole("button", { name: "フォームに回答する" })).toHaveLength(2);
@@ -860,7 +874,7 @@ describe("StayBridge client flow", () => {
     render(<StayBridgeApp assessmentDate="2026-08-24" />);
 
     await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
-    fireEvent.change(screen.getByRole("combobox", { name: "東京23区から選択" }), { target: { value: "世田谷区" } });
+    fireEvent.change(await screen.findByRole("combobox", { name: "東京23区から選択" }), { target: { value: "世田谷区" } });
     await user.click(screen.getByRole("button", { name: "次へ" }));
 
     await user.click(screen.getByRole("button", { name: "その他" }));
@@ -1085,7 +1099,7 @@ describe("StayBridge client flow", () => {
     const startButtons = await screen.findAllByRole("button", { name: "フォームに回答する" });
     expect(startButtons).toHaveLength(2);
     await user.click(startButtons.at(-1)!);
-    expect(navigation.path()).toBe("/ja/status");
+    await waitFor(() => expect(navigation.path()).toBe("/ja/status"));
   });
 
   it("uses AI to organize a question without sending saved assessment answers", async () => {

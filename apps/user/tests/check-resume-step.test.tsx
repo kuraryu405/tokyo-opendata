@@ -82,7 +82,7 @@ describe("Assessment resume entry point", () => {
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
     await user.click(screen.getAllByRole("button", { name: getUserMessages("ja").ui.start }).at(-1)!);
-    expect(navigation.path()).toBe("/ja/check?step=0");
+    await waitFor(() => expect(navigation.path()).toBe("/ja/check?step=0"));
   });
 
   it("resumes a partially answered session at its first unanswered step", async () => {

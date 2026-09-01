@@ -712,10 +712,15 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
 
   const switchLocale = (nextLocale: Locale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); };
   const isLanding = screen === "landing";
+  const isCheck = screen === "check";
   return (
-    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}${isLanding ? " velorah-scope" : ""}`}>
+    <div className={`app-shell locale-${locale}${navVisible && !isCheck ? " nav-visible" : ""}${isLanding || isCheck ? " velorah-scope" : ""}${isCheck ? " check-cinematic" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      {!isLanding && <Header locale={locale} screen={screen} go={go} switchLocale={switchLocale} navVisible={navVisible} showStepsNav={showStepsNav} />}
+      {isCheck && <>
+        <TokyoAerialVideo />
+        <CinematicHeader locale={locale} switchLocale={switchLocale} disabled={!storageReady} onBrandClick={() => go("landing")} navigation={{ screen, go, showStepsNav }} />
+      </>}
+      {!isLanding && !isCheck && <Header locale={locale} screen={screen} go={go} switchLocale={switchLocale} navVisible={navVisible} showStepsNav={showStepsNav} />}
       {storageError && <output className="app-alert">{t.storageError}</output>}
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
@@ -738,10 +743,10 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
           {screen === "summary" && <ConsultationSummary locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} summaryDate={summaryDate} copyState={copyState} setCopyState={setCopyState} />}
         </>}
       </main>
-      <footer className="site-footer">
+      {!isCheck && <footer className="site-footer">
         <div><span className="brand-mark">SB</span><strong>StayBridge Tokyo</strong><p>{t.footer}</p></div>
         <button className="text-button" disabled={!storageReady} onClick={clearData}>{t.clear}</button>
-      </footer>
+      </footer>}
     </div>
   );
 }
@@ -873,42 +878,80 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
+function TokyoAerialVideo() {
+  return <video
+    className="velorah-video"
+    autoPlay
+    loop
+    muted
+    playsInline
+    aria-hidden="true"
+  >
+    <source src="/tokyo-aerial-4308.mp4" type="video/mp4" />
+  </video>;
+}
+
+function CinematicHeader({ locale, switchLocale, disabled, onBrandClick, actionLabel, onAction, navigation }: {
+  locale: Locale;
+  switchLocale: (locale: Locale) => void;
+  disabled: boolean;
+  onBrandClick: () => void;
+  actionLabel?: string;
+  onAction?: () => void;
+  navigation?: { screen: Screen; go: (screen: Screen, query?: StayBridgeQuery) => void; showStepsNav: boolean };
+}) {
+  const t = getUserMessages(locale).ui;
+  return <header className="velorah-nav">
+    <button className="velorah-brand" disabled={disabled} onClick={onBrandClick} aria-label={t.homeLabel}>
+      <span className="velorah-brand-mark" aria-hidden="true">SB</span>
+      <span>StayBridge Tokyo</span>
+    </button>
+    {navigation && <nav className="cinematic-primary-nav liquid-glass" aria-label={t.primaryNavLabel}>
+      {navigation.showStepsNav && <button className={navigation.screen === "roadmap" ? "active" : ""} onClick={() => navigation.go("roadmap")}>{t.navSteps}</button>}
+      <button className={navigation.screen === "local" ? "active" : ""} onClick={() => navigation.go("local")}>{t.navLocal}</button>
+      <button className={navigation.screen === "help" ? "active" : ""} onClick={() => navigation.go("help")}>{t.navHelp}</button>
+    </nav>}
+    <div className="velorah-nav-right">
+      <div className="velorah-language-select liquid-glass">
+        <LanguageSelect locale={locale} switchLocale={switchLocale} />
+      </div>
+      {actionLabel && onAction && <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={onAction} aria-label={actionLabel}>
+        {actionLabel}
+      </button>}
+    </div>
+  </header>;
+}
+
 function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
   const heroLines = t.hero.split("\n");
+  const [isExiting, setIsExiting] = useState(false);
+  const exitTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (exitTimer.current !== null) window.clearTimeout(exitTimer.current);
+  }, []);
+
+  const startWithTransition = () => {
+    if (disabled || isExiting) return;
+    if (prefersReducedMotion()) {
+      start();
+      return;
+    }
+    setIsExiting(true);
+    exitTimer.current = window.setTimeout(start, 440);
+  };
+
   return (
     <div className="velorah-scope">
       {/* ── Fullscreen hero ─────────────────────────────── */}
-      <section className="velorah-hero" aria-labelledby="landing-heading">
-        <video
-          className="velorah-video"
-          autoPlay
-          loop
-          muted
-          playsInline
-          aria-hidden="true"
-        >
-          <source src="/tokyo-aerial-4308.mp4" type="video/mp4" />
-        </video>
+      <section className="velorah-hero" aria-labelledby="landing-heading" aria-busy={isExiting || undefined}>
+        <TokyoAerialVideo />
 
         {/* Navigation floating over video */}
-        <nav className="velorah-nav" aria-label={t.primaryNavLabel}>
-          <button className="velorah-brand" disabled={disabled} onClick={start} aria-label={t.homeLabel}>
-            <span className="velorah-brand-mark" aria-hidden="true">SB</span>
-            <span>StayBridge Tokyo</span>
-          </button>
-
-          <div className="velorah-nav-right">
-            <div className="velorah-language-select liquid-glass">
-              <LanguageSelect locale={locale} switchLocale={switchLocale} />
-            </div>
-            <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
-              {t.start}
-            </button>
-          </div>
-        </nav>
+        <CinematicHeader locale={locale} switchLocale={switchLocale} disabled={disabled || isExiting} onBrandClick={startWithTransition} actionLabel={t.start} onAction={startWithTransition} />
 
         {/* Centered hero content */}
-        <div className="velorah-hero-main" id="top">
+        <div className={`velorah-hero-main${isExiting ? " is-exiting" : ""}`} id="top">
           <div className="velorah-eyebrow animate-fade-rise">
             <span className="velorah-eyebrow-dot" aria-hidden="true" />
             <span>{t.eyebrow}</span>
@@ -925,7 +968,7 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
           <p className="velorah-lede animate-fade-rise-delay">{t.intro}</p>
 
           <div className="animate-fade-rise-delay-2 hero-actions" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <button className="velorah-cta liquid-glass" disabled={disabled} onClick={start}>
+            <button className="velorah-cta liquid-glass" disabled={disabled || isExiting} onClick={startWithTransition}>
               <span>{t.start}</span>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M5 3l5 5-5 5" />
@@ -1008,6 +1051,11 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
 }) {
   const question = getUserMessages(locale).questions[step];
   const [title, hint, options] = question;
+  const [cardDirection, setCardDirection] = useState<"forward" | "backward">("forward");
+  const moveToStep = (nextStep: number) => {
+    setCardDirection(nextStep < step ? "backward" : "forward");
+    setStep(nextStep);
+  };
   const current = getQuestionValue(step, situation, stayAnswer);
   const multi = step === 6 || step === 8;
   const markAnswered = (isAnswered = true) => {
@@ -1131,7 +1179,7 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
   );
   return <section className="check-page">
     <div className="check-progress"><div className="progress-meta"><span>{t.sectionSituationCheck}</span><strong>{step + 1} / 10</strong></div><div className="progress-track"><span style={{ width: `${(step + 1) * 10}%` }} /></div></div>
-    <div className="question-card">
+    <div key={step} className={`question-card question-card-${cardDirection}`}>
       <span className="question-kicker">{t.questionLabel} {String(step + 1).padStart(2, "0")}</span>
       <h1>{title}</h1>{hint && <p>{hint}</p>}
       {step === 0 || step === 1
@@ -1142,7 +1190,7 @@ function SituationCheck({ locale, t, step, setStep, backToTop, situation, setSit
       {step === 6 && familyAnswers.includes("children") && <div className="age-panel"><label>{t.ageLabel}</label><div className="age-options">{assessmentOptionCodes.childAge.map((age) => { const selected = situation.familyMembers.children.some((child) => child.ageGroup === age); return <label key={age} className={`age-chip ${selected ? "selected" : ""}`}><input type="checkbox" name="child-ages" className="option-input" checked={selected} onChange={() => toggleChildAge(age)} /><span aria-hidden="true">{selected ? "✓" : ""}</span><span>{age}</span></label>; })}</div></div>}
       {otherAnswer !== undefined && otherCopy && <div className="other-answer-panel"><label htmlFor={`other-answer-${step}`}>{otherCopy.label}</label><textarea id={`other-answer-${step}`} data-testid={`question-${step + 1}-other`} value={otherAnswer} maxLength={otherMaxLength} required aria-invalid={!otherAnswer.trim()} aria-describedby={showOtherGuidance ? `other-answer-notice-${step} other-answer-error-${step}` : undefined} placeholder={otherCopy.placeholder} onChange={(event) => updateOtherAnswer(event.target.value)} />{showOtherGuidance && <><div className="other-answer-meta"><small id={`other-answer-notice-${step}`}>{otherCopy.notice}</small><span>{otherAnswer.length} / {otherMaxLength}</span></div>{!otherAnswer.trim() && <p id={`other-answer-error-${step}`} className="inline-error" role="alert">{otherCopy.required}</p>}</>}</div>}
       {step === 5 && stayAnswer === "known" && <div className="age-panel"><label htmlFor="stay-deadline">{t.deadlineLabel}</label><input id="stay-deadline" className="date-input" type="date" value={situation.knownStayDeadline || ""} onChange={(e) => setSituation({ ...situation, knownStayDeadline: e.target.value || undefined, stayDeadlineKnown: Boolean(e.target.value) })} /></div>}
-      <div className="question-actions"><button className="back-button" onClick={() => step === 0 ? backToTop() : setStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : setStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
+      <div className="question-actions"><button className="back-button" onClick={() => step === 0 ? backToTop() : moveToStep(step - 1)}>← {t.back}</button><button className="primary-button" disabled={!enabled || isPreparing} onClick={() => step === 9 ? finish() : moveToStep(step + 1)}>{isPreparing ? t.loading : step === 9 ? t.finish : t.next}<span aria-hidden>→</span></button></div>
       {answeredSteps.length > 0 && <div className="question-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></div>}
     </div>
   </section>;
