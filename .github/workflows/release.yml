@@ -128,7 +128,7 @@ jobs:
       (needs.detect.outputs.user == 'true' || needs.detect.outputs.municipality == 'true') &&
       needs.stage-user.result == 'success' &&
       needs.stage-municipality.result == 'success'
-    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@3b838cd521f0a3e8ab0aef913d2495844b749d99 # main@3b838cd
+    uses: kuraryu405/StayBridgeTokyo-e2e/.github/workflows/acceptance.yml@8f6060e18ea354f43c2a0c51bea7998bef3b7c67 # main@8f6060e
     with:
       target_commit: ${{ needs.detect.outputs.revision }}
       user_url: ${{ needs.detect.outputs.user_staging_verification_url }}
