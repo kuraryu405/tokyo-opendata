@@ -1,26 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { demoSituation } from "@staybridge/domain/demo";
+import { useEffect, useRef, useState } from "react";
 import {
   getActionCatalogEntry,
   type ActionDestination,
   type ActionId,
 } from "@staybridge/domain/action-catalog";
-import { generateActions } from "@staybridge/domain/rules";
-import {
-  mergeAiRecommendedActions,
-  parseAiActionIds,
-  type AiSelectableActionId,
-} from "@staybridge/domain/ai-actions";
 import { assessmentOptionCodes } from "@staybridge/domain/selection-coverage";
 import type { Action, ChildAgeGroup, NeedCategory, Situation } from "@staybridge/domain/types";
 import {
   consultationSourcesByNeed,
   humanHandoffSourceIds,
   isSourceEligibleForVisitPurpose,
-  localResources,
   sourceRegistry,
   type DataSource,
   type LocalResource,
@@ -40,58 +31,34 @@ import {
   type ReasonCode,
   type TimingKey,
 } from "@staybridge/i18n";
-import {
-  buildStayBridgePath,
-  equivalentStayBridgePath,
-  parseStayBridgeRoute,
-  type LocalFilter,
-  type StayBridgeQuery,
-  type StayBridgeRoute,
-  type StayBridgeScreen,
+import type {
+  LocalFilter,
+  StayBridgeQuery,
+  StayBridgeRoute,
+  StayBridgeScreen,
 } from "../routing/staybridge-routes";
 import {
-  createInitialSituation,
   createInitialOtherAnswers,
-  isAssessmentComplete,
-  firstUnansweredStep,
-  readStoredSession,
-  serializeStoredSession,
   type FamilyAnswer,
   type FamilyAnswers,
   type Locale,
   type OtherAnswers,
-  type AiRecommendation,
   type StayAnswer,
 } from "./staybridge-session";
 import { SupportChat } from "./SupportChat";
 import { prefersReducedMotion } from "../motion";
-import { formatAssessmentDateForLocale, getTokyoAssessmentDate } from "../assessment-date";
 import { municipalityAppRoute } from "../municipality-url";
-import {
-  PENDING_SITUATION_SUBMISSION_KEY,
-  SAVED_SITUATION_CREDENTIALS_KEY,
-  SITUATION_PERSISTENCE_PREFERENCE_KEY,
-  readSituationPersistencePreference,
-  createPendingSituationSubmission,
-  deleteSituationSubmission,
-  parsePendingSituationSubmission,
-  parseSavedSituationCredentials,
-  saveSituationSubmission,
-  type PendingSituationSubmission,
-  serializeSavedSituationCredentials,
-  type SavedRecordCredentials,
-} from "../consented-persistence";
+import { type SavedRecordCredentials } from "../consented-persistence";
 import { getPersistenceCopy, type PersistenceCopy } from "../persistence-copy";
+import { useStayBridgeController } from "../flow/use-staybridge-controller";
+import type {
+  ConversationConsentState,
+  CopyState,
+  SituationPersistenceState,
+} from "../flow/staybridge-flow-state";
 
 type Screen = StayBridgeScreen;
-type CopyState = "idle" | "copied" | "error";
 type UserCopy = PublicUserMessages["ui"];
-type SituationPersistenceState =
-  | { status: "idle" | "declined" | "saving" | "error" | "deleted" | "corrupt" | "pending-corrupt" }
-  | { status: "saved" | "deleting" | "delete-error"; credentials: SavedRecordCredentials };
-type ConversationConsentState = "idle" | "accepted" | "declined";
-
-const defaultRoute: StayBridgeRoute = { locale: "ja", screen: "landing", query: {} };
 
 const routeUi = {
   ja: { restart: "最初からやり直す", preparing: "次のステップを準備しています", catalogUnavailable: "現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。", contactOfficial: "公式相談先を見る", aiReason: "入力したその他の来日目的から、確認すると役立つ可能性がある既存カードを追加しています。最終判断ではありません。" },
@@ -122,562 +89,66 @@ function matchesSearchOption(value: string, label: string, query: string) {
     .some((candidate) => normalizeSearchText(candidate).includes(normalizedQuery));
 }
 
-const RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS = 8_000;
+export function StayBridgeApp({ route, assessmentDate }: { route?: StayBridgeRoute; assessmentDate: string }) {
+  const controller = useStayBridgeController({ route, assessmentDate });
+  const {
+    locale,
+    screen,
+    step,
+    localFilter,
+    t,
+    situation,
+    stayAnswer,
+    familyAnswers,
+    otherAnswers,
+    answeredSteps,
+    storageReady,
+    storageError,
+    copyState,
+    situationPersistence,
+    conversationConsent,
+    hasUnreadableSession,
+    isDemoSituation,
+    hasPendingSituationSubmission,
+    hasCorruptPendingSituationSubmission,
+    isPreparingRecommendations,
+    actions,
+    availableResources,
+    firstIncompleteStep,
+    navVisible,
+    showStepsNav,
+    storageGate,
+    routeNeedsAssessmentGuard,
+    protectedSituationRouteGuard,
+    demoSituationRouteGuard,
+    isLanding,
+    isCheck,
+    summaryDate,
+    setSituation,
+    setStayAnswer,
+    setFamilyAnswers,
+    setOtherAnswers,
+    setAnsweredSteps,
+    setCopyState,
+    setConversationConsent,
+    invalidateAiRecommendation,
+    go,
+    setStep,
+    setLocalFilter,
+    complete,
+    loadDemo,
+    startFreshSession,
+    restartAssessment,
+    discardCorruptLocalData,
+    discardCorruptPending,
+    persistSituation,
+    deletePersistedSituation,
+    editSituation,
+    switchLocale,
+    declineSituationPersistence,
+    openAction,
+  } = controller;
 
-export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDate }: { route?: StayBridgeRoute; assessmentDate: string }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const parsedRoute = useMemo(
-    () => pathname ? parseStayBridgeRoute(pathname, searchParams ?? undefined) : { route: initialRoute, canonicalPath: buildStayBridgePath(initialRoute) },
-    [initialRoute, pathname, searchParams],
-  );
-  const { locale, screen, query } = parsedRoute.route;
-  const step = query.step ?? 0;
-  const localFilter = query.filter ?? "all";
-  const [situation, setSituation] = useState<Situation>(createInitialSituation);
-  const [stayAnswer, setStayAnswer] = useState<StayAnswer>("unknown");
-  const [familyAnswers, setFamilyAnswers] = useState<FamilyAnswers>([]);
-  const [otherAnswers, setOtherAnswers] = useState<OtherAnswers>(createInitialOtherAnswers);
-  const [aiRecommendation, setAiRecommendation] = useState<AiRecommendation | null>(null);
-  const [answeredSteps, setAnsweredSteps] = useState<number[]>([]);
-  const [storageReady, setStorageReady] = useState(false);
-  const [storageError, setStorageError] = useState(false);
-  const [copyState, setCopyState] = useState<CopyState>("idle");
-  const [situationPersistence, setSituationPersistence] = useState<SituationPersistenceState>({ status: "idle" });
-  const [conversationConsent, setConversationConsent] = useState<ConversationConsentState>("idle");
-  const [hasUnreadableSession, setHasUnreadableSession] = useState(false);
-  const [isDemoSituation, setIsDemoSituation] = useState(false);
-  // Keep the request's assessment date pinned for answer-dependent rules while
-  // independently advancing the Tokyo date used only for catalog publication.
-  const [publicationToday, setPublicationToday] = useState(assessmentDate);
-  const [hasPendingSituationSubmission, setHasPendingSituationSubmission] = useState(false);
-  const [isPreparingRecommendations, setIsPreparingRecommendations] = useState(false);
-  const skipNextSessionWrite = useRef(false);
-  const recommendationController = useRef<AbortController | null>(null);
-  const [hasCorruptPendingSituationSubmission, setHasCorruptPendingSituationSubmission] = useState(false);
-  const [allowsPendingSituationReview, setAllowsPendingSituationReview] = useState(false);
-  const situationRequestController = useRef<AbortController | null>(null);
-  const pendingSituationSubmission = useRef<PendingSituationSubmission | "incompatible" | null>(null);
-  const t = getUserMessages(locale).ui;
-  const hasSavedSituationCredentials = "credentials" in situationPersistence;
-  const hasCorruptSavedSituationCredentials = situationPersistence.status === "corrupt";
-  const hasProtectedSituationSubmission = hasSavedSituationCredentials
-    || hasCorruptSavedSituationCredentials
-    || hasPendingSituationSubmission
-    || hasCorruptPendingSituationSubmission;
-
-  useEffect(() => {
-    try {
-      const storedSessionResult = readStoredSession(sessionStorage.getItem("staybridge.session"));
-      const storedSession = storedSessionResult.status === "valid" ? storedSessionResult.session : null;
-      if (storedSession) {
-        // oxlint-disable-next-line react/set-state-in-effect -- Initializes browser-only persisted state after hydration.
-        setSituation(storedSession.situation);
-        setStayAnswer(storedSession.stayAnswer);
-        setFamilyAnswers(storedSession.familyAnswers);
-        setOtherAnswers(storedSession.otherAnswers);
-        setAiRecommendation(storedSession.aiRecommendation);
-        setAnsweredSteps(storedSession.answeredSteps);
-        setIsDemoSituation(storedSession.provenance === "demo");
-      } else if (storedSessionResult.status !== "absent") {
-        // Corrupt or newer-than-this-build session data may still hold answers.
-        // Keep the raw value untouched and suspend session writes until the
-        // person explicitly starts over.
-        setHasUnreadableSession(true);
-      }
-      const savedCredentialsResult = parseSavedSituationCredentials(
-        sessionStorage.getItem(SAVED_SITUATION_CREDENTIALS_KEY),
-      );
-      if (savedCredentialsResult.status === "valid") {
-        setSituationPersistence({ status: "saved", credentials: savedCredentialsResult.credentials });
-        if (savedCredentialsResult.needsMigration) {
-          sessionStorage.setItem(
-            SAVED_SITUATION_CREDENTIALS_KEY,
-            serializeSavedSituationCredentials(savedCredentialsResult.credentials),
-          );
-        }
-        // With valid credentials the record ID and deletion token are already
-        // held in the saved credentials, so any leftover pending value is
-        // redundant and can be dropped even when it is unreadable.
-        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-      } else if (savedCredentialsResult.status === "corrupt") {
-        setSituationPersistence({ status: "corrupt" });
-        const parsedPending = parsePendingSituationSubmission(
-          sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
-        );
-        if (parsedPending.status === "retryable") {
-          pendingSituationSubmission.current = parsedPending.submission;
-          setHasPendingSituationSubmission(true);
-        } else if (parsedPending.status === "incompatible") {
-          setHasCorruptPendingSituationSubmission(true);
-        }
-      } else {
-        const parsedPending = parsePendingSituationSubmission(
-          sessionStorage.getItem(PENDING_SITUATION_SUBMISSION_KEY),
-        );
-        if (parsedPending.status === "retryable") {
-          pendingSituationSubmission.current = parsedPending.submission;
-          setHasPendingSituationSubmission(true);
-          setSituationPersistence({ status: "error" });
-        } else if (parsedPending.status === "incompatible") {
-          setHasCorruptPendingSituationSubmission(true);
-          setSituationPersistence({ status: "pending-corrupt" });
-        } else if (
-          readSituationPersistencePreference(sessionStorage.getItem(SITUATION_PERSISTENCE_PREFERENCE_KEY)) === "declined"
-        ) {
-          setSituationPersistence({ status: "declined" });
-        }
-      }
-    } catch {
-      setStorageError(true);
-    } finally {
-      setStorageReady(true);
-    }
-  }, []);
-
-  useEffect(() => () => situationRequestController.current?.abort(), []);
-
-  useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
-
-  useEffect(() => {
-    const refresh = () => {
-      const today = getTokyoAssessmentDate();
-      setPublicationToday((previous) => (previous === today ? previous : today));
-    };
-    const timer = window.setInterval(refresh, 60_000);
-    document.addEventListener("visibilitychange", refresh);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refresh);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (screen === "check" && step === 9) return;
-    recommendationController.current?.abort();
-    recommendationController.current = null;
-  }, [screen, step]);
-
-  useEffect(() => () => {
-    recommendationController.current?.abort();
-    recommendationController.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (!pathname) return;
-    const currentPath = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
-    if (!equivalentStayBridgePath(currentPath, parsedRoute.canonicalPath)) {
-      router.replace(parsedRoute.canonicalPath);
-    }
-  }, [parsedRoute.canonicalPath, pathname, router, searchParams]);
-
-  const assessmentComplete = isAssessmentComplete(answeredSteps);
-  const firstIncompleteStep = firstUnansweredStep(answeredSteps);
-  const navVisible = !(screen === "landing" && !assessmentComplete && !isDemoSituation);
-  const showStepsNav = assessmentComplete || isDemoSituation;
-  const storageGate = !storageReady && ["check", "status", "roadmap", "local", "summary"].includes(screen);
-  const pendingSituationReviewAllowed = allowsPendingSituationReview
-    && hasPendingSituationSubmission
-    && !hasSavedSituationCredentials
-    && !hasCorruptSavedSituationCredentials
-    && !hasCorruptPendingSituationSubmission;
-  const protectedSituationRouteGuard = storageReady
-    && hasProtectedSituationSubmission
-    && (screen === "landing" || (screen === "check" && !pendingSituationReviewAllowed));
-  const demoSituationRouteGuard = storageReady
-    && isDemoSituation
-    && (screen === "check" || ((screen === "roadmap" || screen === "summary") && !assessmentComplete));
-  const routeNeedsAssessmentGuard = storageReady && !hasProtectedSituationSubmission && !isDemoSituation && (
-    (screen === "check" && firstIncompleteStep !== null && step > firstIncompleteStep) ||
-    ((screen === "status" || screen === "roadmap" || screen === "summary") && !assessmentComplete)
-  );
-
-  useEffect(() => {
-    if (!routeNeedsAssessmentGuard) return;
-    router.replace(buildStayBridgePath({
-      locale,
-      screen: "check",
-      query: { step: firstIncompleteStep ?? 0 },
-    }));
-  }, [firstIncompleteStep, locale, routeNeedsAssessmentGuard, router]);
-
-  useEffect(() => {
-    if (!protectedSituationRouteGuard) return;
-    router.replace(buildStayBridgePath({ locale, screen: "status" }));
-  }, [locale, protectedSituationRouteGuard, router]);
-
-  useEffect(() => {
-    if (!demoSituationRouteGuard) return;
-    router.replace(buildStayBridgePath({ locale, screen: "status" }));
-  }, [demoSituationRouteGuard, locale, router]);
-
-  useEffect(() => {
-    if (!storageReady || hasUnreadableSession) return;
-    if (skipNextSessionWrite.current) {
-      skipNextSessionWrite.current = false;
-      return;
-    }
-    try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({ provenance: isDemoSituation ? "demo" : "user", situation, stayAnswer, familyAnswers, answeredSteps, otherAnswers, aiRecommendation }));
-    } catch {
-      window.setTimeout(() => setStorageError(true), 0);
-    }
-  }, [aiRecommendation, answeredSteps, familyAnswers, hasUnreadableSession, isDemoSituation, otherAnswers, situation, stayAnswer, storageReady]);
-
-  const actions = useMemo(() => {
-    if (!assessmentComplete) return [];
-    const municipality = situation.currentMunicipality;
-    const ruleActions = generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer });
-    const currentOtherPurpose = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
-    const recommendedActionIds = aiRecommendation?.input === currentOtherPurpose ? aiRecommendation.actionIds : [];
-    return mergeAiRecommendedActions(ruleActions, recommendedActionIds, assessmentDate).filter((action) => {
-      if (action.sourceIds.length === 0 || !action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId]))) {
-        return false;
-      }
-      // Resource-listing cards must only point at a municipality/category that
-      // actually has coverage, or the CTA lands on an empty Local Action screen
-      // backed by another municipality's Open Data.
-      const destination = getActionCatalogEntry(action.id)?.destination;
-      if (destination?.screen !== "local") return true;
-      if (!municipality || municipality === "Other") return false;
-      return localResources.some((resource) => resource.municipality === municipality && resource.category === destination.filter);
-    });
-  }, [aiRecommendation, assessmentComplete, assessmentDate, otherAnswers.visitPurpose, publicationToday, situation, stayAnswer]);
-  const availableResources = useMemo(() => {
-    const municipality = situation.currentMunicipality;
-    if (!municipality) return [];
-    return localResources.filter((item) => {
-      const sameArea = municipality !== "Other" && item.municipality === municipality;
-      return sameArea && (localFilter === "all" || item.category === localFilter);
-    });
-  }, [situation.currentMunicipality, localFilter]);
-
-  const cancelPendingRecommendation = () => {
-    if (!recommendationController.current) return;
-    recommendationController.current.abort();
-    recommendationController.current = null;
-    setIsPreparingRecommendations(false);
-  };
-
-  const go = (next: Screen, nextQuery: StayBridgeQuery = {}) => {
-    cancelPendingRecommendation();
-    router.push(buildStayBridgePath({ locale, screen: next, query: nextQuery }));
-    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
-  };
-
-  const setStep = (nextStep: number) => {
-    cancelPendingRecommendation();
-    router.push(buildStayBridgePath({ locale, screen: "check", query: { step: nextStep } }));
-    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
-  };
-
-  const setLocalFilter = (nextFilter: LocalFilter) => {
-    router.replace(buildStayBridgePath({ locale, screen: "local", query: { filter: nextFilter } }));
-  };
-
-  const complete = async () => {
-    if (recommendationController.current) return;
-    if (!assessmentComplete) {
-      router.replace(buildStayBridgePath({
-        locale,
-        screen: "check",
-        query: { step: firstIncompleteStep ?? 0 },
-      }));
-      return;
-    }
-    const input = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
-    if (!input) {
-      setAiRecommendation(null);
-      setAllowsPendingSituationReview(false);
-      go("status");
-      return;
-    }
-    setAiRecommendation(null);
-    const controller = new AbortController();
-    recommendationController.current = controller;
-    setIsPreparingRecommendations(true);
-    let timeout: number | undefined;
-    const actionIds = await Promise.race([
-      requestRecommendedActions(input, controller.signal),
-      new Promise<null>((resolve) => {
-        timeout = window.setTimeout(() => {
-          controller.abort();
-          resolve(null);
-        }, RECOMMEND_ACTIONS_CLIENT_TIMEOUT_MS);
-      }),
-    ]);
-    if (timeout !== undefined) window.clearTimeout(timeout);
-    if (recommendationController.current !== controller) {
-      if (recommendationController.current === null) setIsPreparingRecommendations(false);
-      return;
-    }
-    recommendationController.current = null;
-    setAiRecommendation(actionIds === null ? null : { input, actionIds });
-    setIsPreparingRecommendations(false);
-    setAllowsPendingSituationReview(false);
-    go("status");
-  };
-
-  const loadDemo = () => {
-    if (hasUnreadableSession || hasProtectedSituationSubmission) {
-      focusSessionNotice();
-      return;
-    }
-    setSituation(demoSituation);
-    setStayAnswer("unknown");
-    setFamilyAnswers(["children"]);
-    setOtherAnswers(createInitialOtherAnswers());
-    setAiRecommendation(null);
-    const demoAnsweredSteps = Array.from({ length: 10 }, (_, index) => index);
-    setAnsweredSteps(demoAnsweredSteps);
-    setIsDemoSituation(true);
-    try {
-      sessionStorage.setItem("staybridge.session", serializeStoredSession({
-        provenance: "demo",
-        situation: demoSituation,
-        stayAnswer: "unknown",
-        familyAnswers: ["children"],
-        answeredSteps: demoAnsweredSteps,
-        otherAnswers: createInitialOtherAnswers(),
-        aiRecommendation: null,
-      }));
-    } catch {
-      setStorageError(true);
-    }
-    go("status");
-  };
-
-  const focusSituationPersistence = () => {
-    if (screen !== "status") router.replace(buildStayBridgePath({ locale, screen: "status" }));
-    const targetId = situationPersistence.status === "corrupt"
-      ? "corrupt-saved-situation-credentials"
-      : situationPersistence.status === "pending-corrupt"
-        ? "corrupt-pending-situation-submission"
-        : hasSavedSituationCredentials ? "saved-situation-credentials" : "situation-persistence";
-    window.setTimeout(() => document.getElementById(targetId)?.focus(), 0);
-  };
-
-  const focusSessionNotice = () => {
-    if (screen !== "landing") router.replace(buildStayBridgePath({ locale, screen: "landing" }));
-    window.setTimeout(() => document.getElementById("unreadable-session-notice")?.focus(), 0);
-  };
-
-  const startFreshSession = () => {
-    try {
-      sessionStorage.removeItem("staybridge.session");
-    } catch {
-      setStorageError(true);
-      return;
-    }
-    skipNextSessionWrite.current = true;
-    setSituation(createInitialSituation());
-    setStayAnswer("unknown");
-    setFamilyAnswers([]);
-    setAnsweredSteps([]);
-    setCopyState("idle");
-    setIsDemoSituation(false);
-    setHasUnreadableSession(false);
-    router.replace(buildStayBridgePath({ locale, screen: "landing" }));
-  };
-
-  const restartAssessment = () => {
-    if (hasProtectedSituationSubmission) {
-      focusSituationPersistence();
-      return;
-    }
-    skipNextSessionWrite.current = true;
-    try {
-      sessionStorage.removeItem("staybridge.session");
-    } catch {
-      setStorageError(true);
-    }
-    setSituation(createInitialSituation());
-    setStayAnswer("unknown");
-    setFamilyAnswers([]);
-    setOtherAnswers(createInitialOtherAnswers());
-    setAiRecommendation(null);
-    recommendationController.current?.abort();
-    recommendationController.current = null;
-    setIsPreparingRecommendations(false);
-    setAnsweredSteps([]);
-    setCopyState("idle");
-    setSituationPersistence({ status: "idle" });
-    setConversationConsent("idle");
-    setIsDemoSituation(false);
-    setHasUnreadableSession(false);
-    setAllowsPendingSituationReview(false);
-    pendingSituationSubmission.current = null;
-    try {
-      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
-      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-    } catch {
-      setStorageError(true);
-    }
-    router.replace(buildStayBridgePath({ locale, screen: "check", query: { step: 0 } }));
-  };
-
-  const discardCorruptLocalData = () => {
-    if (situationPersistence.status !== "corrupt") return;
-    try {
-      sessionStorage.removeItem(SAVED_SITUATION_CREDENTIALS_KEY);
-    } catch {
-      setStorageError(true);
-      return;
-    }
-    if (hasPendingSituationSubmission) {
-      setSituationPersistence({ status: "error" });
-      return;
-    }
-    // An unreadable pending value may hold the only deletion token for a
-    // record the server already stored, so it is never discarded silently.
-    if (hasCorruptPendingSituationSubmission) {
-      setSituationPersistence({ status: "pending-corrupt" });
-      return;
-    }
-    skipNextSessionWrite.current = true;
-    try {
-      sessionStorage.removeItem("staybridge.session");
-      sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
-      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-    } catch {
-      setStorageError(true);
-      return;
-    }
-    setSituation(createInitialSituation());
-    setStayAnswer("unknown");
-    setFamilyAnswers([]);
-    setAnsweredSteps([]);
-    setCopyState("idle");
-    setSituationPersistence({ status: "idle" });
-    setConversationConsent("idle");
-    setIsDemoSituation(false);
-    pendingSituationSubmission.current = null;
-    setHasPendingSituationSubmission(false);
-    router.replace(buildStayBridgePath({ locale, screen: "landing" }));
-  };
-
-  const discardCorruptPending = () => {
-    if (!hasCorruptPendingSituationSubmission) return;
-    try {
-      sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-    } catch {
-      setStorageError(true);
-      return;
-    }
-    setHasCorruptPendingSituationSubmission(false);
-    if (situationPersistence.status === "pending-corrupt") {
-      setSituationPersistence({ status: "idle" });
-    }
-  };
-
-  const openAction = (destination: ActionDestination) => {
-    go(destination.screen, destination.screen === "local" ? { filter: destination.filter } : {});
-  };
-
-  const summaryDate = useMemo(
-    () => formatAssessmentDateForLocale(assessmentDate, locale),
-    [assessmentDate, locale],
-  );
-
-  const startSituationRequest = () => {
-    situationRequestController.current?.abort();
-    const controller = new AbortController();
-    situationRequestController.current = controller;
-    return controller;
-  };
-
-  const persistSituation = async () => {
-    if (pendingSituationSubmission.current === "incompatible") {
-      setSituationPersistence({ status: "error" });
-      return;
-    }
-    const submission = pendingSituationSubmission.current ?? createPendingSituationSubmission(situation);
-    if (!pendingSituationSubmission.current) {
-      try {
-        sessionStorage.setItem(PENDING_SITUATION_SUBMISSION_KEY, JSON.stringify(submission));
-      } catch {
-        setStorageError(true);
-        setSituationPersistence({ status: "error" });
-        return;
-      }
-      pendingSituationSubmission.current = submission;
-      setHasPendingSituationSubmission(true);
-    }
-    const controller = startSituationRequest();
-    setSituationPersistence({ status: "saving" });
-    try {
-      const credentials = await saveSituationSubmission(submission, controller.signal);
-      let replacedPending = false;
-      try {
-        sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, serializeSavedSituationCredentials(credentials));
-        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-        replacedPending = true;
-      } catch {
-        setStorageError(true);
-      }
-      if (replacedPending) {
-        pendingSituationSubmission.current = null;
-        setHasPendingSituationSubmission(false);
-      }
-      try {
-        sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
-      } catch {
-        setStorageError(true);
-      }
-      setSituationPersistence({ status: "saved", credentials });
-    } catch {
-      if (!controller.signal.aborted) setSituationPersistence({ status: "error" });
-    } finally {
-      if (situationRequestController.current === controller) situationRequestController.current = null;
-    }
-  };
-
-  const deletePersistedSituation = async (credentials: SavedRecordCredentials) => {
-    const controller = startSituationRequest();
-    setSituationPersistence({ status: "deleting", credentials });
-    try {
-      await deleteSituationSubmission(credentials, controller.signal);
-      try {
-        sessionStorage.removeItem(SAVED_SITUATION_CREDENTIALS_KEY);
-        sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
-      } catch {
-        setStorageError(true);
-      }
-      pendingSituationSubmission.current = null;
-      setHasPendingSituationSubmission(false);
-      try {
-        sessionStorage.removeItem(SITUATION_PERSISTENCE_PREFERENCE_KEY);
-      } catch {
-        setStorageError(true);
-      }
-      setSituationPersistence({ status: "deleted" });
-    } catch {
-      if (!controller.signal.aborted) setSituationPersistence({ status: "delete-error", credentials });
-    } finally {
-      if (situationRequestController.current === controller) situationRequestController.current = null;
-    }
-  };
-
-  const editSituation = () => {
-    if (hasSavedSituationCredentials || hasCorruptSavedSituationCredentials || hasCorruptPendingSituationSubmission) {
-      focusSituationPersistence();
-      return;
-    }
-    if (isDemoSituation) {
-      restartAssessment();
-      return;
-    }
-    setAllowsPendingSituationReview(hasPendingSituationSubmission);
-    setSituationPersistence({ status: "idle" });
-    go("check", { step: 0 });
-  };
-
-  const switchLocale = (nextLocale: Locale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); };
-  const isLanding = screen === "landing";
-  const isCheck = screen === "check";
   return (
     <div className={`app-shell locale-${locale}${navVisible && !isCheck ? " nav-visible" : ""} velorah-scope${!isLanding ? " cinematic-shell" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
@@ -691,16 +162,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
           {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} />}
           {screen === "check" && (
-            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
+            <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={invalidateAiRecommendation} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
-          {screen === "status" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
-            try {
-              sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
-            } catch {
-              // Forgetting a decline is acceptable; it only re-asks consent.
-            }
-            setSituationPersistence({ status: "declined" });
-          }} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} roadmap={() => go("roadmap")} edit={editSituation} /></div>}
+          {screen === "status" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={declineSituationPersistence} deletePersistence={(credentials) => void deletePersistedSituation(credentials)} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} roadmap={() => go("roadmap")} edit={editSituation} /></div>}
           {screen === "roadmap" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><Roadmap locale={locale} t={t} actions={actions} visitPurpose={situation.visitPurpose} conversationConsent={conversationConsent} setConversationConsent={setConversationConsent} go={go} openAction={openAction} restart={restartAssessment} restartLabel={routeUi[locale].restart} /></div>}
           {screen === "local" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><LocalAction locale={locale} t={t} resources={availableResources} filter={localFilter} setFilter={setLocalFilter} go={go} /></div>}
           {screen === "help" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><HumanSupport locale={locale} t={t} needs={situation.needs} visitPurpose={situation.visitPurpose} summary={() => go("summary")} /></div>}
@@ -1255,23 +719,6 @@ function getSelectedOtherAnswerKey(step: number, situation: Situation, familyAns
 
 function getQuestionValue(step: number, s: Situation, stay: string) {
   return [s.currentMunicipality, s.nationality, s.visitPurpose, s.originalDepartureWindow, s.returnStatus, stay, "", s.accommodation, "", s.japaneseLevel][step];
-}
-
-async function requestRecommendedActions(text: string, signal: AbortSignal): Promise<AiSelectableActionId[] | null> {
-  try {
-    const response = await fetch("/api/recommend-actions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
-      signal,
-    });
-    if (response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json" || !response.ok) return null;
-    const payload: unknown = await response.json();
-    if (!payload || typeof payload !== "object" || Object.keys(payload).length !== 1 || !("actionIds" in payload)) return null;
-    return parseAiActionIds(payload.actionIds);
-  } catch {
-    return null;
-  }
 }
 
 function ImmediateStatus({ locale, t, situation, stayAnswer, familyAnswers, otherAnswers, answeredSteps, persistence, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, declinePersistence, deletePersistence, discardCorruptLocalData, discardCorruptPending, roadmap, edit }: { locale: Locale; t: UserCopy; situation: Situation; stayAnswer: StayAnswer; familyAnswers: FamilyAnswers; otherAnswers: OtherAnswers; answeredSteps: number[]; persistence: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; declinePersistence: () => void; deletePersistence: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void; roadmap: () => void; edit: () => void }) {
