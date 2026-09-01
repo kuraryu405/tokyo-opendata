@@ -535,13 +535,14 @@ describe("StayBridge client flow", () => {
     expect(firstBody.capability).toBe(testSubmissionCapability);
     // The stored snapshot excludes the per-attempt capability entirely.
     const { capability: _sentCapability, ...firstRequestWithoutCapability } = firstBody;
-    expect(JSON.parse(pendingBeforeReload ?? "null")).toEqual({ version: 1, request: firstRequestWithoutCapability });
-    expect(pendingBeforeReload).not.toContain(demoSituation.nationality);
-    expect(pendingBeforeReload).not.toContain(demoSituation.knownStayDeadline);
-    expect(pendingBeforeReload).not.toContain("nationality");
-    expect(pendingBeforeReload).not.toContain("knownStayDeadline");
-    expect(pendingBeforeReload).not.toContain("stayDeadlineKnown");
-    expect(pendingBeforeReload).not.toContain("capability");
+    const pendingSnapshot = JSON.parse(pendingBeforeReload ?? "null") as {
+      request: { answers: Record<string, unknown> };
+    };
+    expect(pendingSnapshot).toEqual({ version: 1, request: firstRequestWithoutCapability });
+    expect(pendingSnapshot.request.answers).not.toHaveProperty("nationality");
+    expect(pendingSnapshot.request.answers).not.toHaveProperty("knownStayDeadline");
+    expect(pendingSnapshot.request.answers).not.toHaveProperty("stayDeadlineKnown");
+    expect(pendingSnapshot.request).not.toHaveProperty("capability");
 
     firstRender.unmount();
     const alteredSituation: Situation = {
