@@ -1,3 +1,5 @@
+import { validateReadinessSchemaWithBatch } from "./readiness-batch";
+
 export type StayBridgeService = "user" | "municipality";
 
 export const BACKEND_DATABASE_BINDING = "STAYBRIDGE_DB" as const;
@@ -291,29 +293,32 @@ export async function createReadinessResponse(
       throw new Error("D1 binding is unavailable");
     }
 
-    for (const [table, contract] of Object.entries(READINESS_REQUIRED_SCHEMA[service])) {
-      // Table names come only from the closed, code-owned readiness contract.
-      // PRAGMA table_info is read-only and detects partial migrations as well as missing tables.
-      const { results } = await binding
-        .prepare(`PRAGMA table_info('${table}')`)
-        .all<{ name: string | null }>();
-      const foundColumns = new Set(
-        results
-          .map((row) => row.name)
-          .filter((name): name is string => typeof name === "string"),
-      );
-      if (contract.columns.some((column) => !foundColumns.has(column))) {
-        throw new Error("required D1 schema is missing");
-      }
-
-      for (const requiredColumns of contract.uniqueConstraints ?? []) {
-        if (!(await hasUniqueConstraint(binding, table, requiredColumns))) {
-          throw new Error("required D1 uniqueness constraint is missing");
+    if (typeof binding.batch === "function") {
+      await validateReadinessSchemaWithBatch(binding, READINESS_REQUIRED_SCHEMA[service]);
+    } else {
+      for (const [table, contract] of Object.entries(READINESS_REQUIRED_SCHEMA[service])) {
+        // Test doubles and older local adapters can keep using the sequential path.
+        const { results } = await binding
+          .prepare(`PRAGMA table_info('${table}')`)
+          .all<{ name: string | null }>();
+        const foundColumns = new Set(
+          results
+            .map((row) => row.name)
+            .filter((name): name is string => typeof name === "string"),
+        );
+        if (contract.columns.some((column) => !foundColumns.has(column))) {
+          throw new Error("required D1 schema is missing");
         }
-      }
-      for (const requiredForeignKey of contract.foreignKeys ?? []) {
-        if (!(await hasForeignKey(binding, table, requiredForeignKey))) {
-          throw new Error("required D1 foreign key is missing");
+
+        for (const requiredColumns of contract.uniqueConstraints ?? []) {
+          if (!(await hasUniqueConstraint(binding, table, requiredColumns))) {
+            throw new Error("required D1 uniqueness constraint is missing");
+          }
+        }
+        for (const requiredForeignKey of contract.foreignKeys ?? []) {
+          if (!(await hasForeignKey(binding, table, requiredForeignKey))) {
+            throw new Error("required D1 foreign key is missing");
+          }
         }
       }
     }
