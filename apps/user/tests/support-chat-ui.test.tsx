@@ -91,6 +91,24 @@ describe("SupportChat conversation lifecycle", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  it("drops the in-memory transcript when the Situation answer session changes", async () => {
+    sessionStorage.setItem("staybridge.session", "session-a");
+    const user = userEvent.setup();
+    const view = render(<SupportChat locale="ja" />);
+
+    await user.type(screen.getByRole("textbox", { name: "相談したいこと" }), "前の利用者の相談");
+    await user.click(screen.getByRole("button", { name: "送る" }));
+    expect(await screen.findByText("窓口で確認してください。")).toBeTruthy();
+
+    view.unmount();
+    sessionStorage.setItem("staybridge.session", "session-b");
+    render(<SupportChat locale="ja" />);
+
+    expect(screen.queryByText("前の利用者の相談")).toBeNull();
+    expect(screen.queryByText("窓口で確認してください。")).toBeNull();
+    expect(screen.getByText("相談窓口で何を聞けばいい？")).toBeTruthy();
+  });
+
   it("keeps the in-memory transcript across locale route changes and clears it explicitly", async () => {
     const user = userEvent.setup();
     const view = render(<SupportChat locale="ja" />);
