@@ -719,12 +719,12 @@ describe("StayBridge client flow", () => {
     const user = userEvent.setup();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
 
-    await user.click(screen.getByRole("button", { name: "今の状況を確認する" }));
+    await user.click(screen.getAllByRole("button", { name: "フォームに回答する" }).at(-1)!);
     expect(navigation.path()).toBe("/ja/check?step=0");
     await user.click(screen.getByRole("button", { name: /戻る/ }));
 
     expect(navigation.path()).toBe("/ja");
-    expect(screen.getByRole("button", { name: "今の状況を確認する" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "フォームに回答する" })).toHaveLength(2);
   });
 
   it("keeps a partial ward search visible while requiring an exact option", async () => {

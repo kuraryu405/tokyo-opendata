@@ -40,8 +40,8 @@
   --accent: 0 0% 10%;
   --border: 0 0% 18%;
   --input: 0 0% 18%;
-  --font-display: "Instrument Serif", "Noto Serif JP", serif;
-  --font-body: "Inter", "Noto Sans JP", "Noto Sans Myanmar", sans-serif;
+  --font-display: Georgia, "Noto Serif JP", serif;
+  --font-body: system-ui, -apple-system, "Noto Sans JP", "Noto Sans Myanmar", sans-serif;
 }
 
 .velorah-hero {
@@ -63,6 +63,14 @@
   object-fit: cover;
   z-index: 0;
   filter: brightness(0.58);
+}
+.velorah-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 22, 34, 0.74);
+  pointer-events: none;
 }
 
 .velorah-nav {
@@ -93,12 +101,14 @@
   font-weight: 400;
   letter-spacing: -0.03em;
   line-height: 1;
+  min-height: 44px;
   white-space: nowrap;
 }
 @media (min-width: 768px) {
   .velorah-brand { font-size: 31px; }
 }
 .velorah-brand b { font-weight: 400; }
+.velorah-brand:disabled { cursor: not-allowed; opacity: 0.45; }
 .velorah-brand-mark {
   width: 32px;
   height: 32px;
@@ -114,32 +124,6 @@
   letter-spacing: 0.04em;
   flex: 0 0 auto;
 }
-.velorah-center-nav {
-  display: none;
-  align-items: center;
-  gap: 28px;
-}
-@media (min-width: 900px) {
-  .velorah-center-nav { display: flex; }
-}
-.velorah-center-nav a,
-.velorah-center-nav button {
-  border: 0;
-  background: none;
-  padding: 0;
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 400;
-  color: rgba(255,255,255,0.62);
-  cursor: pointer;
-  transition: color 180ms ease;
-  text-decoration: none;
-}
-.velorah-center-nav a:hover,
-.velorah-center-nav button:hover { color: white; }
-.velorah-center-nav a.active,
-.velorah-center-nav button.active { color: white; }
-
 .velorah-nav-right {
   display: flex;
   align-items: center;
@@ -148,27 +132,22 @@
 }
 @media (min-width: 900px) { .velorah-nav-right { margin-left: 0; } }
 
-.velorah-lang-select {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-.velorah-lang-select select {
-  appearance: none;
-  border-radius: 999px;
-  padding: 9px 28px 9px 14px;
+.velorah-language-select { border-radius: 999px; }
+.velorah-language-select .language-select { margin-left: 0; }
+.velorah-language-select .language-select-trigger {
+  min-height: 44px;
+  border-color: transparent;
+  background: transparent;
+  color: white;
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
-  color: white;
-  cursor: pointer;
-  /* liquid-glass base will be applied via .liquid-glass */
-  background-image: linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.9) 50%), linear-gradient(135deg, rgba(255,255,255,0.9) 50%, transparent 50%);
-  background-position: calc(100% - 13px) 52%, calc(100% - 9px) 52%;
-  background-size: 4px 4px;
-  background-repeat: no-repeat;
 }
-.velorah-lang-select select:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; }
+.velorah-language-select .language-select-trigger:hover,
+.velorah-language-select .language-select-trigger[aria-expanded="true"] {
+  border-color: rgba(255,255,255,0.62);
+  background: rgba(7,30,43,0.46);
+}
 
 .velorah-nav-cta {
   display: none;
@@ -176,6 +155,7 @@
   justify-content: center;
   gap: 8px;
   border-radius: 999px;
+  min-height: 44px;
   padding: 10px 22px;
   font-family: var(--font-body);
   font-size: 14px;
@@ -187,7 +167,17 @@
 }
 .velorah-nav-cta:hover { transform: scale(1.03); }
 .velorah-nav-cta:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.velorah-brand:focus-visible,
+.velorah-nav-cta:focus-visible,
+.velorah-demo:focus-visible,
+.velorah-cta:focus-visible { outline: 3px solid #ffbf47; outline-offset: 3px; }
 @media (min-width: 768px) { .velorah-nav-cta { display: inline-flex; } }
+@media (max-width: 390px) {
+  .velorah-nav { padding: 16px 12px; gap: 8px; }
+  .velorah-brand { gap: 7px; font-size: 22px; }
+  .velorah-brand-mark { width: 28px; height: 28px; }
+  .velorah-language-select .language-select-trigger { min-width: 96px; padding-inline: 10px; }
+}
 
 .velorah-hero-main {
   position: relative;
@@ -212,7 +202,7 @@
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 400;
-  color: rgba(255,255,255,0.70);
+  color: rgba(255,255,255,0.94);
   margin-bottom: 24px;
   letter-spacing: 0.01em;
 }
@@ -241,7 +231,7 @@
 
 .velorah-headline span { display: block; }
 .velorah-headline .hl-white { color: white; }
-.velorah-headline .hl-muted { color: rgba(255,255,255,0.62); }
+.velorah-headline .hl-muted { color: rgba(255,255,255,0.92); }
 
 /* Japanese fallback: Noto Serif JP already in stack, but ensure weight */
 .velorah-headline:lang(ja) { font-family: "Noto Serif JP", serif; letter-spacing: -0.02em; line-height: 1.05; }
@@ -250,7 +240,7 @@
   font-family: var(--font-body);
   font-size: 15px;
   line-height: 1.75;
-  color: rgba(255,255,255,0.65);
+  color: rgba(255,255,255,0.94);
   max-width: 44rem;
   margin: 32px auto 0;
   font-weight: 400;
@@ -286,7 +276,7 @@
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255,255,255,0.94);
   cursor: pointer;
   transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
   padding: 11px 20px;
@@ -301,7 +291,7 @@
   font-family: var(--font-body);
   font-size: 11px;
   font-weight: 400;
-  color: rgba(255,255,255,0.45);
+  color: rgba(255,255,255,0.88);
   letter-spacing: 0.02em;
   display: flex;
   flex-wrap: wrap;
@@ -343,6 +333,7 @@
 .animate-fade-rise-delay-2 { animation: fade-rise 0.8s ease-out 0.4s both; }
 
 @media (prefers-reduced-motion: reduce) {
+  .velorah-video { display: none; }
   .animate-fade-rise, .animate-fade-rise-delay, .animate-fade-rise-delay-2 { animation: none !important; }
 }
 
@@ -363,7 +354,7 @@
 }
 .velorah-below .roadmap-preview { color: var(--ink); }
 .velorah-below .section-heading h2 { color: white; }
-.velorah-below .section-heading p { color: rgba(255,255,255,0.62); }
+.velorah-below .section-heading p { color: rgba(255,255,255,0.9); }
 .velorah-below .principles { background: transparent; padding: 0; }
 .velorah-below .crisis-link { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: white; }
 .velorah-below .crisis-link span { color: #b9e4d0; }

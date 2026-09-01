@@ -878,14 +878,13 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
   return (
     <div className="velorah-scope">
       {/* ── Fullscreen hero ─────────────────────────────── */}
-      <section className="velorah-hero" aria-label="StayBridge Tokyo hero">
+      <section className="velorah-hero" aria-labelledby="landing-heading">
         <video
           className="velorah-video"
           autoPlay
           loop
           muted
           playsInline
-          poster=""
           aria-hidden="true"
         >
           <source src="/tokyo-aerial-4308.mp4" type="video/mp4" />
@@ -893,29 +892,15 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
 
         {/* Navigation floating over video */}
         <nav className="velorah-nav" aria-label={t.primaryNavLabel}>
-          <button className="velorah-brand" onClick={start} aria-label={t.homeLabel}>
+          <button className="velorah-brand" disabled={disabled} onClick={start} aria-label={t.homeLabel}>
             <span className="velorah-brand-mark" aria-hidden="true">SB</span>
             <span>StayBridge Tokyo</span>
           </button>
 
-          <div className="velorah-center-nav" aria-label="Landing navigation">
-            <a href="#top" className="active">Home</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#how-it-works">Support</a>
-            <a href="#public-teams">For Public Teams</a>
-          </div>
-
           <div className="velorah-nav-right">
-            <label className="velorah-lang-select liquid-glass" title={t.languageSelectTitle}>
-              <span className="sr-only">{t.languageSelectLabel}</span>
-              <select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>
-                {selectableUserLocales.map((availableLocale) => (
-                  <option key={availableLocale} value={availableLocale}>
-                    {getUserMessages(availableLocale).metadata.nativeLabel}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="velorah-language-select liquid-glass">
+              <LanguageSelect locale={locale} switchLocale={switchLocale} />
+            </div>
             <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
               {t.start}
             </button>
@@ -929,7 +914,7 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
             <span>{t.eyebrow}</span>
           </div>
 
-          <h1 className="velorah-headline animate-fade-rise" lang={locale}>
+          <h1 id="landing-heading" className="velorah-headline animate-fade-rise" lang={locale}>
             {heroLines.map((line, idx) => (
               <span key={line} className={idx === 0 ? "hl-white" : "hl-muted"}>
                 {line}
@@ -951,7 +936,7 @@ function Landing({ t, locale, switchLocale, showDemo, disabled, start, demo, mun
                 {t.demo}
               </button>
             )}
-            <div className="velorah-trust" aria-label="Trust information">
+            <div className="velorah-trust">
               <span>{t.noLogin}</span>
               <span className="dot" aria-hidden="true" />
               <span>{t.noAddress}</span>

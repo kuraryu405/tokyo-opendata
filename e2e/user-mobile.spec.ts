@@ -7,6 +7,15 @@ import {
 
 const locales = ["ja", "en", "my"] as const;
 const mobileHeight = 844;
+const landingStartLabel = {
+  ja: "フォームに回答する",
+  en: "Check my situation",
+  my: "လက်ရှိအခြေအနေ စစ်ဆေးရန်",
+} as const;
+
+function landingStart(page: Parameters<typeof expectPageContract>[0], locale: keyof typeof landingStartLabel) {
+  return page.locator(".hero-actions").getByRole("button", { name: landingStartLabel[locale], exact: true });
+}
 
 async function expectRoute(page: Parameters<typeof expectPageContract>[0], locale: string, route: string) {
   await expect(page).toHaveURL(new RegExp(`/${locale}/${route}(?:\\?|$)`));
@@ -21,7 +30,7 @@ for (const width of mobileViewportWidths) {
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
       await expectPageContract(page);
 
-      const start = page.locator(".hero-actions .primary-button");
+      const start = landingStart(page, locale);
       await expect(start).toBeEnabled();
       await start.click();
       await expectRoute(page, locale, "check");
@@ -57,7 +66,7 @@ test("custom language menu switches locale with the keyboard", async ({ page }) 
   await page.setViewportSize({ width: 390, height: mobileHeight });
   await page.goto("/ja");
 
-  await expect(page.locator(".hero-actions .primary-button")).toBeEnabled();
+  await expect(landingStart(page, "ja")).toBeEnabled();
   await expect(page.locator(".language-select select")).toHaveCount(0);
   const languageTrigger = page.getByRole("button", { name: /言語: 日本語/ });
   await languageTrigger.press("Enter");
@@ -85,7 +94,7 @@ test("keyboard-only persona flow reaches summary without losing focus visibility
   expect(await skipLink.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   expect(await skipLink.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
 
-  const start = page.locator(".hero-actions .primary-button");
+  const start = landingStart(page, "ja");
   await expectKeyboardFocusVisible(page, start);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/ja\/check(?:\?step=0)?$/);
