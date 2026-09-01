@@ -66,57 +66,65 @@ type ReadinessTable = {
   foreignKeys?: readonly { column: string; referencedTable: string; referencedColumn: string }[];
 };
 
-function readinessDatabase(schema: Record<string, ReadinessTable>) {
+function readinessDatabase(
+  schema: Record<string, ReadinessTable>,
+  batchSizes?: number[],
+) {
   const indexes = new Map<string, readonly string[]>();
   for (const [table, contract] of Object.entries(schema)) {
     for (const [index, columns] of (contract.uniqueIndexes ?? []).entries()) {
       indexes.set(`fixture_${table}_${index}`, columns);
     }
   }
+  const prepare = (query: string) => {
+    const tableInfo = /^PRAGMA table_info\('([^']+)'\)$/.exec(query);
+    if (tableInfo) {
+      const table = tableInfo[1];
+      return {
+        all: async () => ({ results: (schema[table]?.columns ?? []).map((name) => ({ name })) }),
+      };
+    }
+    const indexList = /^PRAGMA index_list\('([^']+)'\)$/.exec(query);
+    if (indexList) {
+      const table = indexList[1];
+      return {
+        all: async () => ({
+          results: (schema[table]?.uniqueIndexes ?? []).map((_, index) => ({
+            name: `fixture_${table}_${index}`,
+            unique: 1,
+          })),
+        }),
+      };
+    }
+    const indexInfo = /^PRAGMA index_info\('([^']+)'\)$/.exec(query);
+    if (indexInfo) {
+      const columns = indexes.get(indexInfo[1]) ?? [];
+      return {
+        all: async () => ({ results: columns.map((name, seqno) => ({ name, seqno })) }),
+      };
+    }
+    const foreignKeyList = /^PRAGMA foreign_key_list\('([^']+)'\)$/.exec(query);
+    if (foreignKeyList) {
+      const table = foreignKeyList[1];
+      return {
+        all: async () => ({
+          results: (schema[table]?.foreignKeys ?? []).map((foreignKey, id) => ({
+            id,
+            seq: 0,
+            table: foreignKey.referencedTable,
+            from: foreignKey.column,
+            to: foreignKey.referencedColumn,
+          })),
+        }),
+      };
+    }
+    throw new Error(`unexpected readiness query: ${query}`);
+  };
   return {
-    prepare: (query: string) => {
-      const tableInfo = /^PRAGMA table_info\('([^']+)'\)$/.exec(query);
-      if (tableInfo) {
-        const table = tableInfo[1];
-        return {
-          all: async () => ({ results: (schema[table]?.columns ?? []).map((name) => ({ name })) }),
-        };
-      }
-      const indexList = /^PRAGMA index_list\('([^']+)'\)$/.exec(query);
-      if (indexList) {
-        const table = indexList[1];
-        return {
-          all: async () => ({
-            results: (schema[table]?.uniqueIndexes ?? []).map((_, index) => ({
-              name: `fixture_${table}_${index}`,
-              unique: 1,
-            })),
-          }),
-        };
-      }
-      const indexInfo = /^PRAGMA index_info\('([^']+)'\)$/.exec(query);
-      if (indexInfo) {
-        const columns = indexes.get(indexInfo[1]) ?? [];
-        return {
-          all: async () => ({ results: columns.map((name, seqno) => ({ name, seqno })) }),
-        };
-      }
-      const foreignKeyList = /^PRAGMA foreign_key_list\('([^']+)'\)$/.exec(query);
-      if (foreignKeyList) {
-        const table = foreignKeyList[1];
-        return {
-          all: async () => ({
-            results: (schema[table]?.foreignKeys ?? []).map((foreignKey, id) => ({
-              id,
-              seq: 0,
-              table: foreignKey.referencedTable,
-              from: foreignKey.column,
-              to: foreignKey.referencedColumn,
-            })),
-          }),
-        };
-      }
-      throw new Error(`unexpected readiness query: ${query}`);
+    prepare,
+    batch: async (statements: D1PreparedStatement[]) => {
+      batchSizes?.push(statements.length);
+      return Promise.all(statements.map((statement) => statement.all()));
     },
   } as unknown as D1Database;
 }
@@ -207,9 +215,10 @@ const userSchema = {
 const readinessCapabilitySecret = "readiness-test-capability-secret-2026";
 
 test("reports schema-complete user readiness through the success envelope", async () => {
+  const batchSizes: number[] = [];
   const response = await createReadinessResponse(
     {
-      STAYBRIDGE_DB: readinessDatabase(userSchema),
+      STAYBRIDGE_DB: readinessDatabase(userSchema, batchSizes),
       SITUATION_CAPABILITY_SECRET: readinessCapabilitySecret,
     },
     "user",
@@ -220,6 +229,8 @@ test("reports schema-complete user readiness through the success envelope", asyn
     ok: true,
     data: { status: "ready" },
   });
+  assert.equal(batchSizes.length, 2);
+  assert.ok(batchSizes.every((size) => size > 0));
 });
 
 test("reports an empty database as not ready", async () => {

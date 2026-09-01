@@ -103,6 +103,17 @@ type ReadinessTableContract = {
 
 type ReadinessSchema = Readonly<Record<string, ReadinessTableContract>>;
 
+type ReadinessColumnRow = { name: string | null };
+type ReadinessIndexListRow = { name: string | null; unique: number | string | null };
+type ReadinessIndexInfoRow = { seqno: number | string | null; name: string | null };
+type ReadinessForeignKeyRow = { table: string | null; from: string | null; to: string | null };
+
+type ReadinessInspection = {
+  columnsByTable: Map<string, Set<string>>;
+  uniqueIndexesByTable: Map<string, readonly (readonly string[])[]>;
+  foreignKeysByTable: Map<string, readonly ReadinessForeignKeyRow[]>;
+};
+
 const BACKEND_METADATA_COLUMNS = ["key", "value", "updated_at"] as const;
 const SITUATION_SUBMISSIONS_COLUMNS = [
   "id",
@@ -291,28 +302,28 @@ export async function createReadinessResponse(
       throw new Error("D1 binding is unavailable");
     }
 
-    for (const [table, contract] of Object.entries(READINESS_REQUIRED_SCHEMA[service])) {
-      // Table names come only from the closed, code-owned readiness contract.
-      // PRAGMA table_info is read-only and detects partial migrations as well as missing tables.
-      const { results } = await binding
-        .prepare(`PRAGMA table_info('${table}')`)
-        .all<{ name: string | null }>();
-      const foundColumns = new Set(
-        results
-          .map((row) => row.name)
-          .filter((name): name is string => typeof name === "string"),
-      );
+    const requiredSchema = READINESS_REQUIRED_SCHEMA[service];
+    const inspection = await inspectReadinessSchema(binding, requiredSchema);
+
+    for (const [table, contract] of Object.entries(requiredSchema)) {
+      const foundColumns = inspection.columnsByTable.get(table) ?? new Set();
       if (contract.columns.some((column) => !foundColumns.has(column))) {
         throw new Error("required D1 schema is missing");
       }
 
       for (const requiredColumns of contract.uniqueConstraints ?? []) {
-        if (!(await hasUniqueConstraint(binding, table, requiredColumns))) {
+        if (!hasUniqueConstraint(
+          inspection.uniqueIndexesByTable.get(table) ?? [],
+          requiredColumns,
+        )) {
           throw new Error("required D1 uniqueness constraint is missing");
         }
       }
       for (const requiredForeignKey of contract.foreignKeys ?? []) {
-        if (!(await hasForeignKey(binding, table, requiredForeignKey))) {
+        if (!hasForeignKey(
+          inspection.foreignKeysByTable.get(table) ?? [],
+          requiredForeignKey,
+        )) {
           throw new Error("required D1 foreign key is missing");
         }
       }
@@ -330,39 +341,102 @@ export async function createReadinessResponse(
   }
 }
 
-async function hasUniqueConstraint(
+async function inspectReadinessSchema(
   binding: D1Database,
-  table: string,
-  requiredColumns: readonly string[],
-): Promise<boolean> {
-  const { results } = await binding
-    .prepare(`PRAGMA index_list('${escapePragmaString(table)}')`)
-    .all<{ name: string | null; unique: number | string | null }>();
-  for (const index of results ?? []) {
-    if (Number(index.unique) !== 1 || typeof index.name !== "string") continue;
-    const indexInfo = await binding
-      .prepare(`PRAGMA index_info('${escapePragmaString(index.name)}')`)
-      .all<{ seqno: number | string | null; name: string | null }>();
-    const columns = (indexInfo.results ?? [])
-      .filter((row): row is { seqno: number | string; name: string } => row.name !== null && row.seqno !== null)
-      .toSorted((a, b) => Number(a.seqno) - Number(b.seqno))
-      .map((row) => row.name);
-    if (columns.length === requiredColumns.length && columns.every((column, index) => column === requiredColumns[index])) {
-      return true;
+  schema: ReadinessSchema,
+): Promise<ReadinessInspection> {
+  const initialQueries: {
+    kind: "columns" | "indexes" | "foreignKeys";
+    table: string;
+    sql: string;
+  }[] = [];
+  for (const [table, contract] of Object.entries(schema)) {
+    const escapedTable = escapePragmaString(table);
+    // Names come only from the closed, code-owned readiness contract.
+    initialQueries.push({ kind: "columns", table, sql: `PRAGMA table_info('${escapedTable}')` });
+    if (contract.uniqueConstraints?.length) {
+      initialQueries.push({ kind: "indexes", table, sql: `PRAGMA index_list('${escapedTable}')` });
+    }
+    if (contract.foreignKeys?.length) {
+      initialQueries.push({ kind: "foreignKeys", table, sql: `PRAGMA foreign_key_list('${escapedTable}')` });
     }
   }
-  return false;
+
+  const initialResults = await binding.batch(
+    initialQueries.map(({ sql }) => binding.prepare(sql)),
+  );
+  if (initialResults.length !== initialQueries.length) {
+    throw new Error("D1 readiness introspection returned an incomplete batch");
+  }
+
+  const columnsByTable = new Map<string, Set<string>>();
+  const indexNamesByTable = new Map<string, string[]>();
+  const foreignKeysByTable = new Map<string, readonly ReadinessForeignKeyRow[]>();
+  initialQueries.forEach((query, index) => {
+    const rows = initialResults[index]?.results ?? [];
+    if (query.kind === "columns") {
+      columnsByTable.set(
+        query.table,
+        new Set(
+          (rows as ReadinessColumnRow[])
+            .map((row) => row.name)
+            .filter((name): name is string => typeof name === "string"),
+        ),
+      );
+    } else if (query.kind === "indexes") {
+      indexNamesByTable.set(
+        query.table,
+        (rows as ReadinessIndexListRow[])
+          .filter((row) => Number(row.unique) === 1 && typeof row.name === "string")
+          .map((row) => row.name as string),
+      );
+    } else {
+      foreignKeysByTable.set(query.table, rows as ReadinessForeignKeyRow[]);
+    }
+  });
+
+  const indexQueries = [...indexNamesByTable.entries()].flatMap(([table, names]) =>
+    names.map((name) => ({
+      table,
+      sql: `PRAGMA index_info('${escapePragmaString(name)}')`,
+    })),
+  );
+  const indexResults = indexQueries.length > 0
+    ? await binding.batch(indexQueries.map(({ sql }) => binding.prepare(sql)))
+    : [];
+  if (indexResults.length !== indexQueries.length) {
+    throw new Error("D1 readiness index introspection returned an incomplete batch");
+  }
+
+  const uniqueIndexesByTable = new Map<string, (readonly string[])[]>();
+  indexQueries.forEach(({ table }, index) => {
+    const columns = ((indexResults[index]?.results ?? []) as ReadinessIndexInfoRow[])
+      .filter((row): row is { seqno: number | string; name: string } => row.name !== null && row.seqno !== null)
+      .toSorted((left, right) => Number(left.seqno) - Number(right.seqno))
+      .map((row) => row.name);
+    const indexes = uniqueIndexesByTable.get(table) ?? [];
+    indexes.push(columns);
+    uniqueIndexesByTable.set(table, indexes);
+  });
+
+  return { columnsByTable, uniqueIndexesByTable, foreignKeysByTable };
 }
 
-async function hasForeignKey(
-  binding: D1Database,
-  table: string,
+function hasUniqueConstraint(
+  indexes: readonly (readonly string[])[],
+  requiredColumns: readonly string[],
+): boolean {
+  return indexes.some((columns) =>
+    columns.length === requiredColumns.length
+    && columns.every((column, index) => column === requiredColumns[index]),
+  );
+}
+
+function hasForeignKey(
+  foreignKeys: readonly ReadinessForeignKeyRow[],
   requiredForeignKey: ReadinessForeignKey,
-): Promise<boolean> {
-  const { results } = await binding
-    .prepare(`PRAGMA foreign_key_list('${escapePragmaString(table)}')`)
-    .all<{ table: string | null; from: string | null; to: string | null }>();
-  return (results ?? []).some((foreignKey) =>
+): boolean {
+  return foreignKeys.some((foreignKey) =>
     foreignKey.table === requiredForeignKey.referencedTable &&
     foreignKey.from === requiredForeignKey.column &&
     foreignKey.to === requiredForeignKey.referencedColumn,
