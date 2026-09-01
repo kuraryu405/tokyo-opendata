@@ -731,15 +731,17 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     go("check");
   };
 
+  const switchLocale = (nextLocale: Locale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); };
+  const isLanding = screen === "landing";
   return (
-    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}`}>
+    <div className={`app-shell locale-${locale}${navVisible ? " nav-visible" : ""}${isLanding ? " velorah-scope" : ""}`}>
       <a className="skip-link" href="#main">{t.skip}</a>
-      <Header locale={locale} screen={screen} go={go} switchLocale={(nextLocale) => { cancelPendingRecommendation(); router.push(buildStayBridgePath({ locale: nextLocale, screen, query })); }} navVisible={navVisible} showStepsNav={showStepsNav} />
+      {!isLanding && <Header locale={locale} screen={screen} go={go} switchLocale={switchLocale} navVisible={navVisible} showStepsNav={showStepsNav} />}
       {storageError && <output className="app-alert">{t.storageError}</output>}
       {hasUnreadableSession && <UnreadableSessionNotice locale={locale} onStart={startFreshSession} />}
       <main id="main">
         {storageGate || routeNeedsAssessmentGuard || protectedSituationRouteGuard || demoSituationRouteGuard ? <LoadingState message={routeUi[locale].preparing} /> : <>
-          {screen === "landing" && <Landing t={t} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
+          {screen === "landing" && <Landing t={t} locale={locale} switchLocale={switchLocale} showStart={!assessmentComplete} showDemo={isDemoSituation || answeredSteps.length === 0} disabled={!storageReady || hasUnreadableSession} start={() => go("check", { step: firstIncompleteStep ?? 0 })} demo={loadDemo} municipalityAppUrl={municipalityAppRoute} />}
           {screen === "check" && (
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
@@ -797,31 +799,153 @@ function LoadingState({ message }: { message: string }) {
   return <output className="loading-page" aria-live="polite"><div className="loading-card"><span className="loading-orbit" aria-hidden="true" /><p>{message}</p></div></output>;
 }
 
-function Landing({ t, showStart, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; showStart: boolean; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
-  return <>
-    <section className="hero">
-      <div className="hero-copy">
-        <div className="eyebrow"><span className="eyebrow-dot" />{t.eyebrow}</div>
-        <h1>{t.hero.split("\n").map((line) => <span key={line}>{line}</span>)}</h1>
-        <p className="lede">{t.intro}</p>
-        <div className="hero-actions">{showStart && <button className="primary-button" disabled={disabled} onClick={start}>{t.start}<span aria-hidden>→</span></button>}{showDemo && <button className="secondary-button" disabled={disabled} onClick={demo}>{t.demo}</button>}</div>
-        <div className="trust-row"><span>{t.noLogin}</span><span>{t.noAddress}</span><span>{t.official}</span></div>
+function Landing({ t, locale, switchLocale, showStart, showDemo, disabled, start, demo, municipalityAppUrl }: { t: UserCopy; locale: Locale; switchLocale: (l: Locale) => void; showStart: boolean; showDemo: boolean; disabled: boolean; start: () => void; demo: () => void; municipalityAppUrl: string }) {
+  const heroLines = t.hero.split("\n");
+  return (
+    <div className="velorah-scope">
+      {/* ── Fullscreen hero ─────────────────────────────── */}
+      <section className="velorah-hero" aria-label="StayBridge Tokyo hero">
+        <video
+          className="velorah-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster=""
+          aria-hidden="true"
+        >
+          <source src="/tokyo-aerial-4308.mp4" type="video/mp4" />
+        </video>
+
+        {/* Navigation floating over video */}
+        <nav className="velorah-nav" aria-label={t.primaryNavLabel}>
+          <button className="velorah-brand" onClick={start} aria-label={t.homeLabel}>
+            <span className="velorah-brand-mark" aria-hidden="true">SB</span>
+            <span>StayBridge Tokyo</span>
+          </button>
+
+          <div className="velorah-center-nav" aria-label="Landing navigation">
+            <a href="#top" className="active">Home</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="#how-it-works">Support</a>
+            <a href="#public-teams">For Public Teams</a>
+          </div>
+
+          <div className="velorah-nav-right">
+            <label className="velorah-lang-select liquid-glass" title={t.languageSelectTitle}>
+              <span className="sr-only">{t.languageSelectLabel}</span>
+              <select value={locale} onChange={(e) => switchLocale(e.target.value as Locale)}>
+                {selectableUserLocales.map((availableLocale) => (
+                  <option key={availableLocale} value={availableLocale}>
+                    {getUserMessages(availableLocale).metadata.nativeLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {showStart && (
+              <button className="velorah-nav-cta liquid-glass" disabled={disabled} onClick={start} aria-label={t.start}>
+                {t.start}
+              </button>
+            )}
+          </div>
+        </nav>
+
+        {/* Centered hero content */}
+        <div className="velorah-hero-main" id="top">
+          <div className="velorah-eyebrow animate-fade-rise">
+            <span className="velorah-eyebrow-dot" aria-hidden="true" />
+            <span>{t.eyebrow}</span>
+          </div>
+
+          <h1 className="velorah-headline animate-fade-rise" lang={locale}>
+            {heroLines.map((line, idx) => (
+              <span key={line} className={idx === 0 ? "hl-white" : "hl-muted"}>
+                {line}
+              </span>
+            ))}
+          </h1>
+
+          <p className="velorah-lede animate-fade-rise-delay">{t.intro}</p>
+
+          <div className="animate-fade-rise-delay-2 hero-actions" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            {showStart && (
+              <button className="velorah-cta liquid-glass" disabled={disabled} onClick={start}>
+                <span>{t.start}</span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 3l5 5-5 5" />
+                </svg>
+              </button>
+            )}
+            {showDemo && (
+              <button className="velorah-demo secondary-button" disabled={disabled} onClick={demo}>
+                {t.demo}
+              </button>
+            )}
+            <div className="velorah-trust" aria-label="Trust information">
+              <span>{t.noLogin}</span>
+              <span className="dot" aria-hidden="true" />
+              <span>{t.noAddress}</span>
+              <span className="dot" aria-hidden="true" />
+              <span>{t.official}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Below the fold ─────────────────────────────── */}
+      <div className="velorah-below" id="how-it-works">
+        <div className="velorah-below-inner">
+          <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
+            <div className="preview-top">
+              <span>{t.previewTitle}</span>
+              <span className="safe-chip">{t.previewSafety}</span>
+            </div>
+            <div className="timeline-line" />
+            {t.previewSteps.map((preview, i) => (
+              <div className="preview-step" key={preview.time}>
+                <span className={`time-dot dot-${i}`} />
+                <div>
+                  <small>{preview.time}</small>
+                  <strong>{preview.title}</strong>
+                  <p>{preview.detail}</p>
+                </div>
+                <span className="step-number">0{i + 1}</span>
+              </div>
+            ))}
+            <div className="preview-note">
+              <span>i</span>
+              <details>
+                <summary>{t.sectionOfficialSupport}</summary>
+                <p>{t.notDecision}</p>
+              </details>
+            </div>
+          </div>
+
+          <section className="principles" style={{ marginTop: 48 }}>
+            <div className="section-heading">
+              <span>{t.sectionHowItHelps}</span>
+              <h2>{t.privacyTitle}</h2>
+              <p>{t.privacyText}</p>
+            </div>
+            <div className="principle-grid">
+              {t.principleTitles.map((title, index) => (
+                <article key={title}>
+                  <span>0{index + 1}</span>
+                  <h3>{title}</h3>
+                  <p>{t.principleBodies[index]}</p>
+                </article>
+              ))}
+            </div>
+            <a id="public-teams" className="crisis-link" href={municipalityAppUrl}>
+              <span>{t.sectionPublicTeams}</span>
+              {t.crisis}
+              <b>↗</b>
+            </a>
+          </section>
+        </div>
       </div>
-      <div className="roadmap-preview" aria-label={t.previewAriaLabel}>
-        <div className="preview-top"><span>{t.previewTitle}</span><span className="safe-chip">{t.previewSafety}</span></div>
-        <div className="timeline-line" />
-        {t.previewSteps.map((preview, i) => <div className="preview-step" key={preview.time}><span className={`time-dot dot-${i}`} /><div><small>{preview.time}</small><strong>{preview.title}</strong><p>{preview.detail}</p></div><span className="step-number">0{i + 1}</span></div>)}
-        <div className="preview-note"><span>i</span><details><summary>{t.sectionOfficialSupport}</summary><p>{t.notDecision}</p></details></div>
-      </div>
-    </section>
-    <section className="principles">
-      <div className="section-heading"><span>{t.sectionHowItHelps}</span><h2>{t.privacyTitle}</h2><p>{t.privacyText}</p></div>
-      <div className="principle-grid">
-        {t.principleTitles.map((title, index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{t.principleBodies[index]}</p></article>)}
-      </div>
-      <a className="crisis-link" href={municipalityAppUrl}><span>{t.sectionPublicTeams}</span>{t.crisis}<b>↗</b></a>
-    </section>
-  </>;
+    </div>
+  );
 }
 
 function SituationCheck({ locale, t, step, setStep, situation, setSituation, stayAnswer, setStayAnswer, familyAnswers, setFamilyAnswers, otherAnswers, setOtherAnswers, invalidateAiRecommendation, answeredSteps, setAnsweredSteps, restart, restartLabel, finish, isPreparing }: {
@@ -1123,8 +1247,6 @@ function HelpPrepare({ locale: _locale, t, go }: { locale: Locale; t: UserCopy; 
   return <section className="content-page"><div className="page-heading"><span className="section-label">{t.preparingHelp}</span><h1>{t.prepare}</h1></div><div className="prepare-detail"><ol>{t.prepareItems.map((item) => <li key={item}>{item}</li>)}</ol><div className="page-actions"><button className="secondary-button" onClick={() => go("help")}>← {t.backToHelp}</button><button className="primary-button" onClick={() => go("summary")}>{t.summary} →</button></div></div></section>;
 }
 
-
-
 function ChatPage({ locale, t, situation: _situation, conversationConsent, setConversationConsent, conversationPersistence, setConversationPersistence }: { locale: Locale; t: UserCopy; situation: Situation; conversationConsent: ConversationConsentState; setConversationConsent: (s: ConversationConsentState) => void; conversationPersistence: ConversationPersistenceState; setConversationPersistence: (s: ConversationPersistenceState) => void }) {
   const copy = getPersistenceCopy(locale);
   const [saveError, setSaveError] = useState(false);
@@ -1153,7 +1275,6 @@ function DataSettings({ locale, situationPersistence, hasPendingSituationSubmiss
   const copy = getPersistenceCopy(locale);
   return <section className="content-page"><div className="page-heading"><span className="section-label">{copy.situationTitle}</span><h1>{getUserMessages(locale).ui.settingsTitle}</h1><p>{getUserMessages(locale).ui.settingsIntro}</p></div><div className="settings-grid"><section className="consent-card"><h2>データ保存設定</h2><div className="settings-section"><h3>Situation Check の回答を保存</h3><SituationPersistenceConsent locale={locale} state={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemo} persist={persist} decline={declinePersistence} deleteRecord={deletePersistence} discardCorruptLocalData={discardCorruptLocalData} discardCorruptPending={discardCorruptPending} /></div><div className="settings-section"><h2>{copy.conversationTitle}</h2><p>{copy.conversationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.conversationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li></ul></details><p className="consent-warning">{copy.warning}</p><div className="consent-actions"><button className="primary-button" aria-pressed={conversationConsent === "accepted"} onClick={() => setConversationConsent("accepted")}>{copy.conversationAccept}</button><button className="secondary-button" aria-pressed={conversationConsent === "declined"} onClick={() => setConversationConsent("declined")}>{copy.decline}</button></div>{conversationConsent !== "idle" && <output className="consent-status">{conversationConsent === "accepted" ? copy.conversationAccepted : copy.declined}</output>}{conversationPersistence.status === "saved" && <div className="saved-credentials"><h3>{copy.credentialsTitle}</h3><dl><div><dt>{copy.recordId}</dt><dd><code>{conversationPersistence.credentials.id}</code></dd></div><div><dt>{copy.deletionToken}</dt><dd><code>{conversationPersistence.credentials.deletionToken}</code></dd></div></dl><button className="secondary-button" onClick={async () => { try { await deleteConversationSubmission(conversationPersistence.credentials); sessionStorage.removeItem(SAVED_CONVERSATION_CREDENTIALS_KEY); setConversationPersistence({ status: "deleted" }); } catch { setConversationPersistence({ status: "error" }); }}}>会話記録を削除</button></div>}{conversationPersistence.status === "error" && <p className="consent-status error">保存に失敗しました</p>}</div></section></div><div className="page-actions"><button className="secondary-button" onClick={() => go("roadmap")}>← {getUserMessages(locale).ui.backToRoadmap}</button></div></section>;
 }
-
 
 function SupportCard({ locale, source, index, label, details }: { locale: Locale; source: DataSource; index: number; label: string; details: string }) {
   const answer = getLocalizedSupportText(source.id, "answersInText", locale);
