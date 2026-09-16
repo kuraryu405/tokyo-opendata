@@ -79,8 +79,8 @@ const postalCodePattern = /〒?\s*\d{3}[-ー−]\d{4}/gu;
 const japaneseAddressPattern = /(?:東京都|道府県|都|道|府|県|市|区|町|村)[^\n,，。]{0,32}(?:丁目|番地?|号)(?:[-ー−]?\d+){0,3}/gu;
 const japaneseBlockAddressPattern = /(?:東京都|北海道|(?:京都|大阪)府|.{2,3}県|.{1,8}[市区町村])[^\n,，。]{0,40}\d{1,4}(?:[-ー−]\d{1,4}){1,3}/gu;
 const englishAddressPattern = /\b\d{1,5}\s+[\p{L}\d.'-]+(?:\s+[\p{L}\d.'-]+){0,4}\s+(?:street|st\.?|avenue|ave\.?|road|rd\.?|lane|ln\.?|drive|dr\.?|boulevard|blvd\.?|parkway|pkwy\.?|highway|hwy\.?|court|ct\.?|place|pl\.?|terrace|ter\.?)\b/giu;
-const passportLabelPattern = /(?:passport|旅券|パスポート)\s*(?:number|no\.?|番号|#|：|:)?\s*(?:[A-Z0-9][\s-]*){6,16}/iu;
-const residenceLabelPattern = /(?:residence\s*card|在留カード)\s*(?:number|no\.?|番号|#|：|:)?\s*(?:[A-Z0-9][\s-]*){8,18}/iu;
+const passportLabelPattern = /(?:passport|旅券|パスポート)\s*(?:number|no\.?|番号|#|：|:)?\s*(?=(?:[A-Z0-9][\s-]*){0,15}\d)(?:[A-Z0-9][\s-]*){6,16}/iu;
+const residenceLabelPattern = /(?:residence\s*card|在留カード)\s*(?:number|no\.?|番号|#|：|:)?\s*(?=(?:[A-Z0-9][\s-]*){0,17}\d)(?:[A-Z0-9][\s-]*){8,18}/iu;
 const residenceCardLikePattern = /\b[A-Z]{2}(?:[\s-]*\d){8}[\s-]*[A-Z]{2}\b/iu;
 const passportLikePattern = /\b[A-Z]{1,2}(?:[\s-]*\d){7,8}\b/iu;
 
@@ -333,8 +333,9 @@ function parseSituationSubmission(value: unknown): ParseResult<ParsedSituationSu
   if (!isSetValue(answers.accommodation, accommodations)) return { ok: false };
   if (!isSetValue(answers.japaneseLevel, japaneseLevels)) return { ok: false };
   const familyAgeGroups = parseSetArray(answers.familyAgeGroups, ageGroups, 6);
-  const selectedNeeds = parseSetArray(answers.needs, needs, 10);
+  const selectedNeeds = parseSetArray(answers.needs, needs, needs.size - 1);
   if (!familyAgeGroups || !selectedNeeds) return { ok: false };
+  if (selectedNeeds.includes("none") && selectedNeeds.length !== 1) return { ok: false };
 
   return {
     ok: true,
@@ -783,10 +784,12 @@ function parseDeletionRoute(pathname: string): { kind: "situation" | "conversati
 }
 
 export function containsRejectedIdentifier(value: string): boolean {
-  return passportLabelPattern.test(value)
-    || residenceLabelPattern.test(value)
-    || residenceCardLikePattern.test(value)
-    || passportLikePattern.test(value);
+  // Inspect exactly the normalization that masking forwards to the model.
+  const normalized = value.normalize("NFKC");
+  return passportLabelPattern.test(normalized)
+    || residenceLabelPattern.test(normalized)
+    || residenceCardLikePattern.test(normalized)
+    || passportLikePattern.test(normalized);
 }
 
 function hasConsent(value: unknown, expectedVersion: string): boolean {

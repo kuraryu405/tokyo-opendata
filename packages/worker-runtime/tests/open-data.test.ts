@@ -444,6 +444,25 @@ test("falls back when D1 is absent, partial, or unavailable", async () => {
   }
 });
 
+test("checks current school addresses when publishing D1 rows and recovers after a verified sync", async () => {
+  const database = new StateDatabase();
+  await syncKitaFacilityOpenData(env(database), { ...fetchOptions(), runId: "address-base" });
+  const school = database.resources.get(database.pointer!)![0]!;
+  school.address = "東京都北区豊島3-10-23";
+  const equivalent = await createOpenDataResourcesResponse(env(database));
+  assert.equal((await equivalent.json() as { data: { origin: string } }).data.origin, "d1");
+
+  school.address = "東京都北区豊島1-1-1";
+  const response = await createOpenDataResourcesResponse(env(database));
+  const body = await response.json() as { data: { origin: string; resources: LocalResource[] } };
+  assert.equal(body.data.origin, "bundled");
+  assert.equal(body.data.resources.some((resource) => resource.id === school.resource_id), false);
+
+  await syncKitaFacilityOpenData(env(database), { ...fetchOptions(), runId: "address-repair" });
+  const repaired = await createOpenDataResourcesResponse(env(database));
+  assert.equal((await repaired.json() as { data: { origin: string } }).data.origin, "d1");
+});
+
 test("protects manual sync with a secret and rejects request bodies", async () => {
   let touched = false;
   const database = { prepare() { touched = true; throw new Error("unexpected"); } } as unknown as D1Database;

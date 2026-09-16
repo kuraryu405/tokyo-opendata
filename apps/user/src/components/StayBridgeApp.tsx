@@ -333,7 +333,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     const ruleActions = generateActions(situation, { asOfDate: assessmentDate, publicationDate: publicationToday, stayAnswer });
     const currentOtherPurpose = situation.visitPurpose === "other" ? otherAnswers.visitPurpose.trim() : "";
     const recommendedActionIds = aiRecommendation?.input === currentOtherPurpose ? aiRecommendation.actionIds : [];
-    return mergeAiRecommendedActions(ruleActions, recommendedActionIds, assessmentDate).filter((action) => {
+    return mergeAiRecommendedActions(ruleActions, recommendedActionIds, publicationToday).filter((action) => {
       if (action.sourceIds.length === 0 || !action.sourceIds.every((sourceId) => Boolean(sourceRegistry[sourceId]))) {
         return false;
       }
@@ -476,6 +476,8 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituation(createInitialSituation());
     setStayAnswer("unknown");
     setFamilyAnswers([]);
+    setOtherAnswers(createInitialOtherAnswers());
+    setAiRecommendation(null);
     setAnsweredSteps([]);
     setCopyState("idle");
     setIsDemoSituation(false);
@@ -549,11 +551,14 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
     setSituation(createInitialSituation());
     setStayAnswer("unknown");
     setFamilyAnswers([]);
+    setOtherAnswers(createInitialOtherAnswers());
+    setAiRecommendation(null);
     setAnsweredSteps([]);
     setCopyState("idle");
     setSituationPersistence({ status: "idle" });
     setConversationConsent("idle");
     setIsDemoSituation(false);
+    setHasUnreadableSession(false);
     pendingSituationSubmission.current = null;
     setHasPendingSituationSubmission(false);
     router.replace(buildStayBridgePath({ locale, screen: "landing" }));

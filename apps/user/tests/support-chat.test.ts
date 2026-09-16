@@ -174,7 +174,7 @@ describe("support chat worker endpoint", () => {
 
   it("rejects passport-number-like input before inference without echoing it", async () => {
     const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "回答" });
-    for (const content of ["パスポート番号 TR1234567 を控えています", "TR1234567"]) {
+    for (const content of ["パスポート番号 TR1234567 を控えています", "TR1234567", "ＴＲ１２３４５６７", "ＡＢ１２３４５６７８ＣＤ"]) {
       const response = await handleSupportChatRequest(
         chatRequest({ locale: "ja", messages: [{ role: "user", content }] }),
         { ai: { run }, rateLimiter: availableRateLimiter() },
@@ -185,6 +185,18 @@ describe("support chat worker endpoint", () => {
     }
     expect(run).not.toHaveBeenCalled();
   });
+
+  it.each(["How can I renew my passport before going home?", "Where can I ask about my residence card renewal?"])(
+    "accepts ordinary document questions without an identifier: %s", async (content) => {
+      const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "Ask an official support desk." });
+      const response = await handleSupportChatRequest(
+        chatRequest({ locale: "en", messages: [{ role: "user", content }] }),
+        { ai: { run }, rateLimiter: availableRateLimiter() },
+      );
+      expect(response.status).toBe(200);
+      expect(run).toHaveBeenCalledOnce();
+    },
+  );
 
   it("rejects residence-card-like and assistant-history identifiers before inference", async () => {
     const run = vi.fn<SupportChatAi["run"]>().mockResolvedValue({ response: "回答" });

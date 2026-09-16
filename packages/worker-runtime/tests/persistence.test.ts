@@ -298,6 +298,27 @@ test("requires explicit versioned consent and strict situation fields", async ()
   assert.equal(database.statements.some((statement) => statement.query.includes("INSERT INTO situation_submissions (")), false);
 });
 
+test("accepts all eleven needs and an exclusive no-current-need answer", async () => {
+  for (const selectedNeeds of [
+    ["stay", "consultation", "accommodation", "living_cost", "employment", "education", "childcare", "medical", "language", "daily_life", "other"],
+    ["none"],
+  ]) {
+    const body = situationBody();
+    body.answers.needs = selectedNeeds;
+    const response = await submitWithNewCapability(new FakeDatabase(), body);
+    assert.equal(response?.status, 201);
+  }
+});
+
+test("rejects contradictory no-current-need answers before persisting them", async () => {
+  const database = new FakeDatabase();
+  const body = situationBody();
+  body.answers.needs = ["none", "medical"];
+  const response = await submitWithNewCapability(database, body);
+  assert.equal(response?.status, 400);
+  assert.equal(database.situations.size, 0);
+});
+
 test("persists only allowlisted situation values with hashed tokens and idempotent duplicates", async () => {
   const database = new FakeDatabase();
   const environment = env(database);

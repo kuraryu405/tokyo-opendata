@@ -82,6 +82,25 @@ afterEach(() => {
 });
 
 describe("Tokyo date rollover for catalog publication", () => {
+  it("does not restore expired rule cards through a saved AI recommendation", async () => {
+    sessionStorage.setItem("staybridge.session", serializeStoredSession({
+      provenance: "user",
+      situation: { ...demoSituation, visitPurpose: "other" },
+      stayAnswer: "unknown",
+      familyAnswers: ["children"],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+      otherAnswers: { area: "", nationality: "", visitPurpose: "conference", family: "", accommodation: "", needs: "" },
+      aiRecommendation: { input: "conference", actionIds: ["FIND_LANGUAGE_SUPPORT"] },
+    }));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2027-02-23T14:30:00Z"));
+    render(<StayBridgeApp assessmentDate="2027-02-23" />);
+    expect(screen.getByRole("heading", { name: "通訳・やさしい日本語の支援を確認する" })).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(90 * 60 * 1000); });
+    expect(screen.queryByRole("heading", { name: "通訳・やさしい日本語の支援を確認する" })).toBeNull();
+    expect(screen.getByText("現在表示できる確認済みカードがありません。公式相談先で状況を確認してください。")).toBeTruthy();
+  });
+
   it("hides cards whose review window expires after Tokyo midnight on an open tab", async () => {
     // 2027-02-23 is the standard review-after date; the tab opens one hour before Tokyo midnight.
     vi.useFakeTimers();

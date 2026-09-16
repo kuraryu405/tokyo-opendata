@@ -75,6 +75,7 @@ const needs = new Set<NeedCategory>([
   "language",
   "daily_life",
   "other",
+  "none",
 ]);
 const japaneseLevels = new Set<JapaneseLevel>(["none", "beginner", "daily", "advanced"]);
 const ageGroups = new Set<ChildAgeGroup>(["0-2", "3-5", "6-11", "12-14", "15-17", "18+"]);
@@ -337,8 +338,9 @@ function parsePendingSituationSubmissionValue(value: unknown): PendingSituationS
   if (!isAllowedValue(answers.accommodation, accommodations)) return null;
   if (!isAllowedValue(answers.japaneseLevel, japaneseLevels)) return null;
   const familyAgeGroups = parseAllowedArray(answers.familyAgeGroups, ageGroups, 6);
-  const selectedNeeds = parseAllowedArray(answers.needs, needs, 10);
+  const selectedNeeds = parseAllowedArray(answers.needs, needs, needs.size - 1);
   if (!familyAgeGroups || !selectedNeeds) return null;
+  if (selectedNeeds.includes("none") && selectedNeeds.length !== 1) return null;
 
   return {
     version: PENDING_SITUATION_SUBMISSION_VERSION,

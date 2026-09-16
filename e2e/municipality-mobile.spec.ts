@@ -73,14 +73,22 @@ test("Preparedness controls are keyboard reachable and refresh the selected view
 
 test("Preparedness loading and error states keep the controls usable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: mobileHeight });
+  let releaseNeeds = () => {};
+  const needsGate = new Promise<void>((resolve) => { releaseNeeds = resolve; });
   await page.route("**/api/crisis/needs?**", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await needsGate;
     await fulfillNeeds(route);
   });
   await page.goto("/");
 
-  await expect(page.locator(".crisis-needs-loading")).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "対象期間" })).toBeEnabled();
+  const availableResponse = page.waitForResponse((response) => response.url().includes("/api/crisis/needs?") && response.ok());
+  try {
+    await expect(page.locator(".crisis-needs-loading")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "対象期間" })).toBeEnabled();
+  } finally {
+    releaseNeeds();
+  }
+  await availableResponse;
   await expect(page.getByTestId("crisis-needs-available")).toBeVisible();
 
   await page.unroute("**/api/crisis/needs?**");
@@ -89,7 +97,10 @@ test("Preparedness loading and error states keep the controls usable", async ({ 
     contentType: "application/json",
     body: JSON.stringify({ ok: false })
   }));
-  await page.reload();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/api/crisis/needs?") && response.status() === 503),
+    page.reload()
+  ]);
 
   await expect(page.getByTestId("crisis-needs-error")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "対象期間" })).toBeEnabled();

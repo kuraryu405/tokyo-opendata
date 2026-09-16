@@ -383,10 +383,14 @@ function normalizeAnsweredSteps(
   if (situation.visitPurpose === "other" && !otherAnswers.visitPurpose.trim()) incomplete.add(2);
   if (!(assessmentOptionCodes.departureWindow as readonly string[]).includes(situation.originalDepartureWindow)) incomplete.add(3);
   if (!(assessmentOptionCodes.stayAnswer as readonly string[]).includes(selectedStayAnswer)) incomplete.add(5);
+  if (selectedFamilyAnswers.length === 0
+    || (selectedFamilyAnswers.includes("children") && situation.familyMembers.children.length === 0)) incomplete.add(6);
   if (selectedFamilyAnswers.includes("other") && !otherAnswers.family.trim()) incomplete.add(6);
   if (!(assessmentOptionCodes.accommodation as readonly string[]).includes(situation.accommodation)) incomplete.add(7);
   if (situation.accommodation === "other" && !otherAnswers.accommodation.trim()) incomplete.add(7);
-  if (situation.needs.some((need) => !(assessmentOptionCodes.needs as readonly string[]).includes(need))) incomplete.add(8);
+  if (situation.needs.length === 0
+    || (situation.needs.includes("none") && situation.needs.length !== 1)
+    || situation.needs.some((need) => !(assessmentOptionCodes.needs as readonly string[]).includes(need))) incomplete.add(8);
   if (situation.needs.includes("other") && !otherAnswers.needs.trim()) incomplete.add(8);
   return incomplete.size ? answeredSteps.filter((step) => !incomplete.has(step)) : answeredSteps;
 }

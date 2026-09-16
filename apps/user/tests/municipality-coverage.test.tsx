@@ -99,7 +99,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       provenance: "user",
       situation: situationFor(municipality, ["medical"], []),
       stayAnswer: "known",
-      familyAnswers: [],
+      familyAnswers: ["none"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
       otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
@@ -119,7 +119,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
   ])("gates school and child-support cards by coverage for %s", (municipality, expected) => {
     sessionStorage.setItem("staybridge.session", serializeStoredSession({
       provenance: "user",
-      situation: { ...situationFor(municipality, [], [{ ageGroup: "6-11" }]), returnStatus: "difficult" },
+      situation: { ...situationFor(municipality, ["none"], [{ ageGroup: "6-11" }]), returnStatus: "difficult" },
       stayAnswer: "unknown",
       familyAnswers: ["children"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
@@ -139,7 +139,7 @@ describe("Municipality resource coverage gating for local-action cards", () => {
       provenance: "user",
       situation: situationFor("Shinjuku", ["living_cost", "medical"], []),
       stayAnswer: "known",
-      familyAnswers: [],
+      familyAnswers: ["none"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
       otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));
