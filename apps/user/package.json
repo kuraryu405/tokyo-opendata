@@ -19,9 +19,9 @@
     "@staybridge/i18n": "workspace:*",
     "@staybridge/ui": "workspace:*",
     "@staybridge/worker-runtime": "workspace:*",
-    "next": "^16.3.1",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "next": "^16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.53.1",
@@ -31,8 +31,8 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.5",
     "@types/node": "26.3.0",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.80.0",
     "react-server-dom-webpack": "19.2.8",
