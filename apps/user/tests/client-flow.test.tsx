@@ -520,6 +520,21 @@ describe("StayBridge client flow", () => {
     expect(screen.getByRole("button", { name: "同意して保存" })).toBeTruthy();
   });
 
+  it("clears free text and AI recommendations when corrupt saved credentials are discarded", async () => {
+    restoreQ3OtherSession(["CHECK_LIVING_COST_SUPPORT"]);
+    sessionStorage.setItem("staybridge.saved-situation-credentials", "{broken");
+    navigation.reset("/ja/status");
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+    await user.click(await screen.findByRole("button", { name: "サーバー記録を残して端末データだけ破棄" }));
+    await user.click(screen.getAllByRole("button", { name: getUserMessages("ja").ui.start })[0]);
+    const area = screen.getByRole("combobox");
+    await user.type(area, "北区");
+    const restored = JSON.parse(sessionStorage.getItem("staybridge.session") ?? "null");
+    expect(restored.otherAnswers).toEqual({ area: "", nationality: "", visitPurpose: "", family: "", accommodation: "", needs: "" });
+    expect(restored.aiRecommendation).toBeNull();
+  });
+
   it("opens answer review while retaining a retryable pending save", async () => {
     restoreCompleteUserSession();
     const storedPending = JSON.stringify(createPendingSituationSubmission(demoSituation));
@@ -1355,7 +1370,7 @@ describe("StayBridge client flow", () => {
         accommodation: "rental",
         japaneseLevel: "advanced",
         familyMembers: { children: [] },
-        needs: [],
+        needs: ["none"],
       },
       stayAnswer: "unknown",
       familyAnswers: ["none"],
@@ -1694,10 +1709,10 @@ describe("StayBridge client flow", () => {
         knownStayDeadline: undefined,
         japaneseLevel: "advanced",
         familyMembers: { children: [] },
-        needs: [],
+        needs: ["none"],
       },
       stayAnswer: "known",
-      familyAnswers: [],
+      familyAnswers: ["none"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
     }));
     render(<StayBridgeApp assessmentDate="2026-08-23" />);

@@ -3,6 +3,7 @@ import {
   KITA_FACILITY_EXPECTED_RESOURCE_COUNT,
   KITA_FACILITY_SOURCES,
   KITA_STANDARD_SELECTIONS,
+  canonicalizeAddress,
   kitaLocalResourcesCache,
   schoolSelection,
   sourceRegistry,
@@ -388,6 +389,7 @@ async function readD1Resources(db: D1Database): Promise<OpenDataResourceResponse
     const expected = EXPECTED_RESOURCES.get(row.resource_id);
     if (!expected || row.name !== expected.name || row.category !== expected.category || row.source_id !== expected.sourceId ||
       row.municipality !== "Kita" || !row.address.startsWith("東京都北区") ||
+      (expected.expectedAddress !== undefined && canonicalizeAddress(row.address) !== canonicalizeAddress(expected.expectedAddress)) ||
       !Number.isFinite(row.latitude) || row.latitude < 35.70 || row.latitude > 35.85 ||
       !Number.isFinite(row.longitude) || row.longitude < 139.65 || row.longitude > 139.85 ||
       !/^\d{4}-\d{2}-\d{2}$/.test(row.data_updated_at) ||

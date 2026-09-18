@@ -10,6 +10,24 @@ import {
 import { summarizeNeeds, summarizeSituation } from "../src/components/StayBridgeApp";
 
 describe("StayBridge session data", () => {
+  it.each([
+    { familyAnswers: [], children: [], needs: ["medical"], incomplete: 6 },
+    { familyAnswers: ["children"], children: [], needs: ["medical"], incomplete: 6 },
+    { familyAnswers: ["none"], children: [], needs: [], incomplete: 8 },
+    { familyAnswers: ["none"], children: [], needs: ["none", "medical"], incomplete: 8 },
+  ] as const)("revalidates restored answer markers: %#", ({ familyAnswers, children, needs, incomplete }) => {
+    const session = parseStoredSession(serializeStoredSession({
+      provenance: "user",
+      situation: { ...demoSituation, familyMembers: { children: [...children] }, needs: [...needs] },
+      stayAnswer: "unknown",
+      familyAnswers: [...familyAnswers],
+      answeredSteps: Array.from({ length: 10 }, (_, index) => index),
+    }));
+    expect(session).not.toBeNull();
+    expect(session?.answeredSteps).not.toContain(incomplete);
+    expect(isAssessmentComplete(session?.answeredSteps ?? [])).toBe(false);
+  });
+
   it("rejects malformed and partial persisted data", () => {
     expect(parseStoredSession("not-json")).toBeNull();
     expect(parseStoredSession(JSON.stringify({ needs: ["medical"] }))).toBeNull();

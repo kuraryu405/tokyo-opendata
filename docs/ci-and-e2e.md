@@ -88,9 +88,12 @@ artifact. Both staging `/healthz` endpoints must report the target service and
 commit SHA and both `/readyz` endpoints must confirm the D1 Binding before
 external Playwright starts. No production promotion job can start unless that
 cross-app acceptance job succeeds. Production performs the same bounded liveness
-and readiness checks. If production liveness or readiness fails, the workflow rolls back to
+and readiness checks. If production upload, traffic activation, trigger deployment,
+liveness, or readiness fails, the workflow attempts to roll back to
 the version that was active before release when one exists, verifies that
-version is active, verifies its liveness/readiness again, and fails. Automatic
+version is active, verifies its liveness/readiness again, and fails. This also
+covers deployment errors after traffic has already switched, when the new
+version's smoke step is skipped. Automatic
 promotion refuses to start when a production Worker has no prior rollback
 version. The first production deployment is therefore an explicit operator
 bootstrap performed only after staging acceptance has been reviewed; this

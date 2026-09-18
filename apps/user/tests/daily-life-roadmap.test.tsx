@@ -89,7 +89,7 @@ describe("Daily-life roadmap coverage", () => {
         needs: ["daily_life"],
       },
       stayAnswer: "known",
-      familyAnswers: [],
+      familyAnswers: ["none"],
       answeredSteps: Array.from({ length: 10 }, (_, index) => index),
       otherAnswers: { area: "", nationality: "", visitPurpose: "テスト用の訪問目的", family: "", accommodation: "", needs: "" },
     }));

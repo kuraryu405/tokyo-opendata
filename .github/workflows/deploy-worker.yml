@@ -398,6 +398,8 @@ jobs:
           echo "version_id=$previous" >> "$GITHUB_OUTPUT"
           echo "revision=$previous_revision" >> "$GITHUB_OUTPUT"
       - name: Upload and deploy the production Worker Version
+        id: production_deploy
+        continue-on-error: true
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -419,10 +421,11 @@ jobs:
           pnpm dlx wrangler@${WRANGLER_VERSION} triggers deploy --config "$config" --name "$WORKER_NAME"
       - name: Smoke test production
         id: production_smoke
+        if: ${{ steps.production_deploy.outcome == 'success' }}
         continue-on-error: true
         run: node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" "$REVISION"
-      - name: Roll back a failed production health check
-        if: ${{ always() && steps.production_smoke.outcome == 'failure' && steps.previous.outputs.version_id != '' }}
+      - name: Roll back a failed production deployment or health check
+        if: ${{ always() && (steps.production_deploy.outcome == 'failure' || steps.production_smoke.outcome == 'failure') && steps.previous.outputs.version_id != '' }}
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -434,7 +437,7 @@ jobs:
           config="$PWD/release-artifact/dist-package/dist/server/wrangler.json"
           pnpm dlx wrangler@${WRANGLER_VERSION} rollback "$PREVIOUS_VERSION" \
             --config "$config" --name "$WORKER_NAME" \
-            --message "Automatic rollback after failed health check for ${REVISION}" --yes
+            --message "Automatic rollback after failed deployment or health check for ${REVISION}" --yes
           pnpm dlx wrangler@${WRANGLER_VERSION} deployments status \
             --config "$config" --name "$WORKER_NAME" --json > rollback-deployment.json
           node scripts/cd/wrangler-state.mjs assert-active rollback-deployment.json "$PREVIOUS_VERSION"
@@ -443,8 +446,8 @@ jobs:
           else
             node scripts/cd/smoke-health.mjs "$SITE_URL" "$SERVICE" --any-revision
           fi
-      - name: Fail after production smoke and rollback handling
-        if: ${{ always() && steps.production_smoke.outcome == 'failure' }}
+      - name: Fail after production deployment, smoke and rollback handling
+        if: ${{ always() && (steps.production_deploy.outcome == 'failure' || steps.production_smoke.outcome == 'failure') }}
         run: |
-          echo "Production health failed. Automatic rollback to the previous version ran before this failure; confirm the active Worker version before retrying." >&2
+          echo "Production deployment or health failed. Automatic rollback to the previous version was attempted; confirm the active Worker version before retrying." >&2
           exit 1
