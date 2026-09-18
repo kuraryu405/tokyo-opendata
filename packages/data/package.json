@@ -21,11 +21,11 @@
     "fflate": "0.7.4"
   },
   "devDependencies": {
-    "@types/node": "26.3.0",
-    "oxlint": "^1.80.0",
-    "tsx": "^4.23.12",
+    "@types/node": "26.5.1",
+    "oxlint": "^1.83.0",
+    "tsx": "^4.23.13",
     "typescript": "7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "type": "module"
 }
