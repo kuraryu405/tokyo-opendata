@@ -53,6 +53,17 @@ test("built municipality Worker owns the verified facility API and manual sync r
   assert.equal(sync.headers.get("allow"), "POST");
 });
 
+test("built municipality Worker excludes user-only AI and persistence routes", async () => {
+  for (const pathname of [
+    "/api/support-chat",
+    "/api/recommend-actions",
+    "/api/situation-submissions",
+  ]) {
+    const response = await render(pathname, "http://localhost", undefined, false);
+    assert.equal(response.status, 404, pathname);
+  }
+});
+
 test("server-renders the Japanese support-preparation view at the municipality root", async () => {
   const response = await render();
   assert.equal(response.status, 200);
