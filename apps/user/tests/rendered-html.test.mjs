@@ -63,6 +63,13 @@ test("built user Worker serves the verified Open Data fallback without owning sy
   assert.equal(syncResponse.status, 404);
 });
 
+test("built user Worker excludes the municipality-only Crisis route", async () => {
+  const response = await callBuiltWorker(new Request(
+    "http://localhost/api/crisis/needs?municipality=13117&period=30d&view=needs",
+  ));
+  assert.equal(response.status, 404);
+});
+
 test("redirects the root URL to the slashless Japanese landing route in one step", async () => {
   const response = await render("/");
   assert.ok(response.status >= 300 && response.status < 400);
