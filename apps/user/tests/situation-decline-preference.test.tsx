@@ -114,8 +114,13 @@ describe("Situation persistence decline preference", () => {
     expect(sessionStorage.getItem("staybridge.situation-persistence-preference")).toBeNull();
   });
 
-  it("lets a failed save followed by decline still protect the pending retry across reloads", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("network down"));
+  it("keeps an ambiguous save protected across reloads without recording a decline", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        data: { capability: `cap_${"A".repeat(43)}`, expiresAt: "2026-08-24T10:05:00.000Z" },
+      }), { status: 201, headers: { "content-type": "application/json" } }))
+      .mockRejectedValueOnce(new TypeError("response lost after request"));
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     const firstRender = render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -124,9 +129,8 @@ describe("Situation persistence decline preference", () => {
     await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。");
     const pendingBefore = sessionStorage.getItem("staybridge.pending-situation-submission");
     expect(pendingBefore).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
-    expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "このタブだけで続ける" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(sessionStorage.getItem("staybridge.situation-persistence-preference")).toBeNull();
 
     firstRender.unmount();
     render(<StayBridgeApp assessmentDate="2026-08-23" />);
@@ -134,6 +138,6 @@ describe("Situation persistence decline preference", () => {
     expect(JSON.parse(sessionStorage.getItem("staybridge.pending-situation-submission") ?? "{}")).toEqual(
       JSON.parse(pendingBefore ?? "{}"),
     );
-    expect(screen.queryByText("このタブだけで案内を続けます。")).toBeNull();
+    expect((screen.getByRole("button", { name: "このタブだけで続ける" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
