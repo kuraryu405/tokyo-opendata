@@ -20,6 +20,7 @@ export type PersistenceCopy = {
   declined: string;
   saving: string;
   saveFailed: string;
+  pendingRetryRequired: string;
   credentialsTitle: string;
   recordId: string;
   deletionToken: string;
@@ -69,6 +70,7 @@ const copy = {
     declined: "このタブだけで案内を続けます。",
     saving: "保存しています…",
     saveFailed: "保存できませんでした。回答と次の案内は引き続き利用できます。",
+    pendingRetryRequired: "保存がサーバーで完了した可能性があります。削除コードを失わないよう、同じ内容で保存を再試行してください。保存方法の変更や最初からのやり直しは、結果を確認するまでできません。",
     credentialsTitle: "削除に必要な情報",
     recordId: "記録ID",
     deletionToken: "削除コード",
@@ -116,6 +118,7 @@ const copy = {
     declined: "Continue with the guidance in this tab.",
     saving: "Saving…",
     saveFailed: "We could not save. Your answers and next-step guidance still work.",
+    pendingRetryRequired: "The save may have completed on the server. Retry the same save to recover its deletion code. You cannot change the storage choice or start over until the result is known.",
     credentialsTitle: "Information required for deletion",
     recordId: "Record ID",
     deletionToken: "Deletion code",
@@ -163,6 +166,7 @@ const copy = {
     declined: "ဤ tab ထဲတွင် လမ်းညွှန်ချက်ကို ဆက်သုံးပါ။",
     saving: "သိမ်းနေသည်…",
     saveFailed: "မသိမ်းနိုင်ပါ။ အဖြေများနှင့် နောက်အဆင့်လမ်းညွှန်ကို ဆက်သုံးနိုင်ပါသည်။",
+    pendingRetryRequired: "server တွင် သိမ်းပြီးသား ဖြစ်နိုင်ပါသည်။ ဖျက်ရန် code ကို မဆုံးရှုံးစေရန် တူညီသောအချက်အလက်ဖြင့် ထပ်မံသိမ်းကြည့်ပါ။ ရလဒ်သေချာမသိမချင်း သိမ်းဆည်းနည်း ပြောင်းခြင်း သို့မဟုတ် အစမှပြန်စခြင်း မလုပ်နိုင်ပါ။",
     credentialsTitle: "ဖျက်ရန်လိုအပ်သော အချက်အလက်",
     recordId: "Record ID",
     deletionToken: "Deletion code",
