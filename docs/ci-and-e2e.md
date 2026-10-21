@@ -7,6 +7,45 @@ pnpm lockfile. CI runs lint, TypeScript checks, all tests, and explicit builds
 for both `apps/user` and `apps/municipality`. Pull requests never have access to
 the release workflow and never deploy.
 
+## Manual staging Binding check
+
+After deploying the user Worker to staging, run the public Binding contract
+check from a trusted terminal. Set both URLs to **origins only**. The staging
+hostname must be the production hostname with its first label changed from
+`-production` to `-staging` (or with `-staging` appended); the script refuses
+all other hostnames and never follows redirects. It makes no production request.
+
+```bash
+STAYBRIDGE_STAGING_URL=https://staybridge-user-staging.example.workers.dev \
+STAYBRIDGE_PRODUCTION_URL=https://staybridge-user-production.example.workers.dev \
+pnpm check:staging
+```
+
+Replace the example origins with the deployed pair. The command intentionally
+uses Workers AI once for each API and sends synthetic, non-personal questions.
+It checks `/healthz`, D1 schema readiness via `/readyz`, both AI success shapes,
+400 and 413 failure envelopes, and both real Rate Limit bindings' 429 and
+`Retry-After` contract. Invalid payloads consume staging quota without invoking
+the model; wait at least 60 seconds before rerunning from the same location.
+This command is **manual only** because it uses deployed AI and shared staging
+Rate Limit counters. `pnpm test:staging-contract` runs the local guard and
+contract tests without network access or AI charges.
+
+The public check needs no Cloudflare credential. Missing URL configuration
+fails before any request. A missing secret or D1 Binding makes `/readyz` fail
+with the check name and HTTP status; unavailable AI or Rate Limit bindings
+fail at their named checks. Network failures and timeouts report the route,
+without printing tokens, response bodies, user input, or model output. The
+local unit and Worker tests cover injected missing bindings, 503, and model
+timeout without changing a live deployment. D1 database ID, staging versus
+production namespace separation, and source metadata still require the
+credentialed human checks in #75.
+
+Record each manual run in #75 with the Tokyo date, deployed commit SHA, staging
+origin, every `PASS` line or the failing check name, and the operator's
+confirmation that production received no test request. Do not paste request
+or response bodies, model output, secrets, or user data into the record.
+
 ## GitHub Actions supply-chain policy
 
 Every remote `uses:` reference in `.github/workflows` is pinned to a full
