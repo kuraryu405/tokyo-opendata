@@ -153,3 +153,29 @@ test("shows the verified Open Data update date through the real Local Action jou
   await assert.doesNotReject(resourceCard.getByText("データ更新: 2024-10-31", { exact: true }).waitFor());
   await context.close();
 });
+
+test("places AI consultation before roadmap actions in both mobile layout and reading order", async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await openRoute(context, "ja");
+  await page.getByRole("button", { name: /次のステップを見る/ }).click();
+
+  const layout = await page.locator(".roadmap-layout").evaluate((element) => {
+    const chat = element.querySelector(".roadmap-chat");
+    const list = element.querySelector(".roadmap-list");
+    if (!chat || !list) throw new Error("Roadmap sections are missing");
+    return {
+      firstChildIsChat: element.firstElementChild === chat,
+      chatTop: chat.getBoundingClientRect().top,
+      listTop: list.getBoundingClientRect().top,
+      chatWidth: chat.getBoundingClientRect().width,
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    };
+  });
+
+  assert.equal(layout.firstChildIsChat, true);
+  assert.ok(layout.chatTop < layout.listTop);
+  assert.ok(layout.chatWidth > 0);
+  assert.ok(layout.documentWidth <= layout.viewportWidth);
+  await context.close();
+});

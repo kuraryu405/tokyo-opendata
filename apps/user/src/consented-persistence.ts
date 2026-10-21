@@ -212,11 +212,13 @@ export function serializeSavedSituationCredentials(credentials: SavedRecordCrede
 export async function saveSituationSubmission(
   submission: PendingSituationSubmission,
   requestSignal?: AbortSignal,
+  onSubmissionAttempt?: () => void,
 ): Promise<SavedRecordCredentials> {
   return withSubmissionTimeout(async (signal) => {
     // The one-time capability is acquired per attempt and never stored with the
     // versioned pending request. It shares the same deadline as the submission.
     const capability = await issueSituationSubmissionCapability(signal);
+    onSubmissionAttempt?.();
     const response = await fetch("/api/situation-submissions", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -599,8 +599,9 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       setSituationPersistence({ status: "error" });
       return;
     }
+    const createdNewSubmission = pendingSituationSubmission.current === null;
     const submission = pendingSituationSubmission.current ?? createPendingSituationSubmission(situation);
-    if (!pendingSituationSubmission.current) {
+    if (createdNewSubmission) {
       try {
         sessionStorage.setItem(PENDING_SITUATION_SUBMISSION_KEY, JSON.stringify(submission));
       } catch {
@@ -612,9 +613,12 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       setHasPendingSituationSubmission(true);
     }
     const controller = startSituationRequest();
+    let submissionAttempted = false;
     setSituationPersistence({ status: "saving" });
     try {
-      const credentials = await saveSituationSubmission(submission, controller.signal);
+      const credentials = await saveSituationSubmission(submission, controller.signal, () => {
+        submissionAttempted = true;
+      });
       let replacedPending = false;
       try {
         sessionStorage.setItem(SAVED_SITUATION_CREDENTIALS_KEY, serializeSavedSituationCredentials(credentials));
@@ -634,6 +638,18 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
       }
       setSituationPersistence({ status: "saved", credentials });
     } catch {
+      // A newly created request that failed before the submission POST cannot
+      // have produced a server record. A retry of an older pending request may
+      // already have reached the server, so its deletion secret must stay.
+      if (createdNewSubmission && !submissionAttempted) {
+        try {
+          sessionStorage.removeItem(PENDING_SITUATION_SUBMISSION_KEY);
+          pendingSituationSubmission.current = null;
+          setHasPendingSituationSubmission(false);
+        } catch {
+          setStorageError(true);
+        }
+      }
       if (!controller.signal.aborted) setSituationPersistence({ status: "error" });
     } finally {
       if (situationRequestController.current === controller) situationRequestController.current = null;
@@ -699,6 +715,7 @@ export function StayBridgeApp({ route: initialRoute = defaultRoute, assessmentDa
             <SituationCheck locale={locale} t={t} step={step} setStep={setStep} backToTop={() => go("landing")} situation={situation} setSituation={setSituation} stayAnswer={stayAnswer} setStayAnswer={setStayAnswer} familyAnswers={familyAnswers} setFamilyAnswers={setFamilyAnswers} otherAnswers={otherAnswers} setOtherAnswers={setOtherAnswers} invalidateAiRecommendation={() => { cancelPendingRecommendation(); setAiRecommendation(null); }} answeredSteps={answeredSteps} setAnsweredSteps={setAnsweredSteps} restart={restartAssessment} restartLabel={routeUi[locale].restart} finish={() => void complete()} isPreparing={isPreparingRecommendations} />
           )}
           {screen === "status" && <div className="cinematic-route-card" key={`${locale}-${screen}`}><ImmediateStatus locale={locale} t={t} situation={situation} stayAnswer={stayAnswer} familyAnswers={familyAnswers} otherAnswers={otherAnswers} answeredSteps={answeredSteps} persistence={situationPersistence} hasPendingSituationSubmission={hasPendingSituationSubmission} hasCorruptPendingSituationSubmission={hasCorruptPendingSituationSubmission} isDemo={isDemoSituation && !hasPendingSituationSubmission} persist={() => void persistSituation()} declinePersistence={() => {
+            if (hasPendingSituationSubmission) return;
             try {
               sessionStorage.setItem(SITUATION_PERSISTENCE_PREFERENCE_KEY, "declined");
             } catch {
@@ -1291,14 +1308,14 @@ function Roadmap({ locale, t, actions, visitPurpose, conversationConsent, setCon
     const last = all[all.length - 1];
     return [...all, { ...group, offset: last ? last.offset + last.actions.length : 0 }];
   }, []);
-  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><SupportChat locale={locale} /><div className="aside-card"><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
+  return <section className="content-page"><div className="page-heading"><span className="section-label">{t.sectionPersonalRoadmap}</span><h1>{t.roadmapTitle}</h1><p>{t.roadmapIntro}</p></div><div className="roadmap-layout"><div className="roadmap-chat"><SupportChat locale={locale} /></div><div className="roadmap-list">{numberedGroups.length ? numberedGroups.map((group) => <section className="roadmap-group" key={group.timing}><div className="timing-heading"><span className="timing-dot" /><h2>{getUserMessages(locale).timing[group.timing as TimingKey]}</h2></div>{group.actions.map((action, index) => <ActionCard key={action.id} locale={locale} t={t} action={action} number={group.offset + index + 1} visitPurpose={visitPurpose} openAction={openAction} />)}</section>) : <div className="empty-state"><h2>{routeUi[locale].catalogUnavailable}</h2><button className="secondary-button" onClick={() => go("help")}>{routeUi[locale].contactOfficial} →</button></div>}</div><aside className="roadmap-aside"><div className="aside-card"><h3>{t.localTitle}</h3><p>{t.localIntro}</p><button onClick={() => go("local")}>{t.navLocal} →</button></div><div className="aside-card human-card"><h3>{t.helpTitle}</h3><p>{t.helpIntro}</p><button onClick={() => go("help")}>{t.navHelp} →</button></div></aside></div><ConversationPersistenceConsent locale={locale} state={conversationConsent} setState={setConversationConsent} /><aside className="roadmap-restart"><button className="text-button" aria-label={restartLabel} onClick={restart}>↺ {restartLabel}</button></aside></section>;
 }
 
 function SituationPersistenceConsent({ locale, state, hasPendingSituationSubmission, hasCorruptPendingSituationSubmission, isDemo, persist, decline, deleteRecord, discardCorruptLocalData, discardCorruptPending }: { locale: Locale; state: SituationPersistenceState; hasPendingSituationSubmission: boolean; hasCorruptPendingSituationSubmission: boolean; isDemo: boolean; persist: () => void; decline: () => void; deleteRecord: (credentials: SavedRecordCredentials) => void; discardCorruptLocalData: () => void; discardCorruptPending: () => void }) {
   const copy = getPersistenceCopy(locale);
   const busy = state.status === "saving" || state.status === "deleting";
   const requiresManagement = "credentials" in state || state.status === "corrupt" || state.status === "pending-corrupt" || hasPendingSituationSubmission || hasCorruptPendingSituationSubmission;
-  return <section id="situation-persistence" className={`consent-card situation-persistence-consent${requiresManagement ? " is-management" : ""}`} aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : state.status === "corrupt" ? <CorruptSavedCredentials copy={copy} keepsPendingSave={hasPendingSituationSubmission || hasCorruptPendingSituationSubmission} discardLocalData={discardCorruptLocalData} /> : state.status === "pending-corrupt" || hasCorruptPendingSituationSubmission ? <CorruptPendingSection copy={copy} discardPending={discardCorruptPending} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy} onClick={decline}>{copy.decline}</button></div>{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
+  return <section id="situation-persistence" className={`consent-card situation-persistence-consent${requiresManagement ? " is-management" : ""}`} aria-labelledby="situation-consent-title" tabIndex={-1}><h2 id="situation-consent-title">{copy.situationTitle}</h2><p>{copy.situationPurpose}</p><details><summary>{copy.detailsTitle}</summary><ul><li>{copy.situationItems}</li><li>{copy.retention}</li><li>{copy.deletion}</li><li>{copy.safeguards}</li></ul></details><p className="consent-warning">{copy.warning}</p>{state.status === "saved" || state.status === "deleting" || state.status === "delete-error" ? <SavedCredentials copy={copy} state={state} deleteRecord={deleteRecord} /> : state.status === "corrupt" ? <CorruptSavedCredentials copy={copy} keepsPendingSave={hasPendingSituationSubmission || hasCorruptPendingSituationSubmission} discardLocalData={discardCorruptLocalData} /> : state.status === "pending-corrupt" || hasCorruptPendingSituationSubmission ? <CorruptPendingSection copy={copy} discardPending={discardCorruptPending} /> : <><div className="consent-actions"><button className="primary-button" disabled={busy || isDemo} onClick={persist}>{state.status === "saving" ? copy.saving : copy.accept}</button><button className="secondary-button" disabled={busy || hasPendingSituationSubmission} onClick={decline}>{copy.decline}</button></div>{hasPendingSituationSubmission && state.status !== "saving" && <output className="consent-status error" aria-live="polite">{copy.pendingRetryRequired}</output>}{isDemo && <output className="consent-status" aria-live="polite">{copy.demoNotSaved}</output>}<ConsentStatus copy={copy} status={state.status} /></>}</section>;
 }
 
 function CorruptPendingSection({ copy, discardPending }: { copy: PersistenceCopy; discardPending: () => void }) {

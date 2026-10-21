@@ -400,12 +400,31 @@ describe("StayBridge client flow", () => {
     expect(await screen.findByText("保存できませんでした。回答と次の案内は引き続き利用できます。")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/situation-submission-capabilities");
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).toBeNull();
     await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
     expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "このタブだけで続ける" }));
     expect(screen.getByText("このタブだけで案内を続けます。")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "子どもと利用できる地域資源を確認する" })).toBeTruthy();
+  });
+
+  it("keeps an ambiguous save recoverable and prevents a misleading decline", async () => {
+    navigation.reset("/ja/status");
+    restoreCompleteUserSession();
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockRejectedValueOnce(new TypeError("response lost after request"));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StayBridgeApp assessmentDate="2026-08-23" />);
+
+    await user.click(await screen.findByRole("button", { name: "同意して保存" }));
+    expect(await screen.findByText(/保存がサーバーで完了した可能性/)).toBeTruthy();
+    expect(sessionStorage.getItem("staybridge.pending-situation-submission")).not.toBeNull();
+    expect((screen.getByRole("button", { name: "このタブだけで続ける" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: /次のステップを見る/ }));
+    expect(screen.getByRole("heading", { name: "あなたの次のステップ" })).toBeTruthy();
   });
 
   it("deletes a saved Situation record only with its in-memory deletion code", async () => {
