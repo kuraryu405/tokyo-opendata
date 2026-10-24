@@ -1,3 +1,7 @@
 packages:
   - apps/*
   - packages/*
+
+# Keep the image parser patched in both Next.js and the local Worker runtime.
+overrides:
+  "sharp@<0.35.5": "0.35.5"
