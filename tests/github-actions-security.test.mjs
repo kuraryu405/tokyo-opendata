@@ -4,7 +4,6 @@ import test from "node:test";
 import { resolveContributorInputs } from "../scripts/contributor-inputs.mjs";
 
 const workflowsDirectory = new URL("../.github/workflows/", import.meta.url);
-const dependabotFile = new URL("../.github/dependabot.yml", import.meta.url);
 const remoteActionPattern = /^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#\s*(\S.*))?$/;
 const fullCommitPattern = /^[0-9a-f]{40}$/;
 const releaseCommentPattern = /^v\d+(?:\.\d+){1,2}$/;
@@ -72,17 +71,6 @@ test("remote Actions and reusable workflows are pinned to commit SHAs", async ()
     [],
     `remote references must use a 40-character commit SHA and an approved version comment:\n${mutableReferences.join("\n")}`,
   );
-});
-
-test("Dependabot monitors pinned GitHub Actions", async () => {
-  const contents = await readFile(dependabotFile, "utf8");
-  const githubActionsBlock = contents.match(
-    /- package-ecosystem:\s*["']?github-actions["']?[\s\S]*?(?=\n\s*- package-ecosystem:|$)/,
-  )?.[0];
-
-  assert.ok(githubActionsBlock, "dependabot.yml must monitor the github-actions ecosystem");
-  assert.match(githubActionsBlock, /\n\s+directory:\s*["']?\/["']?\s*$/m);
-  assert.match(githubActionsBlock, /\n\s+schedule:\s*\n\s+interval:\s*["']?weekly["']?\s*$/m);
 });
 
 test("workflows keep their least-privilege repository token permissions", async () => {

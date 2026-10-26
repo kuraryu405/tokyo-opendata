@@ -53,11 +53,12 @@ Every remote `uses:` reference in `.github/workflows` is pinned to a full
 comment. The external E2E reusable workflow has no release tags, so its comment
 records the source branch and the shortened pinned SHA instead.
 
-Dependabot checks the `github-actions` ecosystem weekly. For every update pull
-request, verify that the proposed commit belongs to its source repository and
-that its comment identifies the matching release or reusable-workflow revision
-before merging. `pnpm run test:workflows` rejects mutable action references and
-missing version comments.
+Dependency and GitHub Actions updates are proposed manually. Before merging an
+Actions update, verify that the proposed commit belongs to its source repository
+and that its comment identifies the matching release or reusable-workflow
+revision. Run `pnpm run test:workflows`; it rejects mutable action references and
+missing version comments. For package updates, inspect the lockfile changes and
+run the usual CI gates before merging.
 
 The workflow permission and secret boundaries are:
 
